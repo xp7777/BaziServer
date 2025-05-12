@@ -133,8 +133,38 @@ def wechat_notify():
         if order and order['status'] != 'paid':
             OrderModel.update_status(order_id, 'paid')
             
-            # 这里可以启动八字计算和AI分析的异步任务
-            # 为了简化，我们这里不实现异步处理
+            # 启动八字分析任务
+            try:
+                # 查找对应的八字结果记录
+                bazi_result = BaziResultModel.find_by_order_id(order_id)
+                if bazi_result:
+                    # 调用分析API (实际项目中应该使用异步任务)
+                    from routes.bazi_routes import calculate_bazi, generate_ai_analysis
+                    
+                    # 计算八字
+                    bazi_chart = calculate_bazi(
+                        bazi_result['birthTime'].split(' ')[0],
+                        bazi_result['birthTime'].split(' ')[1],
+                        bazi_result['gender']
+                    )
+                    
+                    # 生成AI分析
+                    ai_analysis = generate_ai_analysis(
+                        bazi_chart,
+                        bazi_result['focusAreas'],
+                        bazi_result['gender']
+                    )
+                    
+                    # 更新分析结果
+                    BaziResultModel.update_analysis(
+                        bazi_result['_id'],
+                        bazi_chart,
+                        ai_analysis
+                    )
+            except Exception as e:
+                # 记录错误但不影响支付成功响应
+                import logging
+                logging.error(f"生成八字分析时出错: {str(e)}")
             
             return "<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>"
     
@@ -154,9 +184,114 @@ def alipay_notify():
         if order and order['status'] != 'paid':
             OrderModel.update_status(order_id, 'paid')
             
-            # 这里可以启动八字计算和AI分析的异步任务
-            # 为了简化，我们这里不实现异步处理
+            # 启动八字分析任务
+            try:
+                # 查找对应的八字结果记录
+                bazi_result = BaziResultModel.find_by_order_id(order_id)
+                if bazi_result:
+                    # 调用分析API (实际项目中应该使用异步任务)
+                    from routes.bazi_routes import calculate_bazi, generate_ai_analysis
+                    
+                    # 计算八字
+                    bazi_chart = calculate_bazi(
+                        bazi_result['birthTime'].split(' ')[0],
+                        bazi_result['birthTime'].split(' ')[1],
+                        bazi_result['gender']
+                    )
+                    
+                    # 生成AI分析
+                    ai_analysis = generate_ai_analysis(
+                        bazi_chart,
+                        bazi_result['focusAreas'],
+                        bazi_result['gender']
+                    )
+                    
+                    # 更新分析结果
+                    BaziResultModel.update_analysis(
+                        bazi_result['_id'],
+                        bazi_chart,
+                        ai_analysis
+                    )
+            except Exception as e:
+                # 记录错误但不影响支付成功响应
+                import logging
+                logging.error(f"生成八字分析时出错: {str(e)}")
             
             return "success"
     
-    return "fail" 
+    return "fail"
+
+@order_bp.route('/mock/pay/<order_id>', methods=['POST'])
+@jwt_required()
+def mock_payment(order_id):
+    """
+    模拟支付完成(仅用于开发测试)
+    实际生产环境中应该禁用此接口
+    """
+    user_id = get_jwt_identity()
+    
+    # 查找订单
+    order = OrderModel.find_by_id(order_id)
+    
+    if not order:
+        return jsonify(code=404, message="订单不存在"), 404
+    
+    if order['userId'] != user_id:
+        return jsonify(code=403, message="无权访问此订单"), 403
+    
+    if order['status'] == 'paid':
+        return jsonify(code=400, message="订单已支付"), 400
+    
+    # 更新订单状态
+    OrderModel.update_status(order_id, 'paid')
+    
+    # 启动八字分析任务
+    try:
+        # 查找对应的八字结果记录
+        bazi_result = BaziResultModel.find_by_order_id(order_id)
+        if bazi_result:
+            # 调用分析API (实际项目中应该使用异步任务)
+            from routes.bazi_routes import calculate_bazi, generate_ai_analysis
+            
+            # 计算八字
+            bazi_chart = calculate_bazi(
+                bazi_result['birthTime'].split(' ')[0],
+                bazi_result['birthTime'].split(' ')[1],
+                bazi_result['gender']
+            )
+            
+            # 生成AI分析
+            ai_analysis = generate_ai_analysis(
+                bazi_chart,
+                bazi_result['focusAreas'],
+                bazi_result['gender']
+            )
+            
+            # 更新分析结果
+            BaziResultModel.update_analysis(
+                bazi_result['_id'],
+                bazi_chart,
+                ai_analysis
+            )
+            
+            return jsonify(
+                code=200,
+                message="支付成功",
+                data={
+                    "orderId": order_id,
+                    "resultId": bazi_result['_id']
+                }
+            )
+    except Exception as e:
+        # 记录错误
+        import logging
+        logging.error(f"生成八字分析时出错: {str(e)}")
+        return jsonify(code=500, message=f"分析生成失败: {str(e)}"), 500
+    
+    return jsonify(
+        code=200,
+        message="支付成功",
+        data={
+            "orderId": order_id
+        }
+    ) 

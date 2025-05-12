@@ -5,6 +5,8 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 import logging
+import requests
+import json
 
 # 配置日志
 logging.basicConfig(
@@ -30,6 +32,10 @@ CORS(app)
 mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
 client = MongoClient(mongo_uri)
 db = client.get_database()
+
+# DeepSeek API配置
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 # 根路由
 @app.route('/')
