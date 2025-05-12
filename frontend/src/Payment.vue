@@ -58,11 +58,14 @@
       </van-button>
     </div>
     
-    <van-popup v-model:show="showQRCode" round>
+    <van-popup :show="showQRCode" @update:show="showQRCode = $event" round>
       <div class="qrcode-container">
         <h3>请扫码支付</h3>
         <div class="qrcode">
-          <img :src="qrCodeUrl" alt="支付二维码" />
+          <iframe v-if="qrCodeUrl" :src="qrCodeUrl" frameborder="0" width="200" height="200"></iframe>
+          <div v-else class="qrcode-placeholder">
+            <p>正在加载支付二维码...</p>
+          </div>
         </div>
         <p>支付金额: ¥9.90</p>
         <van-button type="primary" block @click="onPaymentSuccess">
@@ -116,9 +119,11 @@ export default {
     const onPayment = () => {
       // 根据支付方式显示不同的二维码
       if (paymentMethod.value === 'wechat') {
-        qrCodeUrl.value = 'https://example.com/wechat-qrcode.png';
+        // 使用本地HTML文件作为微信支付二维码
+        qrCodeUrl.value = '/images/wechat-qrcode.html';
       } else {
-        qrCodeUrl.value = 'https://example.com/alipay-qrcode.png';
+        // 使用本地HTML文件作为支付宝二维码
+        qrCodeUrl.value = '/images/alipay-qrcode.html';
       }
       
       showQRCode.value = true;
@@ -128,6 +133,9 @@ export default {
         orderId: orderId.value,
         paymentMethod: paymentMethod.value
       });
+
+      // 由于我们只是演示，记录一下二维码URL
+      console.log(`使用${paymentMethod.value}支付，二维码URL:`, qrCodeUrl.value);
     };
     
     const onPaymentSuccess = () => {
@@ -176,6 +184,7 @@ export default {
 .qrcode-container {
   padding: 20px;
   text-align: center;
+  width: 280px;
 }
 
 .qrcode {
@@ -186,10 +195,27 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid #ebedf0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.qrcode iframe {
+  border: none;
+  width: 100%;
+  height: 100%;
 }
 
 .qrcode img {
   max-width: 100%;
   max-height: 100%;
+}
+
+.qrcode-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #969799;
 }
 </style>
