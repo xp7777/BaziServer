@@ -28,43 +28,57 @@
         </van-field>
         
         <van-field
+          v-model="formData.birthDate"
           readonly
           clickable
           name="birthDate"
-          :value="formData.birthDate"
           label="出生日期"
           placeholder="点击选择日期"
           @click="showDatePicker = true"
         />
         <van-popup :show="showDatePicker" @update:show="showDatePicker = $event" position="bottom">
           <van-date-picker
-            :model-value="currentDate"
-            @update:model-value="currentDate = $event"
+            :model-value="[currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate()]"
+            @update:model-value="val => currentDate = new Date(val[0], val[1] - 1, val[2])"
             title="选择出生日期"
             :min-date="new Date(1900, 0, 1)"
             :max-date="new Date()"
+            :columns-type="['year', 'month', 'day']"
+            swipe-duration="300"
+            :item-height="44"
+            visible-item-count="5"
             @confirm="onConfirmDate"
             @cancel="showDatePicker = false"
           />
         </van-popup>
         
         <van-field
+          v-model="formData.birthTime"
           readonly
           clickable
           name="birthTime"
-          :value="formData.birthTime"
           label="出生时辰"
           placeholder="点击选择时辰"
           @click="showTimePicker = true"
         />
-        <van-popup :show="showTimePicker" @update:show="showTimePicker = $event" position="bottom">
-          <van-picker
-            show-toolbar
-            title="选择出生时辰"
-            :columns="timeColumns"
-            @confirm="onConfirmTime"
-            @cancel="showTimePicker = false"
-          />
+        <van-popup :show="showTimePicker" @update:show="showTimePicker = $event" position="bottom" style="max-height: 70vh;">
+          <div class="time-selector">
+            <div class="time-selector-header">
+              <van-button size="small" type="default" @click="showTimePicker = false">取消</van-button>
+              <div class="time-selector-title">选择出生时辰</div>
+              <van-button size="small" type="primary" @click="showTimePicker = false">确定</van-button>
+            </div>
+            <div class="time-selector-content">
+              <van-cell
+                v-for="(time, index) in timeData"
+                :key="index"
+                :title="time.text"
+                clickable
+                @click="selectTime(time.text)"
+                :class="{ 'time-active': formData.birthTime === time.text }"
+              />
+            </div>
+          </div>
         </van-popup>
         
         <van-field name="focusAreas" label="推算侧重点">
@@ -124,19 +138,20 @@ const showDatePicker = ref(false);
 const showTimePicker = ref(false);
 const currentDate = ref(new Date());
 
-const timeColumns = [
-  '子时 (23:00-01:00)',
-  '丑时 (01:00-03:00)',
-  '寅时 (03:00-05:00)',
-  '卯时 (05:00-07:00)',
-  '辰时 (07:00-09:00)',
-  '巳时 (09:00-11:00)',
-  '午时 (11:00-13:00)',
-  '未时 (13:00-15:00)',
-  '申时 (15:00-17:00)',
-  '酉时 (17:00-19:00)',
-  '戌时 (19:00-21:00)',
-  '亥时 (21:00-23:00)'
+// 重新定义时辰数据为正确的格式
+const timeData = [
+  { text: '子时 (23:00-01:00)' },
+  { text: '丑时 (01:00-03:00)' },
+  { text: '寅时 (03:00-05:00)' },
+  { text: '卯时 (05:00-07:00)' },
+  { text: '辰时 (07:00-09:00)' },
+  { text: '巳时 (09:00-11:00)' },
+  { text: '午时 (11:00-13:00)' },
+  { text: '未时 (13:00-15:00)' },
+  { text: '申时 (15:00-17:00)' },
+  { text: '酉时 (17:00-19:00)' },
+  { text: '戌时 (19:00-21:00)' },
+  { text: '亥时 (21:00-23:00)' }
 ];
 
 const formData = reactive({
@@ -147,14 +162,38 @@ const formData = reactive({
   focusAreas: []
 });
 
+const formatDate = (date) => {
+  // 确保月份和日期为两位数
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+};
+
 const onConfirmDate = (value) => {
-  formData.birthDate = `${value.getFullYear()}-${value.getMonth() + 1}-${value.getDate()}`;
+  // 检查value是否为数组，如果不是则使用当前日期
+  if (Array.isArray(value)) {
+    const [year, month, day] = value;
+    // 格式化月份和日期为两位数
+    const formattedMonth = month.toString().padStart(2, '0');
+    const formattedDay = day.toString().padStart(2, '0');
+    formData.birthDate = `${year}-${formattedMonth}-${formattedDay}`;
+  } else if (value && typeof value === 'object' && value.getFullYear) {
+    // 如果是Date对象，使用格式化函数
+    formData.birthDate = formatDate(value);
+  } else {
+    // 如果value不是数组也不是Date，使用currentDate的值
+    formData.birthDate = formatDate(currentDate.value);
+  }
+  
+  // 确保关闭日期选择器并打印调试信息
+  console.log('选择的日期:', formData.birthDate);
   showDatePicker.value = false;
 };
 
-const onConfirmTime = (value) => {
-  formData.birthTime = value;
+const selectTime = (time) => {
+  formData.birthTime = time;
   showTimePicker.value = false;
+  console.log('选择的时辰:', formData.birthTime);
 };
 
 const onSubmit = () => {
@@ -229,5 +268,33 @@ const onSubmit = () => {
   font-size: 14px;
   line-height: 1.6;
   margin-bottom: 20px;
+}
+
+.time-selector {
+  background-color: #fff;
+  width: 100%;
+}
+
+.time-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid #ebedf0;
+}
+
+.time-selector-title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.time-selector-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.time-active {
+  color: #1989fa;
+  font-weight: bold;
 }
 </style>
