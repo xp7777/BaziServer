@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from pymongo import MongoClient
@@ -53,6 +53,12 @@ logging.info(f"MongoDB URI: {mongo_uri}")
 @app.route('/')
 def index():
     return jsonify(message='八字命理AI人生指导系统API服务')
+
+# 提供PDF文件的静态访问
+@app.route('/pdfs/<path:filename>')
+def serve_pdf(filename):
+    pdf_dir = os.path.join(os.getcwd(), 'pdfs')
+    return send_from_directory(pdf_dir, filename, mimetype='application/pdf')
 
 # 在这里导入路由，避免循环导入
 def register_blueprints():

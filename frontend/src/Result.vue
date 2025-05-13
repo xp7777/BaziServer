@@ -450,6 +450,31 @@ const downloadPDF = async () => {
     // 调用后端API生成并下载PDF
     console.log('调用API下载PDF:', `/api/bazi/pdf/${resultId}`);
     
+    // 检测是否在微信环境中
+    const isWeixinBrowser = /MicroMessenger/i.test(navigator.userAgent);
+    console.log('是否在微信环境:', isWeixinBrowser);
+    
+    if (isWeixinBrowser) {
+      // 微信环境使用直接打开链接的方式，返回JSON包含URL
+      const response = await http.get(`/api/bazi/pdf/${resultId}`);
+      
+      if (response.data.code === 200 && response.data.data?.url) {
+        // 在新窗口打开URL
+        window.open(response.data.data.url, '_blank');
+        showToast('PDF生成成功，请点击右上角菜单在浏览器中打开以下载');
+        return;
+      } else if (response.data.code === 302 && response.data.data?.url) {
+        // 处理重定向
+        window.open(response.data.data.url, '_blank');
+        showToast('PDF生成成功，请点击右上角菜单在浏览器中打开以下载');
+        return;
+      } else {
+        showToast(response.data.message || 'PDF已生成，请在浏览器中查看');
+        return;
+      }
+    }
+    
+    // 非微信环境使用Blob下载
     // 由于文件下载需要处理二进制数据，使用特殊配置
     const response = await http.get(`/api/bazi/pdf/${resultId}`, {
       responseType: 'blob', // 设置响应类型为二进制数据
@@ -475,17 +500,30 @@ const downloadPDF = async () => {
         
         // 创建下载链接
         const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `八字命理分析_${resultId}.pdf`;
         
-        // 模拟点击下载
-        document.body.appendChild(link);
-        link.click();
+        // 判断移动设备，可能不支持下载
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        // 清理
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(link);
+        if (isMobile) {
+          // 移动设备上优先打开PDF预览
+          window.open(url, '_blank');
+          showToast('PDF已打开，请使用浏览器的分享/保存功能下载');
+        } else {
+          // 桌面设备上使用标准下载方式
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `八字命理分析_${resultId}.pdf`;
+          
+          // 模拟点击下载
+          document.body.appendChild(link);
+          link.click();
+          
+          // 清理
+          setTimeout(() => {
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(link);
+          }, 100);
+        }
         
         showToast('PDF下载成功！');
         return;

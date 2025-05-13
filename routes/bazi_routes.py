@@ -758,6 +758,10 @@ def get_pdf(result_id):
     # 测试环境：不检查用户身份
     # user_id = get_jwt_identity()
     
+    # 获取User-Agent，检测是否为微信浏览器
+    user_agent = request.headers.get('User-Agent', '')
+    is_weixin = 'MicroMessenger' in user_agent
+    
     # 查找结果
     result = BaziResultModel.find_by_id(result_id)
     
@@ -780,6 +784,19 @@ def get_pdf(result_id):
         pdf_path = os.path.join(os.getcwd(), 'pdfs', f"{result_id}.pdf")
         
         if os.path.exists(pdf_path):
+            # 微信环境中，优先返回JSON格式的URL
+            if is_weixin:
+                # 生成一个临时的可访问URL (在实际部署中，应该使用真实的域名和路径)
+                server_url = request.host_url.rstrip('/')
+                pdf_url = f"{server_url}/pdfs/{result_id}.pdf"
+                
+                return jsonify(
+                    code=200,
+                    message="PDF生成成功",
+                    data={"url": pdf_url}
+                )
+            
+            # 非微信环境，直接发送文件
             return send_file(
                 pdf_path,
                 as_attachment=True,
@@ -787,9 +804,9 @@ def get_pdf(result_id):
                 mimetype='application/pdf'
             )
         
-        # 如果文件不存在，但有URL，重定向到URL
+        # 如果文件不存在，但有URL，返回URL
         return jsonify(
-            code=302,
+            code=200,
             message="重定向到PDF",
             data={"url": result['pdfUrl']}
         )
@@ -838,9 +855,22 @@ def get_pdf(result_id):
     # 更新数据库记录PDF URL
     BaziResultModel.update_pdf_url(result_id, pdf_url)
     
-    # 返回本地PDF文件
+    # 检查PDF文件
     pdf_path = os.path.join(os.getcwd(), 'pdfs', f"{result_id}.pdf")
     if os.path.exists(pdf_path):
+        # 微信环境中，优先返回JSON格式的URL
+        if is_weixin:
+            # 生成一个临时的可访问URL (在实际部署中，应该使用真实的域名和路径)
+            server_url = request.host_url.rstrip('/')
+            pdf_url = f"{server_url}/pdfs/{result_id}.pdf"
+            
+            return jsonify(
+                code=200,
+                message="PDF生成成功",
+                data={"url": pdf_url}
+            )
+        
+        # 非微信环境，直接发送文件
         return send_file(
             pdf_path,
             as_attachment=True,
