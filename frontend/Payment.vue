@@ -58,7 +58,7 @@
       </van-button>
     </div>
     
-    <van-popup v-model:show="showQRCode" round>
+    <van-popup v-model="showQRCode" round>
       <div class="qrcode-container">
         <h3>请扫码支付</h3>
         <div class="qrcode">
@@ -137,8 +137,13 @@ export default {
       // 模拟支付成功后的结果ID
       const resultId = 'RES' + Date.now().toString();
       
-      // 跳转到结果页面
-      router.push(`/result/${resultId}`);
+      // 跳转到结果页面，同时传递订单ID
+      router.push({
+        path: `/result/${resultId}`,
+        query: {
+          orderId: orderId.value
+        }
+      });
     };
     
     return {

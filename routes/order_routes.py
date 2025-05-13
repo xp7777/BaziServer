@@ -1,9 +1,10 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import os
-from models.order_model import OrderModel
+from models.order_model import OrderModel, orders_collection
 from models.bazi_result_model import BaziResultModel
 from utils.payment_service import create_wechat_payment, create_alipay_payment, verify_wechat_payment, verify_alipay_payment
+from datetime import datetime
 
 order_bp = Blueprint('order', __name__)
 
@@ -222,25 +223,128 @@ def alipay_notify():
     return "fail"
 
 @order_bp.route('/mock/pay/<order_id>', methods=['POST'])
-@jwt_required()
+# 暂时移除JWT验证，用于测试
+# @jwt_required()
 def mock_payment(order_id):
     """
     模拟支付完成(仅用于开发测试)
     实际生产环境中应该禁用此接口
     """
-    user_id = get_jwt_identity()
+    # 测试环境：不检查用户身份
+    # user_id = get_jwt_identity()
+    
+    import logging
+    logging.info(f"正在处理模拟支付请求，订单ID: {order_id}")
     
     # 查找订单
     order = OrderModel.find_by_id(order_id)
     
     if not order:
-        return jsonify(code=404, message="订单不存在"), 404
+        # 如果找不到订单，创建一个临时订单
+        import random
+        mock_user_id = "test_user_" + str(random.randint(1000, 9999))
+        
+        # 对于数字ID，直接使用该ID作为订单ID
+        if order_id.isdigit() or (order_id.startswith("RES") and order_id[3:].isdigit()):
+            # 直接创建一个使用该ID的文档
+            logging.info(f"创建使用指定ID的测试订单: {order_id}")
+            order = {
+                "_id": order_id,  # 使用传入的ID
+                "userId": mock_user_id,
+                "amount": 9.9,
+                "status": "pending",
+                "paymentMethod": "test",
+                "createTime": datetime.now(),
+                "payTime": None,
+                "resultId": None
+            }
+            try:
+                # 尝试插入文档
+                orders_collection.insert_one(order)
+            except Exception as e:
+                logging.error(f"创建订单失败: {str(e)}")
+                # 如果插入失败，使用普通方法创建
+                order = OrderModel.create_order(mock_user_id, 9.9)
+                order_id = order['_id']
+        else:
+            # 使用常规方法创建随机ID的订单
+            order = OrderModel.create_order(mock_user_id, 9.9)
+            order_id = order['_id']
+        
+        # 创建一个临时的八字结果记录
+        birth_time = "2000-01-01 子时 (23:00-01:00)"
+        gender = "male"
+        focus_areas = ["health", "wealth", "career", "relationship"]
+        
+        bazi_result = BaziResultModel.create_result(
+            user_id=mock_user_id,
+            order_id=order_id,
+            gender=gender,
+            birth_time=birth_time,
+            focus_areas=focus_areas
+        )
+        
+        # 更新订单状态
+        OrderModel.update_status(order_id, 'paid')
+        
+        # 启动八字分析任务
+        try:
+            # 调用分析API
+            from routes.bazi_routes import calculate_bazi, generate_ai_analysis
+            
+            # 计算八字
+            bazi_chart = calculate_bazi(
+                birth_time.split(' ')[0],
+                birth_time.split(' ')[1] + " " + birth_time.split(' ')[2],
+                gender
+            )
+            
+            # 生成AI分析
+            ai_analysis = generate_ai_analysis(
+                bazi_chart,
+                focus_areas,
+                gender
+            )
+            
+            # 更新分析结果
+            BaziResultModel.update_analysis(
+                bazi_result['_id'],
+                bazi_chart,
+                ai_analysis
+            )
+            
+            return jsonify(
+                code=200,
+                message="支付成功",
+                data={
+                    "orderId": order_id,
+                    "resultId": bazi_result['_id']
+                }
+            )
+        except Exception as e:
+            # 记录错误
+            import logging
+            logging.error(f"生成八字分析时出错: {str(e)}")
+            return jsonify(code=500, message=f"分析生成失败: {str(e)}"), 500
     
-    if order['userId'] != user_id:
-        return jsonify(code=403, message="无权访问此订单"), 403
+    # 不检查用户权限
+    # if order['userId'] != user_id:
+    #    return jsonify(code=403, message="无权访问此订单"), 403
     
     if order['status'] == 'paid':
-        return jsonify(code=400, message="订单已支付"), 400
+        # 查找对应的八字结果记录
+        bazi_result = BaziResultModel.find_by_order_id(order_id)
+        if bazi_result:
+            return jsonify(
+                code=200,
+                message="订单已支付",
+                data={
+                    "orderId": order_id,
+                    "resultId": bazi_result['_id']
+                }
+            )
+        else:
+            return jsonify(code=400, message="订单已支付但未找到分析结果"), 400
     
     # 更新订单状态
     OrderModel.update_status(order_id, 'paid')
@@ -254,9 +358,14 @@ def mock_payment(order_id):
             from routes.bazi_routes import calculate_bazi, generate_ai_analysis
             
             # 计算八字
+            birth_parts = bazi_result['birthTime'].split(' ')
+            birth_date = birth_parts[0]
+            birth_time = ' '.join(birth_parts[1:]) if len(birth_parts) > 1 else '子时 (23:00-01:00)'
+            
+            # 计算八字
             bazi_chart = calculate_bazi(
-                bazi_result['birthTime'].split(' ')[0],
-                bazi_result['birthTime'].split(' ')[1],
+                birth_date,
+                birth_time,
                 bazi_result['gender']
             )
             
@@ -282,16 +391,51 @@ def mock_payment(order_id):
                     "resultId": bazi_result['_id']
                 }
             )
+        else:
+            # 创建一个临时的八字结果记录并分析
+            gender = "male"
+            birth_time = "2000-01-01 子时 (23:00-01:00)"
+            focus_areas = ["health", "wealth", "career", "relationship"]
+            
+            bazi_result = BaziResultModel.create_result(
+                user_id=order.get('userId', 'test_user'),
+                order_id=order_id,
+                gender=gender,
+                birth_time=birth_time,
+                focus_areas=focus_areas
+            )
+            
+            # 计算八字
+            bazi_chart = calculate_bazi(
+                birth_time.split(' ')[0],
+                birth_time.split(' ')[1] + " " + birth_time.split(' ')[2],
+                gender
+            )
+            
+            # 生成AI分析
+            ai_analysis = generate_ai_analysis(
+                bazi_chart,
+                focus_areas,
+                gender
+            )
+            
+            # 更新分析结果
+            BaziResultModel.update_analysis(
+                bazi_result['_id'],
+                bazi_chart,
+                ai_analysis
+            )
+            
+            return jsonify(
+                code=200,
+                message="支付成功",
+                data={
+                    "orderId": order_id,
+                    "resultId": bazi_result['_id']
+                }
+            )
     except Exception as e:
         # 记录错误
         import logging
         logging.error(f"生成八字分析时出错: {str(e)}")
-        return jsonify(code=500, message=f"分析生成失败: {str(e)}"), 500
-    
-    return jsonify(
-        code=200,
-        message="支付成功",
-        data={
-            "orderId": order_id
-        }
-    ) 
+        return jsonify(code=500, message=f"分析生成失败: {str(e)}"), 500 

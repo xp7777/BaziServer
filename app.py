@@ -14,8 +14,12 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-# 加载环境变量
-load_dotenv()
+# 尝试加载环境变量，但忽略错误
+try:
+    load_dotenv()
+    logging.info("成功加载.env文件")
+except Exception as e:
+    logging.warning(f".env文件加载失败，使用默认值: {str(e)}")
 
 # 创建Flask应用
 app = Flask(__name__)
@@ -34,8 +38,13 @@ client = MongoClient(mongo_uri)
 db = client.get_database()
 
 # DeepSeek API配置
-DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', 'sk-a70d312fd07b4bce82624bd2373a4db4')
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+
+# 打印环境变量用于调试
+logging.info(f"DeepSeek API KEY: {DEEPSEEK_API_KEY[:5]}...")
+logging.info(f"DeepSeek API URL: {DEEPSEEK_API_URL}")
+logging.info(f"MongoDB URI: {mongo_uri}")
 
 # 根路由
 @app.route('/')

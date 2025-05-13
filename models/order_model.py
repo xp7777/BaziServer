@@ -2,6 +2,7 @@ from datetime import datetime
 from bson import ObjectId
 from pymongo import ReturnDocument
 from app import db
+import logging
 
 orders_collection = db.orders
 
@@ -25,7 +26,26 @@ class OrderModel:
     @staticmethod
     def find_by_id(order_id):
         """通过ID查找订单"""
-        order = orders_collection.find_one({"_id": ObjectId(order_id)})
+        # 尝试使用ObjectId查询
+        try:
+            logging.info(f"尝试使用ObjectId查询: {order_id}")
+            order = orders_collection.find_one({"_id": ObjectId(order_id)})
+            if order:
+                order['_id'] = str(order['_id'])
+                return order
+        except Exception as e:
+            logging.warning(f"ObjectId查询错误: {str(e)}")
+            
+        # 如果ObjectId查询失败，尝试使用字符串ID查询
+        logging.info(f"尝试使用字符串ID查询: {order_id}")
+        order = orders_collection.find_one({"_id": order_id})
+        if order:
+            order['_id'] = str(order['_id'])
+            return order
+            
+        # 最后尝试使用字符串ID作为订单号查询
+        logging.info(f"尝试使用订单ID查询: {order_id}")
+        order = orders_collection.find_one({"orderId": order_id})
         if order:
             order['_id'] = str(order['_id'])
         return order
@@ -41,11 +61,20 @@ class OrderModel:
     @staticmethod
     def update_payment(order_id, payment_method):
         """更新支付方式"""
-        result = orders_collection.find_one_and_update(
-            {"_id": ObjectId(order_id)},
-            {"$set": {"paymentMethod": payment_method}},
-            return_document=ReturnDocument.AFTER
-        )
+        try:
+            result = orders_collection.find_one_and_update(
+                {"_id": ObjectId(order_id)},
+                {"$set": {"paymentMethod": payment_method}},
+                return_document=ReturnDocument.AFTER
+            )
+        except:
+            # 尝试使用字符串ID
+            result = orders_collection.find_one_and_update(
+                {"_id": order_id},
+                {"$set": {"paymentMethod": payment_method}},
+                return_document=ReturnDocument.AFTER
+            )
+            
         if result:
             result['_id'] = str(result['_id'])
         return result
@@ -62,11 +91,19 @@ class OrderModel:
             if result_id:
                 update_data["resultId"] = result_id
         
-        result = orders_collection.find_one_and_update(
-            {"_id": ObjectId(order_id)},
-            {"$set": update_data},
-            return_document=ReturnDocument.AFTER
-        )
+        try:
+            result = orders_collection.find_one_and_update(
+                {"_id": ObjectId(order_id)},
+                {"$set": update_data},
+                return_document=ReturnDocument.AFTER
+            )
+        except:
+            # 尝试使用字符串ID
+            result = orders_collection.find_one_and_update(
+                {"_id": order_id},
+                {"$set": update_data},
+                return_document=ReturnDocument.AFTER
+            )
         
         if result:
             result['_id'] = str(result['_id'])

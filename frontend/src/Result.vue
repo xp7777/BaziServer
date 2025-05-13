@@ -12,7 +12,7 @@
       <p>基于您的出生信息，AI为您提供的个性化人生指导</p>
     </div>
     
-    <van-tabs v-model:active="activeTab" sticky>
+    <van-tabs v-model="activeTab" sticky>
       <van-tab title="命盘信息">
         <div class="bazi-chart">
           <h3>八字命盘</h3>
@@ -127,6 +127,14 @@
       <van-button plain type="primary" block style="margin-top: 10px;" @click="shareResult">
         分享结果
       </van-button>
+      
+      <!-- 调试按钮 -->
+      <van-button plain type="warning" 
+                  block 
+                  style="margin-top: 10px;" 
+                  @click="reloadBaziData">
+        重新加载分析数据
+      </van-button>
     </div>
   </div>
 </template>
@@ -137,15 +145,18 @@ import { useRoute, useRouter } from 'vue-router';
 import { showToast } from 'vant';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import axios from 'axios';
+import http from './api/http'; // 导入配置好的http实例
 
 const route = useRoute();
 const router = useRouter();
-const resultId = route.params.id;
+const resultId = route.params.id || route.query.resultId;
 const activeTab = ref(0);
 
-// 模拟数据，实际项目中应该从API获取
+// 模拟数据，作为API调用失败时的备用数据
 const focusAreas = ref(['health', 'wealth', 'career', 'relationship']);
 
+// 备用数据，只在API调用失败时使用
 const baziData = ref({
   yearPillar: {
     heavenlyStem: '甲',
@@ -208,6 +219,7 @@ const baziData = ref({
   ]
 });
 
+// 备用分析数据，只在API调用失败时使用
 const aiAnalysis = ref({
   health: '您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。',
   wealth: '您的财运在2025年有明显上升趋势，特别是在春夏季节。八字中金水相生，适合从事金融、贸易、水利相关行业。投资方面，稳健为主，可考虑分散投资组合。2027年有意外财运，但需谨慎对待，避免投机性强的项目。',
@@ -217,9 +229,194 @@ const aiAnalysis = ref({
   overall: '综合分析您的八字，2025-2027年是您人生的一个上升期，各方面都有良好发展。建议把握这段时间，在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。您的人生态度积极乐观，具有较强的适应能力和抗压能力，这将帮助您度过人生中的各种挑战。'
 });
 
-onMounted(() => {
-  // 实际项目中这里应该调用API获取分析结果
-  console.log('获取分析结果', resultId);
+const testApiConnection = async () => {
+  try {
+    showToast('正在测试API连接...');
+    // 使用配置好的http实例
+    const response = await http.get('/');
+    console.log('API根路径响应:', response.data);
+    showToast('API连接成功');
+    return true;
+  } catch (error) {
+    console.error('API连接测试失败:', error);
+    showToast('API连接失败，请检查后端服务');
+    return false;
+  }
+};
+
+onMounted(async () => {
+  // 先测试API连接
+  const isApiConnected = await testApiConnection();
+  if (!isApiConnected) {
+    console.warn('API连接失败，将使用模拟数据');
+    return;
+  }
+  
+  console.log('结果页面加载，ID:', resultId);
+  
+  // 如果没有resultId，尝试从本地存储获取
+  const localResultId = localStorage.getItem('resultId');
+  if (!resultId && localResultId) {
+    console.log('从本地存储获取ID:', localResultId);
+  }
+  
+  const finalResultId = resultId || localResultId;
+  
+  if (!finalResultId) {
+    console.error('缺少结果ID，无法获取分析结果');
+    showToast('缺少结果ID，无法获取分析结果');
+    return;
+  }
+  
+  try {
+    console.log('调用API获取结果:', `/api/bazi/result/${finalResultId}`);
+    
+    // 显示加载提示，提醒用户需要等待
+    showToast({
+      message: '正在调用AI进行八字分析，请耐心等待30-60秒...',
+      duration: 10000,
+      position: 'middle'
+    });
+    
+    // 使用配置好的http实例
+    const response = await http.get(`/api/bazi/result/${finalResultId}`);
+    
+    console.log('API响应:', response.status, response.data);
+    
+    if (response.data.code === 200) {
+      console.log('获取成功，更新数据');
+      // 确保从API获取数据并更新视图
+      baziData.value = response.data.data.baziChart;
+      aiAnalysis.value = response.data.data.aiAnalysis;
+      focusAreas.value = response.data.data.focusAreas;
+      showToast('分析结果加载成功');
+    } else if (response.data.code === 202) {
+      // 服务器接受了请求但还在处理中（异步分析）
+      console.log('分析正在进行中，等待时间:', response.data.data.waitTime || '未知');
+      
+      // 显示清晰的等待提示，告知用户确切的等待情况
+      showToast({
+        message: `AI正在专注分析您的八字命盘，已经分析了${response.data.data.waitTime || 0}秒，完整分析需要30-60秒，请稍候...`,
+        duration: 8000,
+        position: 'middle'
+      });
+      
+      // 预先显示部分数据
+      if (response.data.data.baziChart) {
+        baziData.value = response.data.data.baziChart;
+      }
+      if (response.data.data.aiAnalysis) {
+        aiAnalysis.value = response.data.data.aiAnalysis;
+      }
+      if (response.data.data.focusAreas) {
+        focusAreas.value = response.data.data.focusAreas;
+      }
+      
+      // 启动轮询，每15秒查询一次直到分析完成
+      // 增加轮询间隔，减少服务器压力
+      const pollInterval = setInterval(async () => {
+        try {
+          console.log('轮询查询分析结果...');
+          const pollResponse = await http.get(`/api/bazi/result/${finalResultId}`);
+          
+          if (pollResponse.data.code === 200) {
+            // 分析完成，更新数据
+            baziData.value = pollResponse.data.data.baziChart;
+            aiAnalysis.value = pollResponse.data.data.aiAnalysis;
+            focusAreas.value = pollResponse.data.data.focusAreas;
+            showToast('分析结果加载成功！您的八字命盘解析已完成');
+            clearInterval(pollInterval); // 停止轮询
+            
+            // 自动切换到AI分析结果标签
+            activeTab.value = 1;
+          } else if (pollResponse.data.code !== 202) {
+            // 如果返回其他错误码，停止轮询
+            console.error('轮询时发生错误:', pollResponse.data.message);
+            showToast(`查询错误: ${pollResponse.data.message}`);
+            clearInterval(pollInterval); // 停止轮询
+          } else {
+            // 仍在分析中，更新等待时间
+            const waitTime = pollResponse.data.data.waitTime || 0;
+            const remainingTime = Math.max(0, 60 - waitTime);  // 假设总时间为60秒
+            
+            showToast({
+              message: `AI正在专注分析中(${Math.round(waitTime/60*100)}%)，预计还需${remainingTime}秒完成...`,
+              duration: 5000,
+              position: 'middle'
+            });
+            console.log('仍在分析中，已等待:', waitTime, '秒');
+          }
+        } catch (err) {
+          console.error('轮询时出错:', err);
+          clearInterval(pollInterval); // 出错也停止轮询
+        }
+      }, 15000); // 每15秒查询一次，减少服务器压力
+      
+      // 设置最大轮询时间，防止无限轮询
+      setTimeout(() => {
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          console.log('超过最大轮询时间，停止轮询');
+          
+          // 显示一个友好的提示，询问用户是否要继续等待
+          showDialog({
+            title: '分析耗时较长',
+            message: '您的八字命理分析正在进行中，但耗时较长。您可以选择继续等待或稍后再查看结果。',
+            showCancelButton: true,
+            confirmButtonText: '继续等待',
+            cancelButtonText: '稍后查看',
+            theme: 'round-button',
+          }).then(() => {
+            // 用户选择继续等待，重新启动轮询
+            window.location.reload();
+          }).catch(() => {
+            // 用户选择稍后查看，可以先返回首页
+            router.push('/');
+          });
+        }
+      }, 180000); // 最多轮询3分钟
+    } else {
+      console.error('API返回错误:', response.data.message);
+      showToast(response.data.message || '获取分析结果失败');
+    }
+  } catch (error) {
+    console.error('获取分析结果出错:', error);
+    console.error('错误详情:', error.response ? error.response.data : '无响应数据');
+    showToast('获取分析结果失败，请稍后重试');
+    
+    // 备选方案：如果ID以"RES"开头，尝试模拟支付再获取结果
+    if (finalResultId.startsWith('RES')) {
+      try {
+        console.log('尝试使用模拟支付接口...');
+        
+        // 显示加载提示
+        showToast({
+          message: '正在模拟支付并进行八字分析，请耐心等待30-60秒...',
+          duration: 10000,
+          position: 'middle'
+        });
+        
+        const orderId = finalResultId.replace('RES', '');
+        const mockPaymentResponse = await http.post(`/api/order/mock/pay/${orderId}`);
+        
+        if (mockPaymentResponse.data.code === 200 && mockPaymentResponse.data.data.resultId) {
+          const newResultId = mockPaymentResponse.data.data.resultId;
+          console.log('获取到新的resultId:', newResultId);
+          
+          const retryResponse = await http.get(`/api/bazi/result/${newResultId}`);
+          if (retryResponse.data.code === 200) {
+            baziData.value = retryResponse.data.data.baziChart;
+            aiAnalysis.value = retryResponse.data.data.aiAnalysis;
+            focusAreas.value = retryResponse.data.data.focusAreas;
+            showToast('分析结果加载成功');
+            return;
+          }
+        }
+      } catch (mockError) {
+        console.error('模拟支付失败:', mockError);
+      }
+    }
+  }
 });
 
 const getElementName = (element) => {
@@ -249,6 +446,65 @@ const downloadPDF = () => {
 
 const shareResult = () => {
   showToast('分享功能开发中');
+};
+
+const reloadBaziData = async () => {
+  showToast('正在重新加载数据...');
+  
+  try {
+    // 测试模拟支付接口以获取分析结果
+    if (!resultId) {
+      showToast('缺少结果ID');
+      return;
+    }
+    
+    // 首先尝试使用模拟支付接口
+    try {
+      console.log('尝试使用模拟支付接口...');
+      
+      // 显示加载提示
+      showToast({
+        message: '正在重新分析八字，请耐心等待30-60秒...',
+        duration: 10000,
+        position: 'middle'
+      });
+      
+      const mockPaymentResponse = await http.post(`/api/order/mock/pay/${resultId.replace('RES', '')}`);
+      console.log('模拟支付响应:', mockPaymentResponse.data);
+      
+      if (mockPaymentResponse.data.code === 200 && mockPaymentResponse.data.data.resultId) {
+        // 使用返回的resultId重新加载数据
+        const newResultId = mockPaymentResponse.data.data.resultId;
+        console.log('获取到新的resultId:', newResultId);
+        
+        const response = await http.get(`/api/bazi/result/${newResultId}`);
+        if (response.data.code === 200) {
+          baziData.value = response.data.data.baziChart;
+          aiAnalysis.value = response.data.data.aiAnalysis;
+          focusAreas.value = response.data.data.focusAreas;
+          showToast('数据加载成功');
+          return;
+        }
+      }
+    } catch (mockError) {
+      console.warn('模拟支付失败，尝试直接获取结果:', mockError);
+    }
+    
+    // 如果模拟支付失败，尝试直接获取结果
+    const response = await http.get(`/api/bazi/result/${resultId}`);
+    
+    if (response.data.code === 200) {
+      baziData.value = response.data.data.baziChart;
+      aiAnalysis.value = response.data.data.aiAnalysis;
+      focusAreas.value = response.data.data.focusAreas;
+      showToast('数据加载成功');
+    } else {
+      showToast(response.data.message || '加载失败');
+    }
+  } catch (error) {
+    console.error('重新加载失败:', error);
+    showToast('加载失败: ' + (error.message || '未知错误'));
+  }
 };
 </script>
 
