@@ -21,6 +21,9 @@ try:
 except Exception as e:
     logging.warning(f".env文件加载失败，使用默认值: {str(e)}")
 
+# PDF生成使用WeasyPrint，不再需要检测wkhtmltopdf
+logging.info("PDF生成功能已配置为使用WeasyPrint")
+
 # 创建Flask应用
 app = Flask(__name__)
 

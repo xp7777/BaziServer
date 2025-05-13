@@ -17,13 +17,6 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-REM 检查wkhtmltopdf
-wkhtmltopdf --version > NUL 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo 警告: 未找到wkhtmltopdf，PDF生成功能可能无法正常工作
-    echo 请访问 https://wkhtmltopdf.org/downloads.html 下载安装
-)
-
 REM 创建虚拟环境
 if not exist venv (
     echo 创建Python虚拟环境...
@@ -55,6 +48,11 @@ if not exist .env (
         exit /b 1
     )
 )
+
+echo ===========================================================
+echo 系统使用WeasyPrint生成PDF，无需安装外部依赖
+echo 如果PDF生成出现问题，请检查WeasyPrint库是否正确安装
+echo ===========================================================
 
 REM 启动应用
 echo 启动八字命理AI人生指导系统...

@@ -14,12 +14,7 @@ then
     exit 1
 fi
 
-# 检查wkhtmltopdf
-if ! command -v wkhtmltopdf &> /dev/null
-then
-    echo "警告: 未找到wkhtmltopdf，PDF生成功能可能无法正常工作"
-    echo "请访问 https://wkhtmltopdf.org/downloads.html 下载安装"
-fi
+
 
 # 检查MongoDB
 mongo_status=$(systemctl is-active mongod 2>/dev/null)
@@ -55,6 +50,12 @@ if [ ! -f ".env" ]; then
         exit 1
     fi
 fi
+
+# WeasyPrint信息
+echo "==========================================================="
+echo "系统使用WeasyPrint生成PDF，无需安装外部依赖"
+echo "如果PDF生成出现问题，请检查WeasyPrint库是否正确安装"
+echo "==========================================================="
 
 # 启动应用
 echo "启动八字命理AI人生指导系统..."

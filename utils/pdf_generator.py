@@ -1,9 +1,9 @@
 import os
 import logging
-import pdfkit
 import time
 import uuid
 from datetime import datetime
+from weasyprint import HTML
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +268,7 @@ def generate_pdf_content(result):
 
 def save_pdf_to_local(result_id, html_content):
     """
-    将PDF保存到本地
+    将PDF保存到本地，使用WeasyPrint替代pdfkit
     
     Args:
         result_id: 结果ID
@@ -285,20 +285,11 @@ def save_pdf_to_local(result_id, html_content):
     pdf_path = os.path.join(pdf_dir, f"{result_id}.pdf")
     
     try:
-        # 配置wkhtmltopdf选项
-        options = {
-            'page-size': 'A4',
-            'margin-top': '15mm',
-            'margin-right': '15mm',
-            'margin-bottom': '15mm',
-            'margin-left': '15mm',
-            'encoding': 'UTF-8',
-            'no-outline': None
-        }
+        # 使用WeasyPrint生成PDF
+        logger.info(f"使用WeasyPrint生成PDF: {pdf_path}")
+        HTML(string=html_content).write_pdf(pdf_path)
         
-        # 生成PDF
-        pdfkit.from_string(html_content, pdf_path, options=options)
-        
+        logger.info(f"PDF生成成功: {pdf_path}")
         return pdf_path
     
     except Exception as e:

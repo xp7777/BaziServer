@@ -434,14 +434,103 @@ const onClickLeft = () => {
   router.push('/');
 };
 
-const downloadPDF = () => {
-  showToast('正在生成PDF，请稍候...');
+const downloadPDF = async () => {
+  showToast({
+    message: '正在生成PDF，请稍候...',
+    duration: 5000,
+    position: 'middle'
+  });
   
-  // 实际项目中应该调用后端API下载PDF
-  // 这里仅做前端演示
-  setTimeout(() => {
-    showToast('PDF生成成功，开始下载');
-  }, 1500);
+  if (!resultId) {
+    showToast('缺少结果ID，无法生成PDF');
+    return;
+  }
+  
+  try {
+    // 调用后端API生成并下载PDF
+    console.log('调用API下载PDF:', `/api/bazi/pdf/${resultId}`);
+    
+    // 由于文件下载需要处理二进制数据，使用特殊配置
+    const response = await http.get(`/api/bazi/pdf/${resultId}`, {
+      responseType: 'blob', // 设置响应类型为二进制数据
+    }).catch(error => {
+      // 直接处理错误，因为有些响应可能是JSON格式的错误消息
+      if (error.response) {
+        // 如果是JSON错误，尝试转换并显示
+        if (error.response.headers['content-type']?.includes('application/json')) {
+          return error.response;
+        }
+      }
+      throw error; // 其他错误重新抛出
+    });
+    
+    // 检查响应状态
+    if (response.status === 200) {
+      // 检查返回的内容类型来确定是PDF还是JSON数据
+      const contentType = response.headers['content-type'];
+      
+      if (contentType?.includes('application/pdf')) {
+        // 创建Blob对象
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        
+        // 创建下载链接
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `八字命理分析_${resultId}.pdf`;
+        
+        // 模拟点击下载
+        document.body.appendChild(link);
+        link.click();
+        
+        // 清理
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+        
+        showToast('PDF下载成功！');
+        return;
+      }
+      
+      // 处理JSON响应（可能是URL链接）
+      if (contentType?.includes('application/json')) {
+        // 解析JSON响应
+        const reader = new FileReader();
+        reader.onload = function() {
+          try {
+            const jsonResponse = JSON.parse(reader.result);
+            console.log('API响应(JSON):', jsonResponse);
+            
+            // 检查是否有URL
+            if (jsonResponse.code === 200 && jsonResponse.data?.url) {
+              // 在新窗口打开URL
+              window.open(jsonResponse.data.url, '_blank');
+              showToast('PDF生成成功，正在打开...');
+            } else if (jsonResponse.code === 302 && jsonResponse.data?.url) {
+              // 处理重定向
+              window.open(jsonResponse.data.url, '_blank');
+              showToast('PDF生成成功，正在打开...');
+            } else {
+              // 显示其他成功消息
+              showToast(jsonResponse.message || 'PDF操作成功');
+            }
+          } catch (e) {
+            console.error('解析JSON响应出错:', e);
+            showToast('处理PDF响应时出错');
+          }
+        };
+        reader.readAsText(response.data);
+        return;
+      }
+    }
+    
+    // 处理其他情况
+    showToast('PDF生成过程中出现异常，请重试');
+    console.error('未知的PDF响应:', response);
+    
+  } catch (error) {
+    console.error('下载PDF出错:', error);
+    showToast('下载PDF失败: ' + (error.message || '未知错误'));
+  }
 };
 
 const shareResult = () => {
