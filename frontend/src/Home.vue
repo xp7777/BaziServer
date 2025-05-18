@@ -27,59 +27,32 @@
           </template>
         </van-field>
         
-        <van-field
+        <van-field name="birthDate" label="出生日期">
+          <template #input>
+            <input 
+              type="date" 
           v-model="formData.birthDate"
-          readonly
-          clickable
-          name="birthDate"
-          label="出生日期"
-          placeholder="点击选择日期"
-          @click="showDatePicker = true"
-        />
-        <van-popup :show="showDatePicker" @update:show="showDatePicker = $event" position="bottom">
-          <van-date-picker
-            :model-value="[currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate()]"
-            @update:model-value="val => currentDate = new Date(val[0], val[1] - 1, val[2])"
-            title="选择出生日期"
-            :min-date="new Date(1900, 0, 1)"
-            :max-date="new Date()"
-            :columns-type="['year', 'month', 'day']"
-            swipe-duration="300"
-            :item-height="44"
-            visible-item-count="5"
-            @confirm="onConfirmDate"
-            @cancel="showDatePicker = false"
+              min="1900-01-01" 
+              max="2100-12-31"
+              class="native-date-picker"
           />
-        </van-popup>
+          </template>
+        </van-field>
         
-        <van-field
-          v-model="formData.birthTime"
-          readonly
-          clickable
-          name="birthTime"
-          label="出生时辰"
-          placeholder="点击选择时辰"
-          @click="showTimePicker = true"
-        />
-        <van-popup :show="showTimePicker" @update:show="showTimePicker = $event" position="bottom" style="max-height: 70vh;">
-          <div class="time-selector">
-            <div class="time-selector-header">
-              <van-button size="small" type="default" @click="showTimePicker = false">取消</van-button>
-              <div class="time-selector-title">选择出生时辰</div>
-              <van-button size="small" type="primary" @click="showTimePicker = false">确定</van-button>
-            </div>
-            <div class="time-selector-content">
-              <van-cell
+        <van-field name="birthTime" label="出生时辰">
+          <template #input>
+            <select v-model="formData.birthTime" class="native-time-picker">
+              <option value="">请选择时辰</option>
+              <option 
                 v-for="(time, index) in timeData"
                 :key="index"
-                :title="time.text"
-                clickable
-                @click="selectTime(time.text)"
-                :class="{ 'time-active': formData.birthTime === time.text }"
-              />
-            </div>
-          </div>
-        </van-popup>
+                :value="time.text"
+              >
+                {{ time.text }}
+              </option>
+            </select>
+          </template>
+        </van-field>
         
         <van-field name="focusAreas" label="推算侧重点">
           <template #input>
@@ -131,12 +104,9 @@
 <script setup>
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
-import { showToast } from 'vant';
+import { Toast } from 'vant';
 
 const router = useRouter();
-const showDatePicker = ref(false);
-const showTimePicker = ref(false);
-const currentDate = ref(new Date());
 
 // 重新定义时辰数据为正确的格式
 const timeData = [
@@ -162,59 +132,25 @@ const formData = reactive({
   focusAreas: []
 });
 
-const formatDate = (date) => {
-  // 确保月份和日期为两位数
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
-};
-
-const onConfirmDate = (value) => {
-  // 检查value是否为数组，如果不是则使用当前日期
-  if (Array.isArray(value)) {
-    const [year, month, day] = value;
-    // 格式化月份和日期为两位数
-    const formattedMonth = month.toString().padStart(2, '0');
-    const formattedDay = day.toString().padStart(2, '0');
-    formData.birthDate = `${year}-${formattedMonth}-${formattedDay}`;
-  } else if (value && typeof value === 'object' && value.getFullYear) {
-    // 如果是Date对象，使用格式化函数
-    formData.birthDate = formatDate(value);
-  } else {
-    // 如果value不是数组也不是Date，使用currentDate的值
-    formData.birthDate = formatDate(currentDate.value);
-  }
-  
-  // 确保关闭日期选择器并打印调试信息
-  console.log('选择的日期:', formData.birthDate);
-  showDatePicker.value = false;
-};
-
-const selectTime = (time) => {
-  formData.birthTime = time;
-  showTimePicker.value = false;
-  console.log('选择的时辰:', formData.birthTime);
-};
-
 const onSubmit = () => {
   // 表单验证
   if (!formData.birthDate) {
-    showToast('请选择出生日期');
+    Toast.fail('请选择出生日期');
     return;
   }
   
   if (!formData.birthTime) {
-    showToast('请选择出生时辰');
+    Toast.fail('请选择出生时辰');
     return;
   }
   
   if (formData.focusAreas.length === 0) {
-    showToast('请至少选择一个推算侧重点');
+    Toast.fail('请至少选择一个推算侧重点');
     return;
   }
   
   // 创建订单并跳转到支付页面
-  // 实际项目中这里应该调用API创建订单
+  console.log('提交数据:', formData);
   router.push({
     path: '/payment',
     query: {
@@ -296,5 +232,41 @@ const onSubmit = () => {
 .time-active {
   color: #1989fa;
   font-weight: bold;
+}
+
+.date-selector {
+  background-color: #fff;
+  width: 100%;
+}
+
+.date-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid #ebedf0;
+}
+
+.date-selector-title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.date-selector-content {
+  padding: 10px;
+}
+
+.native-date-picker {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ebedf0;
+  border-radius: 4px;
+}
+
+.native-time-picker {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ebedf0;
+  border-radius: 4px;
 }
 </style>

@@ -59,7 +59,7 @@ http.interceptors.response.use(
       if (error.code === 'ECONNABORTED') {
         console.log(`请求超时: 服务器处理时间超过了${http.defaults.timeout/1000}秒，这可能是因为AI分析需要更长时间`);
       } else {
-        console.log('服务器未响应，请检查网络连接或后端服务是否运行');
+      console.log('服务器未响应，请检查网络连接或后端服务是否运行');
       }
     } else {
       // 设置请求时发生错误

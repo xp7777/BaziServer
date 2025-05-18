@@ -4,6 +4,7 @@ import logging
 import requests
 import openai
 import time
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -313,6 +314,34 @@ def call_deepseek_api(prompt):
         str: AI响应
     """
     try:
+        # 提取出生年份
+        birth_year = None
+        try:
+            if "阳历" in prompt and "年" in prompt:
+                year_index = prompt.index("阳历") + 2
+                year_end = prompt.index("年", year_index)
+                birth_year = int(prompt[year_index:year_end])
+        except Exception as e:
+            logger.warning(f"无法提取出生年份: {e}")
+        
+        # 计算当前年龄
+        current_year = datetime.datetime.now().year
+        age = current_year - birth_year if birth_year else None
+        
+        # 添加年龄相关上下文
+        system_prompt = "你是一位专业的命理分析师，精通八字命理理论。请根据用户提供的八字信息，给出专业、详细、实用的分析和建议。"
+        
+        if age is not None:
+            # 添加年龄相关指导
+            system_prompt += "\n\n重要提示：分析时必须考虑当事人的实际年龄。"
+            
+            if age < 0:  # 未出生
+                system_prompt += f"当事人尚未出生，出生于未来的{birth_year}年。请只分析未来可能的性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。"
+            elif age < 6:  # 婴幼儿
+                system_prompt += f"当事人目前仅{age}岁，属于婴幼儿阶段。请重点分析性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段（如20岁以后）的预测。"
+            elif age < 18:  # 未成年
+                system_prompt += f"当事人目前{age}岁，尚未成年。请重点分析性格特点、天赋才能、健康状况和学业发展，避免过多讨论婚姻感情等不适合未成年人的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段的预测。"
+        
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
@@ -321,7 +350,7 @@ def call_deepseek_api(prompt):
         data = {
             "model": "deepseek-chat",
             "messages": [
-                {"role": "system", "content": "你是一位专业的命理分析师，精通八字命理理论。请根据用户提供的八字信息，给出专业、详细、实用的分析和建议。"},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7,

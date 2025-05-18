@@ -79,7 +79,7 @@
 <script>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { showToast } from 'vant';
+import { Toast } from 'vant';
 
 export default {
   name: 'PaymentPage',
@@ -139,7 +139,7 @@ export default {
     };
     
     const onPaymentSuccess = () => {
-      showToast('支付成功');
+      Toast.success('支付成功');
       showQRCode.value = false;
       
       // 模拟支付成功后的结果ID

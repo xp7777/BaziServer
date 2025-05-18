@@ -1,9 +1,15 @@
 from datetime import datetime
+from pymongo import MongoClient, ReturnDocument
 from bson import ObjectId
-from app import db
+import os
 import logging
 
-bazi_results_collection = db.bazi_results
+# 获取MongoDB URI
+mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+client = MongoClient(mongo_uri)
+db = client.get_database()
+
+results_collection = db.bazi_results
 
 class BaziResultModel:
     @staticmethod
@@ -21,7 +27,7 @@ class BaziResultModel:
             "createTime": datetime.now()
         }
         
-        inserted = bazi_results_collection.insert_one(result)
+        inserted = results_collection.insert_one(result)
         result['_id'] = str(inserted.inserted_id)
         return result
     
@@ -73,20 +79,20 @@ class BaziResultModel:
             
             # 尝试使用字符串ID查询
             try:
-                existing_result = bazi_results_collection.find_one({"_id": result_id})
+                existing_result = results_collection.find_one({"_id": result_id})
             except Exception as e:
                 logging.warning(f"字符串ID查询错误: {str(e)}")
-            
-            # 尝试使用订单ID查询
+        
+                        # 尝试使用订单ID查询
             if not existing_result:
                 try:
                     order_id = result_id.replace("RES", "")
-                    existing_result = bazi_results_collection.find_one({"orderId": order_id})
+                    existing_result = results_collection.find_one({"orderId": order_id})
                     if existing_result:
                         logging.info("使用订单ID查询成功")
                 except Exception as e:
                     logging.warning(f"订单ID查询错误: {str(e)}")
-            
+        
             # 如果找到现有记录，直接返回
             if existing_result:
                 logging.info(f"找到已存在的RES前缀记录: {result_id}")
@@ -134,7 +140,7 @@ class BaziResultModel:
             
             # 插入数据库
             try:
-                bazi_results_collection.insert_one(new_result)
+                results_collection.insert_one(new_result)
                 logging.info(f"成功创建并存储RES前缀记录: {result_id}")
             except Exception as e:
                 logging.error(f"存储RES前缀记录失败: {str(e)}")
@@ -148,7 +154,7 @@ class BaziResultModel:
         if not result and len(result_id) == 24 and all(c in '0123456789abcdef' for c in result_id):
             try:
                 logging.info(f"尝试使用ObjectId查询: {result_id}")
-                result = bazi_results_collection.find_one({"_id": ObjectId(result_id)})
+                result = results_collection.find_one({"_id": ObjectId(result_id)})
                 if result:
                     logging.info("使用ObjectId查询成功")
             except Exception as e:
@@ -158,7 +164,7 @@ class BaziResultModel:
         if not result:
             try:
                 logging.info(f"尝试使用字符串ID查询: {result_id}")
-                result = bazi_results_collection.find_one({"_id": result_id})
+                result = results_collection.find_one({"_id": result_id})
                 if result:
                     logging.info("使用字符串ID查询成功")
             except Exception as e:
@@ -175,7 +181,7 @@ class BaziResultModel:
     @staticmethod
     def find_by_user(user_id):
         """查找用户的所有结果"""
-        results = list(bazi_results_collection.find({"userId": user_id}))
+        results = list(results_collection.find({"userId": user_id}))
         for result in results:
             result['_id'] = str(result['_id'])
         return results
@@ -189,7 +195,7 @@ class BaziResultModel:
         try:
             # 尝试直接通过orderId字段查询
             logging.info(f"尝试直接通过orderId字段查询: {order_id}")
-            result = bazi_results_collection.find_one({"orderId": order_id})
+            result = results_collection.find_one({"orderId": order_id})
             if result:
                 logging.info(f"通过orderId字段查询成功")
                 result['_id'] = str(result['_id'])
@@ -199,7 +205,7 @@ class BaziResultModel:
             logging.info(f"尝试通过ObjectId转换查询: {order_id}")
             try:
                 obj_order_id = ObjectId(order_id)
-                result = bazi_results_collection.find_one({"orderId": obj_order_id})
+                result = results_collection.find_one({"orderId": obj_order_id})
                 if result:
                     logging.info(f"通过ObjectId orderId查询成功")
                     result['_id'] = str(result['_id'])
@@ -210,7 +216,7 @@ class BaziResultModel:
             # 尝试通过字符串形式查询
             if order_id.isdigit():
                 logging.info(f"尝试通过数字字符串查询: {order_id}")
-                result = bazi_results_collection.find_one({"orderId": str(order_id)})
+                result = results_collection.find_one({"orderId": str(order_id)})
                 if result:
                     logging.info(f"通过数字字符串查询成功")
                     result['_id'] = str(result['_id'])
@@ -228,13 +234,13 @@ class BaziResultModel:
         """更新八字数据"""
         try:
             # 尝试使用ObjectId
-            bazi_results_collection.update_one(
-                {"_id": ObjectId(result_id)},
-                {"$set": {"baziData": bazi_data}}
-            )
+            results_collection.update_one(
+            {"_id": ObjectId(result_id)},
+            {"$set": {"baziData": bazi_data}}
+        )
         except:
             # 尝试使用字符串ID
-            bazi_results_collection.update_one(
+            results_collection.update_one(
                 {"_id": result_id},
                 {"$set": {"baziData": bazi_data}}
             )
@@ -245,13 +251,13 @@ class BaziResultModel:
         """更新AI分析结果"""
         try:
             # 尝试使用ObjectId
-            bazi_results_collection.update_one(
-                {"_id": ObjectId(result_id)},
-                {"$set": {f"aiAnalysis.{area}": analysis}}
-            )
+            results_collection.update_one(
+            {"_id": ObjectId(result_id)},
+            {"$set": {f"aiAnalysis.{area}": analysis}}
+        )
         except:
             # 尝试使用字符串ID
-            bazi_results_collection.update_one(
+            results_collection.update_one(
                 {"_id": result_id},
                 {"$set": {f"aiAnalysis.{area}": analysis}}
             )
@@ -267,7 +273,7 @@ class BaziResultModel:
         if len(result_id) == 24 and all(c in '0123456789abcdef' for c in result_id):
             try:
                 logging.info("尝试使用ObjectId更新")
-                result = bazi_results_collection.update_one(
+                result = results_collection.update_one(
                     {"_id": ObjectId(result_id)},
                     {"$set": {
                         "baziChart": bazi_chart,
@@ -288,7 +294,7 @@ class BaziResultModel:
         if not success:
             try:
                 logging.info("尝试使用字符串ID更新")
-                result = bazi_results_collection.update_one(
+                result = results_collection.update_one(
                     {"_id": result_id},
                     {"$set": {
                         "baziChart": bazi_chart,
@@ -326,13 +332,13 @@ class BaziResultModel:
                 
                 try:
                     # 先尝试插入
-                    bazi_results_collection.insert_one(new_record)
+                    results_collection.insert_one(new_record)
                     logging.info(f"成功创建并插入新记录: {result_id}")
                     success = True
                 except Exception as e:
                     # 如果插入失败（可能是因为记录已存在），尝试更新
                     logging.warning(f"插入新记录失败，尝试使用upsert更新: {str(e)}")
-                    result = bazi_results_collection.update_one(
+                    result = results_collection.update_one(
                         {"_id": result_id},
                         {"$set": new_record},
                         upsert=True
@@ -355,13 +361,13 @@ class BaziResultModel:
         """更新PDF URL"""
         try:
             # 尝试使用ObjectId
-            bazi_results_collection.update_one(
-                {"_id": ObjectId(result_id)},
-                {"$set": {"pdfUrl": pdf_url}}
-            )
+            results_collection.update_one(
+            {"_id": ObjectId(result_id)},
+            {"$set": {"pdfUrl": pdf_url}}
+        )
         except:
             # 尝试使用字符串ID
-            bazi_results_collection.update_one(
+            results_collection.update_one(
                 {"_id": result_id},
                 {"$set": {"pdfUrl": pdf_url}}
             )

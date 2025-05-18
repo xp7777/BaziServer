@@ -82,7 +82,7 @@
 <script>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { showToast } from 'vant';
+import { Toast } from 'vant';
 
 export default {
   name: 'LoginPage',
@@ -118,33 +118,33 @@ export default {
     
     const sendVerifyCode = () => {
       if (!phone.value) {
-        showToast('请输入手机号码');
+        Toast('请输入手机号码');
         return;
       }
       
       if (!/^1[3-9]\d{9}$/.test(phone.value)) {
-        showToast('请输入正确的手机号码');
+        Toast('请输入正确的手机号码');
         return;
       }
       
       // 实际项目中这里应该调用API发送验证码
-      showToast('验证码已发送');
+      Toast('验证码已发送');
       startCountdown();
     };
     
     const onSubmit = () => {
       if (!phone.value) {
-        showToast('请输入手机号码');
+        Toast('请输入手机号码');
         return;
       }
       
       if (!verifyCode.value) {
-        showToast('请输入验证码');
+        Toast('请输入验证码');
         return;
       }
       
       // 实际项目中这里应该调用API验证登录
-      showToast('登录成功');
+      Toast('登录成功');
       
       // 登录成功后跳转到用户中心
       router.push('/user');

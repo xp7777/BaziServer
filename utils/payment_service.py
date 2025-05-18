@@ -7,19 +7,23 @@ import time
 import requests
 from alipay import AliPay
 import xmltodict
+import qrcode
+from io import BytesIO
+import base64
 
 logger = logging.getLogger(__name__)
 
-def create_wechat_payment(order_id, amount):
+def create_wechat_payment(order_id, amount, return_qr_image=False):
     """
     创建微信支付订单
     
     Args:
         order_id: 订单ID
         amount: 支付金额
+        return_qr_image: 是否返回二维码图片的base64编码
         
     Returns:
-        str: 支付二维码URL
+        dict: 包含支付二维码URL和可选的二维码图片
     """
     # 获取配置
     app_id = os.getenv('WECHAT_APP_ID')
@@ -30,7 +34,30 @@ def create_wechat_payment(order_id, amount):
     # 如果没有配置微信支付，返回测试URL
     if not all([app_id, mch_id, api_key, notify_url]):
         logger.warning("微信支付未配置，返回测试URL")
-        return f"https://example.com/test-pay?order_id={order_id}&amount={amount}"
+        test_url = f"https://example.com/test-pay?order_id={order_id}&amount={amount}"
+        
+        if return_qr_image:
+            # 为测试URL生成二维码
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data(test_url)
+            qr.make(fit=True)
+            
+            img = qr.make_image(fill_color="black", back_color="white")
+            buffered = BytesIO()
+            img.save(buffered)
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            return {
+                "code_url": test_url,
+                "qr_image": f"data:image/png;base64,{img_str}"
+            }
+        
+        return {"code_url": test_url}
     
     try:
         # 构造请求参数
@@ -75,8 +102,30 @@ def create_wechat_payment(order_id, amount):
         result = xmltodict.parse(response.content)['xml']
         
         if result['return_code'] == 'SUCCESS' and result['result_code'] == 'SUCCESS':
-            # 返回二维码URL
-            return result['code_url']
+            code_url = result['code_url']
+            
+            if return_qr_image:
+                # 生成二维码图片
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                    box_size=10,
+                    border=4,
+                )
+                qr.add_data(code_url)
+                qr.make(fit=True)
+                
+                img = qr.make_image(fill_color="black", back_color="white")
+                buffered = BytesIO()
+                img.save(buffered)
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                
+                return {
+                    "code_url": code_url,
+                    "qr_image": f"data:image/png;base64,{img_str}"
+                }
+            
+            return {"code_url": code_url}
         else:
             logger.error(f"微信支付下单失败: {result}")
             return None
@@ -85,27 +134,30 @@ def create_wechat_payment(order_id, amount):
         logger.exception(f"创建微信支付异常: {str(e)}")
         return None
 
-def create_alipay_payment(order_id, amount):
+def create_alipay_payment(order_id, amount, is_mobile=False):
     """
     创建支付宝支付订单
     
     Args:
         order_id: 订单ID
         amount: 支付金额
+        is_mobile: 是否为移动端支付
         
     Returns:
-        str: 支付页面URL
+        dict: 包含支付页面URL或支付表单HTML
     """
     # 获取配置
     app_id = os.getenv('ALIPAY_APP_ID')
     private_key = os.getenv('ALIPAY_PRIVATE_KEY')
     public_key = os.getenv('ALIPAY_PUBLIC_KEY')
     notify_url = os.getenv('ALIPAY_NOTIFY_URL')
+    return_url = os.getenv('ALIPAY_RETURN_URL', 'https://yourdomain.com/payment/result')
     
     # 如果没有配置支付宝，返回测试URL
     if not all([app_id, private_key, public_key, notify_url]):
         logger.warning("支付宝支付未配置，返回测试URL")
-        return f"https://example.com/test-pay?order_id={order_id}&amount={amount}"
+        test_url = f"https://example.com/test-pay?order_id={order_id}&amount={amount}"
+        return {"pay_url": test_url}
     
     try:
         # 初始化支付宝客户端
@@ -117,17 +169,40 @@ def create_alipay_payment(order_id, amount):
             sign_type="RSA2"
         )
         
-        # 生成支付URL
-        order_string = alipay.api_alipay_trade_page_pay(
-            out_trade_no=order_id,
-            total_amount=float(amount),
-            subject="八字命理AI人生指导",
-            return_url=f"https://yourdomain.com/api/order/alipay/return?order_id={order_id}",
-            notify_url=notify_url
-        )
+        # 基本参数
+        params = {
+            "out_trade_no": order_id,
+            "total_amount": float(amount),
+            "subject": "八字命理AI人生指导",
+            "return_url": return_url,
+            "notify_url": notify_url
+        }
         
-        # 返回完整的支付URL
-        return f"https://openapi.alipay.com/gateway.do?{order_string}"
+        # 根据设备类型生成不同的支付链接
+        if is_mobile:
+            # 移动端支付
+            order_string = alipay.api_alipay_trade_wap_pay(**params)
+            gateway_url = "https://openapi.alipay.com/gateway.do?"
+        else:
+            # PC端支付
+            order_string = alipay.api_alipay_trade_page_pay(**params)
+            gateway_url = "https://openapi.alipay.com/gateway.do?"
+            
+        # 完整支付URL
+        pay_url = f"{gateway_url}{order_string}"
+        
+        return {
+            "pay_url": pay_url,
+            "pay_form": f"""
+            <form id='alipaySubmit' action='{gateway_url}' method='GET'>
+                <input type='hidden' name='biz_content' value='{json.dumps(params)}'>
+                <input type='hidden' name='app_id' value='{app_id}'>
+                <input type='hidden' name='sign_type' value='RSA2'>
+                <input type='submit' value='立即支付' style='display:none'>
+            </form>
+            <script>document.getElementById('alipaySubmit').submit();</script>
+            """
+        }
     
     except Exception as e:
         logger.exception(f"创建支付宝支付异常: {str(e)}")

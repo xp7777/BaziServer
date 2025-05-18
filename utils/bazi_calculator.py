@@ -4,6 +4,11 @@ import logging
 import datetime
 from datetime import timedelta
 import math
+import sxtwl  # 导入四柱万年历库
+
+# 注意: 现在使用的是PyPI上的真实sxtwl包(https://pypi.org/project/sxtwl/)
+# 不再使用模拟的sxtwl.py文件
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +60,39 @@ SOLAR_TERMS = {
     10: {"name": "立冬", "day": 7},
     11: {"name": "大雪", "day": 7},
     12: {"name": "小寒", "day": 6}
+}
+
+# 天干列表
+TIAN_GAN = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
+# 地支列表
+DI_ZHI = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
+# 十神列表
+SHI_SHEN = ["比肩", "劫财", "食神", "伤官", "偏财", "正财", "七杀", "正官", "偏印", "正印"]
+# 十二长生
+CHANG_SHENG = ["长生", "沐浴", "冠带", "临官", "帝旺", "衰", "病", "死", "墓", "绝", "胎", "养"]
+# 五行
+WU_XING = ["木", "火", "土", "金", "水"]
+
+# 神煞对应表（简化版，实际可能需要更复杂的规则）
+SHEN_SHA = {
+    "年干": {
+        0: ["金舆", "福星贵人"], # 甲
+        1: ["金舆", "福星贵人", "流霞"], # 乙
+        2: ["驿马"], # 丙
+        3: ["驿马"], # 丁
+        # 其他天干对应的神煞...
+    },
+    "年支": {
+        0: ["将星"], # 子
+        5: ["寡宿", "华盖", "元辰"], # 巳
+        # 其他地支对应的神煞...
+    },
+    "月支": {
+        2: ["月德贵人"], # 寅
+        4: ["月德贵人", "天德贵人"], # 辰
+        # 其他月支对应的神煞...
+    }
+    # 其他位置的神煞...
 }
 
 def convert_lunar_to_solar(year, month, day):
@@ -337,3 +375,206 @@ def calculate_bazi(gender, birth_time):
     bazi_data["fiveElements"] = five_elements
     
     return bazi_data 
+
+def get_lunar_date(year, month, day, hour=12):
+    """
+    将公历日期转换为农历日期
+    """
+    day_obj = sxtwl.fromSolar(year, month, day)
+    
+    lunar_year = day_obj.getLunarYear()
+    lunar_month = day_obj.getLunarMonth()
+    lunar_day = day_obj.getLunarDay()
+    
+    # 月份可能有闰月，需要特殊处理
+    is_leap = day_obj.isLunarLeap()
+    
+    return {
+        "year": lunar_year,
+        "month": lunar_month,
+        "day": lunar_day,
+        "is_leap": is_leap
+    }
+
+def get_bazi(year, month, day, hour, gender='男'):
+    """
+    计算八字和神煞
+    year, month, day: 阳历年月日
+    hour: 小时（0-23）
+    gender: '男' 或 '女'
+    """
+    day_obj = sxtwl.fromSolar(year, month, day)
+    
+    # 计算八字
+    gz_year = day_obj.getYearGZ()
+    gz_month = day_obj.getMonthGZ()
+    gz_day = day_obj.getDayGZ()
+    
+    # 计算时辰干支
+    # 时辰对应：子时(0,1), 丑时(2,3), ..., 亥时(22,23)
+    time_zhi = hour // 2
+    time_gan = (gz_day.tg * 2 + time_zhi) % 10
+    gz_time = {"tg": time_gan, "dz": time_zhi}
+    
+    # 天干
+    year_tg = TIAN_GAN[gz_year.tg]
+    month_tg = TIAN_GAN[gz_month.tg]
+    day_tg = TIAN_GAN[gz_day.tg]
+    time_tg = TIAN_GAN[gz_time["tg"]]
+    
+    # 地支
+    year_dz = DI_ZHI[gz_year.dz]
+    month_dz = DI_ZHI[gz_month.dz]
+    day_dz = DI_ZHI[gz_day.dz]
+    time_dz = DI_ZHI[gz_time["dz"]]
+    
+    # 组合八字
+    bazi = {
+        "year": f"{year_tg}{year_dz}",
+        "month": f"{month_tg}{month_dz}",
+        "day": f"{day_tg}{day_dz}",
+        "time": f"{time_tg}{time_dz}"
+    }
+    
+    # 获取神煞（简化示例）
+    shen_sha = {}
+    
+    # 年干神煞
+    if gz_year.tg in SHEN_SHA.get("年干", {}):
+        shen_sha["年干"] = SHEN_SHA["年干"][gz_year.tg]
+    
+    # 年支神煞
+    if gz_year.dz in SHEN_SHA.get("年支", {}):
+        shen_sha["年支"] = SHEN_SHA["年支"][gz_year.dz]
+    
+    # 月支神煞
+    if gz_month.dz in SHEN_SHA.get("月支", {}):
+        shen_sha["月支"] = SHEN_SHA["月支"][gz_month.dz]
+    
+    # 计算大运
+    da_yun = calculate_da_yun(year, month, day, hour, bazi, gender)
+    
+    return {
+        "bazi": bazi,
+        "shen_sha": shen_sha,
+        "da_yun": da_yun
+    }
+
+def calculate_da_yun(year, month, day, hour, bazi, gender):
+    """
+    计算大运信息
+    """
+    day_obj = sxtwl.fromSolar(year, month, day)
+    
+    # 性别和月令确定大运顺序
+    month_tg_idx = day_obj.getMonthGZ().tg
+    month_dz_idx = day_obj.getMonthGZ().dz
+    
+    # 阳年男命、阴年女命顺行；阴年男命、阳年女命逆行
+    year_tg_idx = day_obj.getYearGZ().tg
+    is_yang_year = year_tg_idx % 2 == 0  # 甲、丙、戊、庚、壬为阳
+    is_male = gender == '男'
+    
+    forward = (is_yang_year and is_male) or (not is_yang_year and not is_male)
+    
+    # 计算起运时间
+    # 注意：实际八字起运时间计算复杂，这里仅为简化示例
+    birth_date = datetime.datetime(year, month, day, hour)
+    
+    # 简化：男孩3天，女孩100天（实际应基于出生断节气计算）
+    if is_male:
+        qi_yun_days = 3 * 365.25  # 约3年
+    else:
+        qi_yun_days = 3 * 365.25 + 3 * 30 + 24  # 约3年3个月24天
+    
+    qi_yun_date = birth_date + datetime.timedelta(days=qi_yun_days)
+    
+    # 大运干支
+    da_yun_list = []
+    
+    # 计算8个大运
+    for i in range(8):
+        if forward:
+            new_dz_idx = (month_dz_idx + i + 1) % 12
+            new_tg_idx = (month_tg_idx + i + 1) % 10
+        else:
+            new_dz_idx = (month_dz_idx - i - 1) % 12
+            new_tg_idx = (month_tg_idx - i - 1) % 10
+        
+        # 计算当前大运对应的十神
+        shi_shen_idx = (new_tg_idx - day_obj.getDayGZ().tg) % 10
+        shi_shen = SHI_SHEN[shi_shen_idx]
+        
+        # 计算长生十二宫位置（简化）
+        chang_sheng_idx = i % 12
+        chang_sheng_name = CHANG_SHENG[chang_sheng_idx]
+        
+        # 计算大运交接时间
+        jiao_yun_date = qi_yun_date + datetime.timedelta(days=i * 10 * 365.25)  # 每个大运10年
+        
+        # 岁数范围
+        start_age = i * 10 + int(qi_yun_days / 365.25)
+        end_age = start_age + 9
+        
+        da_yun_list.append({
+            "da_yun": f"{TIAN_GAN[new_tg_idx]}{DI_ZHI[new_dz_idx]}",
+            "shi_shen": shi_shen,
+            "chang_sheng": chang_sheng_name,
+            "start_age": start_age,
+            "end_age": end_age,
+            "start_year": jiao_yun_date.year,
+            "end_year": jiao_yun_date.year + 9
+        })
+    
+    # 返回起运信息和大运列表
+    return {
+        "qi_yun": {
+            "days": int(qi_yun_days),
+            "years": round(qi_yun_days / 365.25, 1),
+            "date": qi_yun_date.strftime("%Y-%m-%d")
+        },
+        "da_yun_list": da_yun_list
+    }
+
+def format_bazi_analysis(bazi_data):
+    """
+    格式化八字分析数据，生成DeepSeek API需要的提示内容
+    """
+    bazi = bazi_data["bazi"]
+    shen_sha = bazi_data["shen_sha"]
+    da_yun = bazi_data["da_yun"]
+    
+    # 格式化八字
+    bazi_str = f"{bazi['year']}，{bazi['month']}，{bazi['day']}，{bazi['time']}"
+    
+    # 格式化神煞
+    shen_sha_str = ""
+    for position, sha_list in shen_sha.items():
+        if sha_list:
+            shen_sha_str += f"[{position}]  {' '.join(sha_list)}    \n"
+    
+    # 格式化大运
+    qi_yun_info = da_yun["qi_yun"]
+    qi_yun_str = f"起运：我于出生后{int(qi_yun_info['years'])}年{qi_yun_info['days'] % 365 // 30}个月{qi_yun_info['days'] % 30}天开始起运，在公历{qi_yun_info['date']}交运"
+    
+    da_yun_table = "旺衰\t大运\t十神\t年龄\t开始时间\t结束时间\n"
+    for yun in da_yun["da_yun_list"]:
+        da_yun_table += f"{yun['chang_sheng']}\t{yun['da_yun']}\t{yun['shi_shen']}\t{yun['start_age']}\t{yun['start_year']}\t{yun['end_year']}\n"
+    
+    return {
+        "bazi": bazi_str,
+        "shen_sha": shen_sha_str,
+        "qi_yun": qi_yun_str,
+        "da_yun": da_yun_table
+    }
+
+# 使用示例
+if __name__ == "__main__":
+    # 测试用例：1986年4月23日17点出生的女性
+    bazi_data = get_bazi(1986, 4, 23, 17, '女')
+    formatted = format_bazi_analysis(bazi_data)
+    
+    print(f"八字：{formatted['bazi']}")
+    print(f"神煞：\n{formatted['shen_sha']}")
+    print(f"{formatted['qi_yun']}")
+    print(f"大运：\n{formatted['da_yun']}") 

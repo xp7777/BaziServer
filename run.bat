@@ -31,6 +31,19 @@ REM 安装依赖
 echo 安装依赖...
 pip install -r requirements.txt
 
+REM 检查sxtwl包安装情况
+echo 检查sxtwl包安装情况...
+python -c "import sxtwl" > NUL 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo 检测到sxtwl包未正确安装，尝试安装...
+    python install_sxtwl.py
+    if %ERRORLEVEL% NEQ 0 (
+        echo 警告: sxtwl包安装失败，请查看SXTWL_README.md获取手动安装指南
+    ) else (
+        echo sxtwl包已成功安装
+    )
+)
+
 REM 创建PDF目录
 if not exist pdfs (
     mkdir pdfs
@@ -52,6 +65,9 @@ if not exist .env (
 echo ===========================================================
 echo 系统使用WeasyPrint生成PDF，无需安装外部依赖
 echo 如果PDF生成出现问题，请检查WeasyPrint库是否正确安装
+echo ===========================================================
+echo 系统使用sxtwl包计算农历和干支，可能需要VC++构建工具
+echo 如果遇到sxtwl相关问题，请查看SXTWL_README.md获取帮助
 echo ===========================================================
 
 REM 启动应用

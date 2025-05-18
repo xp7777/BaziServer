@@ -1,73 +1,30 @@
-# 八字命理AI人生指导系统
+# 八字命理AI指导系统
 
-八字命理AI人生指导系统是一个结合传统八字命理与现代AI技术的人生指导应用。用户可以输入出生信息，系统将计算八字命盘并通过AI分析，为用户提供个性化的人生指导建议。
+本系统利用AI技术和传统八字命理，为用户提供个人命理分析和人生指导服务。
 
-## 功能特点
+## 主要功能
 
-- 根据用户出生信息计算八字命盘
-- 支持公历和农历日期转换
-- 计算真太阳时和流年大运
-- 集成ChatGPT/DeepSeek API进行八字分析
-- 提供多个分析维度：健康、财富、事业、婚姻感情、子女
-- 支持微信支付和支付宝在线支付
-- 结果可在线查看和下载PDF
-- 用户历史结果查询功能
+1. **八字命盘生成**：根据用户出生年月日时，自动计算八字命盘
+2. **命理AI分析**：调用DeepSeek AI对八字进行全面分析
+3. **PDF报告生成**：自动生成八字分析PDF报告供用户下载
+4. **多领域分析**：包括健康、财富、事业、婚姻感情、子女等多个方面
+5. **在线测试系统**：提供在线测试页面，无需登录即可体验
 
-## 技术架构
-
-### 前端
-
-- 框架：Vue.js
-- UI组件库：Vant UI
-- HTTP客户端：Axios
-
-### 后端
-
-- 开发语言：Python
-- Web框架：Flask
-- 数据库：MongoDB
-- 身份认证：JWT
-- AI接口：OpenAI API、DeepSeek API
-- PDF生成：pdfkit
-
-## 项目结构
-
-```
-├── app.py               # 应用入口
-├── requirements.txt     # 依赖包列表
-├── .env                 # 环境变量配置
-├── models/              # 数据模型
-│   ├── user_model.py
-│   ├── order_model.py
-│   └── bazi_result_model.py
-├── routes/              # 路由控制器
-│   ├── user_routes.py
-│   ├── order_routes.py
-│   └── bazi_routes.py
-├── utils/               # 工具类
-│   ├── bazi_calculator.py
-│   ├── ai_service.py
-│   ├── payment_service.py
-│   ├── pdf_generator.py
-│   └── sms_service.py
-├── config/              # 配置文件
-└── pdfs/                # 生成的PDF文件
-```
-
-## 安装部署
+## 安装说明
 
 ### 环境要求
 
 - Python 3.8+
-- MongoDB 4.4+
-- wkhtmltopdf (用于PDF生成)
+- MongoDB
+- 必要的Python依赖项
+- ReportLab用于PDF报告生成
 
 ### 安装步骤
 
-1. 克隆代码仓库
+1. 克隆代码库
 ```bash
-git clone https://github.com/yourusername/bazi-ai-system.git
-cd bazi-ai-system
+git clone <repository_url>
+cd 八字命理AI指导系统
 ```
 
 2. 安装依赖
@@ -76,54 +33,95 @@ pip install -r requirements.txt
 ```
 
 3. 配置环境变量
-```bash
-cp .env.example .env
-# 编辑.env文件，填入相关配置
-```
+创建 `.env` 文件并设置必要的环境变量，参考 `.env.example`
 
-4. 运行应用
+4. 启动服务
 ```bash
 python app.py
 ```
 
-### 部署到生产环境
+## 系统架构
 
-使用gunicorn作为WSGI服务器：
+本系统采用前后端分离架构：
 
-```bash
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
+- 前端：Vue.js（暂未完成）
+- 后端：Flask REST API
+- 数据库：MongoDB
+- AI接口：DeepSeek API
+
+## API接口说明
+
+### 八字分析接口
+
+- **URL**: `/api/bazi/analyze`
+- **方法**: POST
+- **说明**: 提交出生信息进行八字分析
+- **参数**:
+  ```json
+  {
+    "solarYear": 1986,
+    "solarMonth": 4,
+    "solarDay": 23,
+    "solarHour": 17,
+    "gender": "女",
+    "birthPlace": "甘肃陇南",
+    "livingPlace": "陕西汉中"
+  }
+  ```
+- **返回**:
+  ```json
+  {
+    "code": 200,
+    "message": "分析成功",
+    "data": {
+      "analysis_id": "xxx",
+      "bazi": "乙巳 庚辰 癸丑 壬戌",
+      "analysis": "分析内容...",
+      "pdf_url": "/pdfs/xxx.pdf"
+    }
+  }
+  ```
+
+### 查询分析结果接口
+
+- **URL**: `/api/bazi/result/<result_id>`
+- **方法**: GET
+- **说明**: 查询特定ID的分析结果
+- **返回**: 与分析接口相同
+
+### PDF下载接口
+
+- **URL**: `/api/bazi/pdf/<result_id>`
+- **方法**: GET
+- **说明**: 下载特定ID的分析PDF报告
+
+## 测试页面
+
+系统提供了测试页面，访问以下地址即可使用：
+
+```
+http://localhost:5000/test
 ```
 
-建议使用Nginx作为反向代理。
+## 八字命理分析原理
 
-## API接口
+系统结合了传统命理学和现代AI技术：
 
-### 用户模块
-- `/api/user/sendVerifyCode` - 发送验证码
-- `/api/user/login` - 用户登录/注册
-- `/api/user/info` - 获取用户信息
+1. 使用sxtwl库计算八字命盘和大运
+2. 提取神煞、五行旺衰等关键信息
+3. 构建专业的提示词传递给DeepSeek AI
+4. AI根据八字命理理论进行分析
+5. 生成多个领域的生活建议
+6. 制作精美的PDF报告
 
-### 订单模块
-- `/api/order/create` - 创建订单
-- `/api/order/payment` - 获取支付信息
-- `/api/order/status/<order_id>` - 查询订单状态
-- `/api/order/wechat/notify` - 微信支付回调
-- `/api/order/alipay/notify` - 支付宝回调
+## 开发计划
 
-### 八字分析模块
-- `/api/bazi/result/<result_id>` - 获取分析结果
-- `/api/bazi/history` - 获取历史分析记录
-- `/api/bazi/pdf/<result_id>` - 下载PDF文档
-
-## 使用说明
-
-1. 用户通过手机号注册/登录
-2. 在主页填写基本信息（性别、出生年月日时）和选择分析侧重点
-3. 提交信息后进入支付页面
-4. 支付成功后，系统会自动计算八字并进行AI分析
-5. 分析完成后，用户可以在结果页面查看分析内容，并下载PDF报告
-6. 历史记录可在用户中心页面查看
+- [ ] 完善前端页面
+- [ ] 增加更多神煞和命理指标
+- [ ] 优化AI提示词，提高分析准确性
+- [ ] 增加用户管理系统
+- [ ] 实现支付功能
 
 ## 许可证
 
-本项目采用MIT许可证 
+[授权许可说明] 

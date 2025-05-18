@@ -3,14 +3,15 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 import os
 from models.bazi_result_model import BaziResultModel
 from models.order_model import OrderModel
-from utils.bazi_calculator import calculate_bazi, calculate_flowing_years
+from utils.bazi_calculator import calculate_bazi, calculate_flowing_years, get_bazi, format_bazi_analysis
 from utils.ai_service import generate_bazi_analysis
-from utils.pdf_generator import generate_pdf
+# 不直接导入pdf_generator模块，避免WeasyPrint导入错误
 import logging
 import requests
 import json
 from datetime import datetime
 from bson.objectid import ObjectId
+from pymongo import MongoClient
 
 # 确保DeepSeek API密钥被设置
 if not os.environ.get('DEEPSEEK_API_KEY'):
@@ -18,6 +19,11 @@ if not os.environ.get('DEEPSEEK_API_KEY'):
     logging.info("已设置DeepSeek API密钥环境变量")
 
 bazi_bp = Blueprint('bazi', __name__)
+
+# 获取MongoDB客户端和数据库
+mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+client = MongoClient(mongo_uri)
+db = client.get_database()
 
 # DeepSeek API配置
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', 'sk-a70d312fd07b4bce82624bd2373a4db4')
@@ -28,6 +34,34 @@ logging.info(f"DeepSeek API URL: {DEEPSEEK_API_URL}")
 
 # 存储正在进行分析的结果ID，避免重复分析
 analyzing_results = {}
+
+# 基础提示词模板
+PROMPT_TEMPLATE = """
+你是一位顶尖的传统文化命理大师，你精通周易，能够将国学和卜卦非常完美地结合运用，会六爻起卦，你精通四柱八字，熟读《滴天髓》、《三命通会》、《穷通宝鉴》、《渊海子平》等一系列书，还精通奇门遁甲和风水堪舆等等一系列常见的东方命理玄学技法。
+
+我的出生是（阳历{solar_year}年{solar_month}月{solar_day}日{solar_hour}点），（农历{lunar_year}年{lunar_month}月{lunar_day}日）。性别（{gender}），出生地（{birth_place}），居住地（{living_place}），
+
+我的八字为（{bazi}）
+我的八字神煞为： 
+{shen_sha}
+
+{qi_yun}
+{da_yun}
+
+请按照八字命理的理论和步骤来分析，先帮分析一下我的八字五行旺衰，神煞，大运流年中需要注意的时间和事件，并给我在学业、职场工作、婚姻感情、财富、建康、风水堪舆等方面的人生规划建议。输出结果请用白话文分段论述，既有术语又能让人听懂。
+"""
+
+# 追加提示词模板
+FOLLOW_UP_TEMPLATES = {
+    "婚姻感情": "请你根据该八字情况和流年运势，详细分析一下该八字的婚姻感情情况。",
+    "事业财运": "请你根据该八字情况和流年运势，详细分析一下该八字的事业财运情况。",
+    "子女情况": "请你根据该八字情况和流年运势，详细分析一下该八字的子女情况。",
+    "父母情况": "请你根据该八字情况和流年运势，详细分析一下该八字的父母情况。",
+    "身体健康": "请你根据该八字情况和流年运势，详细分析一下该八字的身体健康情况。",
+    "学业": "请你根据该八字情况和流年运势，详细分析一下该八字的学业情况。",
+    "人际关系": "请你根据该八字情况和流年运势，详细分析一下该八字的人际关系情况。",
+    "近五年运势": "请你根据该八字情况和流年运势，详细分析一下该八字的近五年运势情况。"
+}
 
 def calculate_bazi(birth_date, birth_time, gender):
     """
@@ -336,66 +370,316 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender):
         }
 
 @bazi_bp.route('/analyze', methods=['POST'])
-@jwt_required()
+# 暂时移除JWT验证，用于测试
+# @jwt_required()
 def analyze_bazi():
-    """分析八字命盘"""
-    user_id = get_jwt_identity()
-    data = request.json
-    
-    result_id = data.get('resultId')
-    
-    if not result_id:
-        return jsonify(code=400, message="缺少结果ID"), 400
-    
-    # 查找八字分析结果
-    result = BaziResultModel.find_by_id(result_id)
-    
-    if not result:
-        return jsonify(code=404, message="分析结果不存在"), 404
-    
-    if result['userId'] != user_id:
-        return jsonify(code=403, message="无权访问此分析结果"), 403
-    
-    # 如果已经分析过，直接返回结果
-    if result.get('analyzed'):
-        return jsonify(
-            code=200,
-            message="成功",
-            data={
-                "baziChart": result['baziChart'],
-                "aiAnalysis": result['aiAnalysis']
-            }
+    try:
+        data = request.json
+        
+        # 验证必要参数
+        required_params = ['solarYear', 'solarMonth', 'solarDay', 'solarHour', 
+                          'gender', 'birthPlace', 'livingPlace']
+        
+        for param in required_params:
+            if param not in data:
+                return jsonify({'code': 400, 'message': f'缺少参数: {param}'}), 400
+        
+        # 从请求中获取数据
+        solar_year = data['solarYear']
+        solar_month = data['solarMonth']
+        solar_day = data['solarDay']
+        solar_hour = data['solarHour']
+        gender = data['gender']
+        birth_place = data['birthPlace']
+        living_place = data['livingPlace']
+        
+        # 计算八字
+        bazi_data = get_bazi(solar_year, solar_month, solar_day, solar_hour, gender)
+        formatted_data = format_bazi_analysis(bazi_data)
+        
+        # 获取农历日期
+        lunar_date = bazi_data.get("lunar_date", {})
+        lunar_year = lunar_date.get("year", solar_year)
+        lunar_month = lunar_date.get("month", solar_month)
+        lunar_day = lunar_date.get("day", solar_day)
+        
+        # 构建提示词
+        prompt = PROMPT_TEMPLATE.format(
+            solar_year=solar_year,
+            solar_month=solar_month,
+            solar_day=solar_day,
+            solar_hour=solar_hour,
+            lunar_year=lunar_year,
+            lunar_month=lunar_month,
+            lunar_day=lunar_day,
+            gender=gender,
+            birth_place=birth_place,
+            living_place=living_place,
+            bazi=formatted_data['bazi'],
+            shen_sha=formatted_data['shen_sha'],
+            qi_yun=formatted_data['qi_yun'],
+            da_yun=formatted_data['da_yun']
         )
+        
+        # 调用DeepSeek API进行分析
+        analysis = call_deepseek_api(prompt)
+        
+        # 保存分析结果到数据库
+        # 测试模式下使用固定用户ID
+        user_id = get_jwt_identity() if request.headers.get('Authorization', '').startswith('Bearer ey') else "test_user_id"
+        analysis_id = save_analysis_result(user_id, {
+            'basic_info': {
+                'solarYear': solar_year,
+                'solarMonth': solar_month,
+                'solarDay': solar_day,
+                'solarHour': solar_hour,
+                'gender': gender,
+                'birthPlace': birth_place,
+                'livingPlace': living_place,
+            },
+            'bazi_data': bazi_data,
+            'formatted_data': formatted_data,
+            'analysis': analysis
+        })
+        
+        # 生成PDF
+        pdf_path = generate_bazi_pdf(
+            analysis_id, 
+            formatted_data, 
+            analysis, 
+            f"{solar_year}年{solar_month}月{solar_day}日 {gender}命 八字分析"
+        )
+        
+        return jsonify({
+            'code': 200,
+            'message': '分析成功',
+            'data': {
+                'analysis_id': analysis_id,
+                'bazi': formatted_data['bazi'],
+                'analysis': analysis,
+                'pdf_url': f"/pdfs/{os.path.basename(pdf_path)}" if pdf_path else None
+            }
+        })
     
-    # 计算八字
-    bazi_chart = calculate_bazi(
-        result['birthTime'].split(' ')[0],  # 提取日期部分
-        result['birthTime'].split(' ')[1],  # 提取时辰部分
-        result['gender']
-    )
+    except Exception as e:
+        logging.error(f"八字分析错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'分析失败: {str(e)}'}), 500
+
+@bazi_bp.route('/follow-up/<analysis_id>', methods=['POST'])
+@jwt_required()
+def follow_up_analysis(analysis_id):
+    try:
+        data = request.json
+        topic = data.get('topic')
+        
+        if not topic or topic not in FOLLOW_UP_TEMPLATES:
+            return jsonify({'code': 400, 'message': f'无效的话题: {topic}，可用选项: {", ".join(FOLLOW_UP_TEMPLATES.keys())}'}), 400
+        
+        # 从数据库获取原始分析
+        analysis_doc = db.analyses.find_one({'_id': analysis_id})
+        if not analysis_doc:
+            return jsonify({'code': 404, 'message': '找不到原始分析记录'}), 404
+        
+        # 检查权限
+        user_id = get_jwt_identity()
+        if str(analysis_doc['user_id']) != str(user_id):
+            return jsonify({'code': 403, 'message': '无权访问此分析记录'}), 403
+        
+        # 构建追加提示词
+        formatted_data = analysis_doc['formatted_data']
+        basic_info = analysis_doc['basic_info']
+        
+        # 预添加已有的基本信息
+        context = f"""
+        这是一位出生于阳历{basic_info['solarYear']}年{basic_info['solarMonth']}月{basic_info['solarDay']}日{basic_info['solarHour']}点的{basic_info['gender']}性，
+        八字为（{formatted_data['bazi']}）
+
+        {formatted_data['qi_yun']}
+        {formatted_data['da_yun']}
+        
+        前面我们已经进行了基础分析，现在:
+        {FOLLOW_UP_TEMPLATES[topic]}
+        """
+        
+        # 调用DeepSeek API进行细化分析
+        follow_up_analysis = call_deepseek_api(context)
+        
+        # 更新数据库中的分析记录
+        db.analyses.update_one(
+            {'_id': analysis_id},
+            {'$set': {f'follow_up.{topic}': follow_up_analysis}}
+        )
+        
+        return jsonify({
+            'code': 200,
+            'message': '分析成功',
+            'data': {
+                'analysis_id': analysis_id,
+                'topic': topic,
+                'analysis': follow_up_analysis
+            }
+        })
     
-    # 调用AI生成分析
-    ai_analysis = generate_ai_analysis(
-        bazi_chart,
-        result['focusAreas'],
-        result['gender']
-    )
+    except Exception as e:
+        logging.error(f"八字追加分析错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'分析失败: {str(e)}'}), 500
+
+@bazi_bp.route('/history', methods=['GET'])
+@jwt_required()
+def get_analysis_history():
+    try:
+        user_id = get_jwt_identity()
+        
+        # 从数据库获取用户的分析历史
+        analyses = list(db.analyses.find(
+            {'user_id': user_id},
+            {'basic_info': 1, 'formatted_data': 1, 'created_at': 1}
+        ).sort('created_at', -1))
+        
+        # 格式化输出
+        result = []
+        for analysis in analyses:
+            result.append({
+                'analysis_id': str(analysis['_id']),
+                'basic_info': analysis['basic_info'],
+                'bazi': analysis['formatted_data']['bazi'],
+                'created_at': analysis.get('created_at', ''),
+            })
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': result
+        })
     
-    # 更新数据库
-    BaziResultModel.update_analysis(
-        result_id,
-        bazi_chart,
-        ai_analysis
-    )
-    
-    return jsonify(
-        code=200,
-        message="分析完成",
-        data={
-            "baziChart": bazi_chart,
-            "aiAnalysis": ai_analysis
+    except Exception as e:
+        logging.error(f"获取八字分析历史错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'获取失败: {str(e)}'}), 500
+
+@bazi_bp.route('/detail/<analysis_id>', methods=['GET'])
+@jwt_required()
+def get_analysis_detail(analysis_id):
+    try:
+        # 从数据库获取分析详情
+        analysis = db.analyses.find_one({'_id': analysis_id})
+        if not analysis:
+            return jsonify({'code': 404, 'message': '找不到分析记录'}), 404
+        
+        # 检查权限
+        user_id = get_jwt_identity()
+        if str(analysis['user_id']) != str(user_id):
+            return jsonify({'code': 403, 'message': '无权访问此分析记录'}), 403
+        
+        # 格式化输出
+        result = {
+            'analysis_id': str(analysis['_id']),
+            'basic_info': analysis['basic_info'],
+            'bazi_data': {
+                'bazi': analysis['formatted_data']['bazi'],
+                'shen_sha': analysis['formatted_data']['shen_sha'],
+                'qi_yun': analysis['formatted_data']['qi_yun'],
+                'da_yun': analysis['formatted_data']['da_yun'],
+            },
+            'analysis': analysis['analysis'],
+            'follow_up': analysis.get('follow_up', {}),
+            'created_at': analysis.get('created_at', ''),
+            'pdf_url': analysis.get('pdf_url')
         }
-    )
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': result
+        })
+    
+    except Exception as e:
+        logging.error(f"获取八字分析详情错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'获取失败: {str(e)}'}), 500
+
+def call_deepseek_api(prompt):
+    """
+    调用DeepSeek API获取八字分析结果
+    """
+    # 提取出生年份
+    birth_year = None
+    try:
+        if "阳历" in prompt and "年" in prompt:
+            year_index = prompt.index("阳历") + 2
+            year_end = prompt.index("年", year_index)
+            birth_year = int(prompt[year_index:year_end])
+    except Exception as e:
+        logging.warning(f"无法提取出生年份: {str(e)}")
+    
+    # 计算当前年龄
+    current_year = datetime.now().year
+    age = current_year - birth_year if birth_year else None
+    
+    # 添加年龄相关上下文
+    system_content = "你是一位顶尖的传统文化命理大师，精通周易，能够将国学和卜卦非常完美地结合运用。请根据用户提供的八字信息，给出专业、详细、实用的分析和建议。"
+    
+    if age is not None:
+        # 添加年龄相关指导
+        system_content += "\n\n重要提示：分析时必须考虑当事人的实际年龄。"
+        
+        if age < 0:  # 未出生
+            system_content += f"当事人尚未出生，出生于未来的{birth_year}年。请只分析未来可能的性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。"
+        elif age < 6:  # 婴幼儿
+            system_content += f"当事人目前仅{age}岁，属于婴幼儿阶段。请重点分析性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段（如20岁以后）的预测。"
+        elif age < 18:  # 未成年
+            system_content += f"当事人目前{age}岁，尚未成年。请重点分析性格特点、天赋才能、健康状况和学业发展，避免过多讨论婚姻感情等不适合未成年人的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段的预测。"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+    }
+    
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 2000
+    }
+    
+    try:
+        response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        # 获取回复内容
+        if "choices" in result and len(result["choices"]) > 0:
+            analysis = result["choices"][0]["message"]["content"]
+            return analysis
+        else:
+            logging.error(f"DeepSeek API返回格式错误: {result}")
+            return "分析生成失败，请稍后再试。"
+            
+    except requests.exceptions.RequestException as e:
+        logging.error(f"DeepSeek API请求失败: {str(e)}")
+        return "分析生成失败，API服务暂时不可用。"
+
+def save_analysis_result(user_id, analysis_data):
+    """
+    保存分析结果到数据库
+    """
+    from datetime import datetime
+    import uuid
+    
+    # 生成唯一ID
+    analysis_id = str(uuid.uuid4())
+    
+    # 添加创建时间
+    analysis_data['created_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    analysis_data['user_id'] = user_id
+    analysis_data['_id'] = analysis_id
+    
+    # 保存到数据库
+    db.analyses.insert_one(analysis_data)
+    
+    return analysis_id
 
 @bazi_bp.route('/result/<result_id>', methods=['GET'])
 # 暂时移除JWT验证，用于测试
@@ -492,193 +776,183 @@ def get_bazi_result(result_id):
         
         # 预设AI分析结果（如果API调用失败将使用这个）
         default_ai_analysis = {
-            "health": "您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。",
-            "wealth": "您的财运在2025年有明显上升趋势，特别是在春夏季节。八字中金水相生，适合从事金融、贸易、水利相关行业。投资方面，稳健为主，可考虑分散投资组合。2027年有意外财运，但需谨慎对待，避免投机性强的项目。",
-            "career": "您的事业宫位较为稳定，具有较强的组织能力和执行力。2025-2026年是事业发展的关键期，有升职或转行的机会。建议提升专业技能，扩展人脉关系。您适合在团队中担任协调或管理角色，发挥沟通才能。",
-            "relationship": "您的八字中日柱为戊午，感情态度较为务实。2025年下半年至2026年上半年是感情发展的良好时期。已婚者需注意与伴侣的沟通，避免因工作忙碌而忽略家庭。单身者有机会通过社交活动或朋友介绍认识合适的对象。",
-            "children": "您的子女宫位较为温和，与子女关系和谐。教育方面，建议采用引导式而非强制式的方法，尊重子女的兴趣发展。2026-2027年是子女发展的重要阶段，可能需要您更多的关注和支持。",
-            "overall": "综合分析您的八字，2025-2027年是您人生的一个上升期，各方面都有良好发展。建议把握这段时间，在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。您的人生态度积极乐观，具有较强的适应能力和抗压能力，这将帮助您度过人生中的各种挑战。"
-        }
+                "health": "您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。",
+                "wealth": "您的财运在2025年有明显上升趋势，特别是在春夏季节。八字中金水相生，适合从事金融、贸易、水利相关行业。投资方面，稳健为主，可考虑分散投资组合。2027年有意外财运，但需谨慎对待，避免投机性强的项目。",
+                "career": "您的事业宫位较为稳定，具有较强的组织能力和执行力。2025-2026年是事业发展的关键期，有升职或转行的机会。建议提升专业技能，扩展人脉关系。您适合在团队中担任协调或管理角色，发挥沟通才能。",
+                "relationship": "您的八字中日柱为戊午，感情态度较为务实。2025年下半年至2026年上半年是感情发展的良好时期。已婚者需注意与伴侣的沟通，避免因工作忙碌而忽略家庭。单身者有机会通过社交活动或朋友介绍认识合适的对象。",
+                "children": "您的子女宫位较为温和，与子女关系和谐。教育方面，建议采用引导式而非强制式的方法，尊重子女的兴趣发展。2026-2027年是子女发展的重要阶段，可能需要您更多的关注和支持。",
+                "overall": "综合分析您的八字，2025-2027年是您人生的一个上升期，各方面都有良好发展。建议把握这段时间，在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。您的人生态度积极乐观，具有较强的适应能力和抗压能力，这将帮助您度过人生中的各种挑战。"
+            }
         
         # 检查DeepSeek API密钥并启动异步分析
         deepseek_api_key = os.getenv('DEEPSEEK_API_KEY')
         if deepseek_api_key and result_id not in analyzing_results:
             logging.info(f"开始异步分析结果: {result_id}")
-            
-            # 记录开始分析的时间
-            analyzing_results[result_id] = 0
-            
-            # 在单独的线程中进行AI分析
-            import threading
-            def perform_analysis():
-                try:
-                    from time import sleep, time
-                    start_time = time()
-                    
-                    # 更新等待时间
-                    def update_wait_time():
-                        while result_id in analyzing_results:
-                            current_time = time()
-                            analyzing_results[result_id] = int(current_time - start_time)
-                            sleep(1)
-                    
-                    # 启动计时线程
-                    timer_thread = threading.Thread(target=update_wait_time)
-                    timer_thread.daemon = True
-                    timer_thread.start()
-                    
-                    # 构建性别信息
-                    gender = result.get('gender', 'male')
-                    gender_text = "男性" if gender == "male" else "女性"
-                    
-                    # 构建提示词
-                    prompt = f"""
-                    请你作为一位专业的命理师，为一位{gender_text}分析八字命盘。
-                    
-                    八字命盘信息:
-                    年柱: {bazi_chart['yearPillar']['heavenlyStem']}{bazi_chart['yearPillar']['earthlyBranch']}
-                    月柱: {bazi_chart['monthPillar']['heavenlyStem']}{bazi_chart['monthPillar']['earthlyBranch']}
-                    日柱: {bazi_chart['dayPillar']['heavenlyStem']}{bazi_chart['dayPillar']['earthlyBranch']}
-                    时柱: {bazi_chart['hourPillar']['heavenlyStem']}{bazi_chart['hourPillar']['earthlyBranch']}
-                    
-                    五行分布:
-                    金: {bazi_chart['fiveElements']['metal']}
-                    木: {bazi_chart['fiveElements']['wood']}
-                    水: {bazi_chart['fiveElements']['water']}
-                    火: {bazi_chart['fiveElements']['fire']}
-                    土: {bazi_chart['fiveElements']['earth']}
-                    
-                    流年信息(2025-2029):
-                    {', '.join([f"{y['year']}年: {y['heavenlyStem']}{y['earthlyBranch']}" for y in bazi_chart['flowingYears']])}
-                    
-                    请按照以下格式提供分析:
-                    
-                    健康分析:
-                    [详细的健康分析，包括体质特点、易发疾病、养生建议等]
-                    
-                    财运分析:
-                    [详细的财运分析，包括财运特点、适合行业、理财建议等]
-                    
-                    事业发展:
-                    [详细的事业分析，包括事业特点、职业方向、发展建议等]
-                    
-                    婚姻感情:
-                    [详细的婚姻感情分析，包括感情特点、相处方式、注意事项等]
-                    
-                    子女缘分:
-                    [详细的子女缘分分析，包括亲子关系、教育方式、注意事项等]
-                    
-                    综合建议:
-                    [综合分析和建议，未来5年的整体运势趋势]
-                    """
-                    
-                    headers = {
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {deepseek_api_key}"
-                    }
-                    
-                    payload = {
-                        "model": "deepseek-chat",
-                        "messages": [
-                            {"role": "system", "content": "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "temperature": 0.7,
-                        "max_tokens": 3000
-                    }
-                    
-                    logging.info("准备调用DeepSeek API...")
-                    response = requests.post(
-                        DEEPSEEK_API_URL,
-                        headers=headers,
-                        data=json.dumps(payload)
-                    )
-                    
-                    logging.info(f"API响应状态码: {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        result_data = response.json()
-                        ai_text = result_data['choices'][0]['message']['content']
-                        logging.info(f"成功获取DeepSeek API响应: {ai_text[:100]}...")
-                        
-                        # 解析AI回复，提取各部分分析
-                        new_analysis = {}
-                        
-                        # 提取健康分析
-                        if "健康分析" in ai_text:
-                            health_start = ai_text.find("健康分析")
-                            next_section = min(
-                                [pos for pos in [ai_text.find("财运分析", health_start), 
-                                                ai_text.find("事业发展", health_start),
-                                                ai_text.find("婚姻感情", health_start),
-                                                ai_text.find("子女缘分", health_start),
-                                                ai_text.find("综合建议", health_start)] if pos > 0] or [len(ai_text)]
-                            )
-                            new_analysis['health'] = ai_text[health_start:next_section].replace("健康分析:", "").replace("健康分析", "").strip()
-                        
-                        # 提取财运分析
-                        if "财运分析" in ai_text:
-                            wealth_start = ai_text.find("财运分析")
-                            next_section = min(
-                                [pos for pos in [ai_text.find("事业发展", wealth_start), 
-                                                ai_text.find("婚姻感情", wealth_start),
-                                                ai_text.find("子女缘分", wealth_start),
-                                                ai_text.find("综合建议", wealth_start)] if pos > 0] or [len(ai_text)]
-                            )
-                            new_analysis['wealth'] = ai_text[wealth_start:next_section].replace("财运分析:", "").replace("财运分析", "").strip()
-                        
-                        # 提取事业发展
-                        if "事业发展" in ai_text:
-                            career_start = ai_text.find("事业发展")
-                            next_section = min(
-                                [pos for pos in [ai_text.find("婚姻感情", career_start), 
-                                                ai_text.find("子女缘分", career_start),
-                                                ai_text.find("综合建议", career_start)] if pos > 0] or [len(ai_text)]
-                            )
-                            new_analysis['career'] = ai_text[career_start:next_section].replace("事业发展:", "").replace("事业发展", "").strip()
-                        
-                        # 提取婚姻感情
-                        if "婚姻感情" in ai_text:
-                            relationship_start = ai_text.find("婚姻感情")
-                            next_section = min(
-                                [pos for pos in [ai_text.find("子女缘分", relationship_start), 
-                                                ai_text.find("综合建议", relationship_start)] if pos > 0] or [len(ai_text)]
-                            )
-                            new_analysis['relationship'] = ai_text[relationship_start:next_section].replace("婚姻感情:", "").replace("婚姻感情", "").strip()
-                        
-                        # 提取子女缘分
-                        if "子女缘分" in ai_text:
-                            children_start = ai_text.find("子女缘分")
-                            next_section = min(
-                                [pos for pos in [ai_text.find("综合建议", children_start)] if pos > 0] or [len(ai_text)]
-                            )
-                            new_analysis['children'] = ai_text[children_start:next_section].replace("子女缘分:", "").replace("子女缘分", "").strip()
-                        
-                        # 提取综合建议
-                        if "综合建议" in ai_text:
-                            overall_start = ai_text.find("综合建议")
-                            new_analysis['overall'] = ai_text[overall_start:].replace("综合建议:", "").replace("综合建议", "").strip()
-                        
-                        logging.info("DeepSeek API调用成功，使用真实分析结果")
-                        
-                        # 使用真实分析结果更新数据库
-                        BaziResultModel.update_analysis(
-                            result_id,
-                            bazi_chart,
-                            new_analysis
-                        )
-                    else:
-                        logging.error(f"调用DeepSeek API失败: {response.status_code}, {response.text[:200]}")
-                        logging.info("使用默认分析数据更新")
-                        # 使用默认分析结果更新数据库
-                        BaziResultModel.update_analysis(
-                            result_id,
-                            bazi_chart,
-                            default_ai_analysis
-                        )
+        
+        # 记录开始分析的时间
+        analyzing_results[result_id] = 0
+        
+        # 在单独的线程中进行AI分析
+        import threading
+        def perform_analysis():
+            try:
+                from time import sleep, time
+                start_time = time()
                 
-                except Exception as e:
-                    logging.error(f"调用DeepSeek API出错: {str(e)}")
+                # 更新等待时间
+                def update_wait_time():
+                    while result_id in analyzing_results:
+                        current_time = time()
+                        analyzing_results[result_id] = int(current_time - start_time)
+                        sleep(1)
+                
+                # 启动计时线程
+                timer_thread = threading.Thread(target=update_wait_time)
+                timer_thread.daemon = True
+                timer_thread.start()
+                
+                # 构建性别信息
+                gender = result.get('gender', 'male')
+                gender_text = "男性" if gender == "male" else "女性"
+                
+                # 构建提示词
+                prompt = f"""
+                请你作为一位专业的命理师，为一位{gender_text}分析八字命盘。
+                
+                八字命盘信息:
+                年柱: {bazi_chart['yearPillar']['heavenlyStem']}{bazi_chart['yearPillar']['earthlyBranch']}
+                月柱: {bazi_chart['monthPillar']['heavenlyStem']}{bazi_chart['monthPillar']['earthlyBranch']}
+                日柱: {bazi_chart['dayPillar']['heavenlyStem']}{bazi_chart['dayPillar']['earthlyBranch']}
+                时柱: {bazi_chart['hourPillar']['heavenlyStem']}{bazi_chart['hourPillar']['earthlyBranch']}
+                
+                五行分布:
+                金: {bazi_chart['fiveElements']['metal']}
+                木: {bazi_chart['fiveElements']['wood']}
+                水: {bazi_chart['fiveElements']['water']}
+                火: {bazi_chart['fiveElements']['fire']}
+                土: {bazi_chart['fiveElements']['earth']}
+                
+                流年信息(2025-2029):
+                {', '.join([f"{y['year']}年: {y['heavenlyStem']}{y['earthlyBranch']}" for y in bazi_chart['flowingYears']])}
+                
+                请按照以下格式提供分析:
+                
+                健康分析:
+                [详细的健康分析，包括体质特点、易发疾病、养生建议等]
+                
+                财运分析:
+                [详细的财运分析，包括财运特点、适合行业、理财建议等]
+                
+                事业发展:
+                [详细的事业分析，包括事业特点、职业方向、发展建议等]
+                
+                婚姻感情:
+                [详细的婚姻感情分析，包括感情特点、相处方式、注意事项等]
+                
+                子女缘分:
+                [详细的子女缘分分析，包括亲子关系、教育方式、注意事项等]
+                
+                综合建议:
+                [综合分析和建议，未来5年的整体运势趋势]
+                """
+                
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {deepseek_api_key}"
+                }
+                
+                payload = {
+                    "model": "deepseek-chat",
+                    "messages": [
+                        {"role": "system", "content": "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 3000
+                }
+                
+                logging.info("准备调用DeepSeek API...")
+                response = requests.post(
+                    DEEPSEEK_API_URL,
+                    headers=headers,
+                    data=json.dumps(payload)
+                )
+                
+                logging.info(f"API响应状态码: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result_data = response.json()
+                    ai_text = result_data['choices'][0]['message']['content']
+                    logging.info(f"成功获取DeepSeek API响应: {ai_text[:100]}...")
+                    
+                    # 解析AI回复，提取各部分分析
+                    new_analysis = {}
+                    
+                    # 提取健康分析
+                    if "健康分析" in ai_text:
+                        health_start = ai_text.find("健康分析")
+                        next_section = min(
+                            [pos for pos in [ai_text.find("财运分析", health_start), 
+                                            ai_text.find("事业发展", health_start),
+                                            ai_text.find("婚姻感情", health_start),
+                                            ai_text.find("子女缘分", health_start),
+                                            ai_text.find("综合建议", health_start)] if pos > 0] or [len(ai_text)]
+                        )
+                        new_analysis['health'] = ai_text[health_start:next_section].replace("健康分析:", "").replace("健康分析", "").strip()
+                    
+                    # 提取财运分析
+                    if "财运分析" in ai_text:
+                        wealth_start = ai_text.find("财运分析")
+                        next_section = min(
+                            [pos for pos in [ai_text.find("事业发展", wealth_start), 
+                                            ai_text.find("婚姻感情", wealth_start),
+                                            ai_text.find("子女缘分", wealth_start),
+                                            ai_text.find("综合建议", wealth_start)] if pos > 0] or [len(ai_text)]
+                        )
+                        new_analysis['wealth'] = ai_text[wealth_start:next_section].replace("财运分析:", "").replace("财运分析", "").strip()
+                    
+                    # 提取事业发展
+                    if "事业发展" in ai_text:
+                        career_start = ai_text.find("事业发展")
+                        next_section = min(
+                            [pos for pos in [ai_text.find("婚姻感情", career_start), 
+                                            ai_text.find("子女缘分", career_start),
+                                            ai_text.find("综合建议", career_start)] if pos > 0] or [len(ai_text)]
+                        )
+                        new_analysis['career'] = ai_text[career_start:next_section].replace("事业发展:", "").replace("事业发展", "").strip()
+                    
+                    # 提取婚姻感情
+                    if "婚姻感情" in ai_text:
+                        relationship_start = ai_text.find("婚姻感情")
+                        next_section = min(
+                            [pos for pos in [ai_text.find("子女缘分", relationship_start), 
+                                            ai_text.find("综合建议", relationship_start)] if pos > 0] or [len(ai_text)]
+                        )
+                        new_analysis['relationship'] = ai_text[relationship_start:next_section].replace("婚姻感情:", "").replace("婚姻感情", "").strip()
+                    
+                    # 提取子女缘分
+                    if "子女缘分" in ai_text:
+                        children_start = ai_text.find("子女缘分")
+                        next_section = min(
+                            [pos for pos in [ai_text.find("综合建议", children_start)] if pos > 0] or [len(ai_text)]
+                        )
+                        new_analysis['children'] = ai_text[children_start:next_section].replace("子女缘分:", "").replace("子女缘分", "").strip()
+                    
+                    # 提取综合建议
+                    if "综合建议" in ai_text:
+                        overall_start = ai_text.find("综合建议")
+                        new_analysis['overall'] = ai_text[overall_start:].replace("综合建议:", "").replace("综合建议", "").strip()
+                    
+                    logging.info("DeepSeek API调用成功，使用真实分析结果")
+                    
+                    # 使用真实分析结果更新数据库
+                    BaziResultModel.update_analysis(
+                        result_id,
+                        bazi_chart,
+                        new_analysis
+                    )
+                else:
+                    logging.error(f"调用DeepSeek API失败: {response.status_code}, {response.text[:200]}")
                     logging.info("使用默认分析数据更新")
                     # 使用默认分析结果更新数据库
                     BaziResultModel.update_analysis(
@@ -686,201 +960,245 @@ def get_bazi_result(result_id):
                         bazi_chart,
                         default_ai_analysis
                     )
-                finally:
-                    # 分析完成，移除记录
-                    if result_id in analyzing_results:
-                        del analyzing_results[result_id]
             
-            # 仅启动一次分析线程
-            analysis_thread = threading.Thread(target=perform_analysis)
-            analysis_thread.daemon = True
-            analysis_thread.start()
-            
-            # 返回正在分析的状态和临时数据
-            return jsonify(
-                code=202,
-                message="分析正在进行中，请稍后重试",
-                data={
-                    "status": "analyzing",
-                    "waitTime": 0,
-                    "baziChart": bazi_chart,
-                    "aiAnalysis": default_ai_analysis,
-                    "focusAreas": result.get('focusAreas', ["health", "wealth", "career", "relationship"])
-                }
-            ), 202
+            except Exception as e:
+                logging.error(f"调用DeepSeek API出错: {str(e)}")
+                logging.info("使用默认分析数据更新")
+                # 使用默认分析结果更新数据库
+                BaziResultModel.update_analysis(
+                    result_id,
+                    bazi_chart,
+                    default_ai_analysis
+                )
+            finally:
+                # 分析完成，移除记录
+                if result_id in analyzing_results:
+                    del analyzing_results[result_id]
         
-        # 如果没有API密钥或其他原因无法进行分析，返回默认数据
-        logging.warning("没有找到DeepSeek API密钥或其他原因，使用默认分析数据")
+        # 仅启动一次分析线程
+        analysis_thread = threading.Thread(target=perform_analysis)
+        analysis_thread.daemon = True
+        analysis_thread.start()
         
+        # 返回正在分析的状态和临时数据
         return jsonify(
-            code=200,
-            message="成功(默认数据)",
+            code=202,
+            message="分析正在进行中，请稍后重试",
             data={
+                "status": "analyzing",
+                "waitTime": 0,
                 "baziChart": bazi_chart,
                 "aiAnalysis": default_ai_analysis,
                 "focusAreas": result.get('focusAreas', ["health", "wealth", "career", "relationship"])
             }
-        )
-        
+        ), 202
+    
     except Exception as e:
         logging.error(f"获取结果时出错: {str(e)}")
         return jsonify(code=500, message=f"服务器内部错误: {str(e)}"), 500
-
-@bazi_bp.route('/history', methods=['GET'])
-@jwt_required()
-def get_history():
-    """获取历史分析记录"""
-    user_id = get_jwt_identity()
-    
-    # 查找用户的所有结果
-    results = BaziResultModel.find_by_user(user_id)
-    
-    # 简化结果数据
-    history = []
-    for result in results:
-        history.append({
-            "resultId": result['_id'],
-            "createTime": result['createTime'].isoformat(),
-            "focusAreas": result['focusAreas'],
-            "pdfUrl": result.get('pdfUrl')
-        })
-    
-    return jsonify(
-        code=200,
-        message="成功",
-        data=history
-    )
 
 @bazi_bp.route('/pdf/<result_id>', methods=['GET'])
 # @jwt_required()
 def get_pdf(result_id):
     """下载PDF文档"""
-    # 测试环境：不检查用户身份
-    # user_id = get_jwt_identity()
-    
-    # 获取User-Agent，检测是否为微信浏览器
-    user_agent = request.headers.get('User-Agent', '')
-    is_weixin = 'MicroMessenger' in user_agent
-    
-    # 查找结果
-    result = BaziResultModel.find_by_id(result_id)
-    
-    if not result:
-        return jsonify(code=404, message="结果不存在"), 404
-    
-    # 测试环境：不检查用户权限
-    # if result['userId'] != user_id:
-    #     return jsonify(code=403, message="无权访问此结果"), 403
-    
-    # 查找关联的订单 - 测试环境：不检查订单状态
-    # order = OrderModel.find_by_id(result['orderId'])
-    
-    # if not order or order['status'] != 'paid':
-    #     return jsonify(code=400, message="订单未支付"), 400
-    
-    # 检查是否已有PDF URL
-    if result.get('pdfUrl'):
-        # 检查本地PDF文件是否存在
-        pdf_path = os.path.join(os.getcwd(), 'pdfs', f"{result_id}.pdf")
+    try:
+        # 获取分析结果
+        result = BaziResultModel.find_by_id(result_id)
+        if not result:
+            return jsonify(code=404, message="找不到分析结果"), 404
         
+        # 从请求参数中获取存储模式，默认使用'stream'直接返回文件流
+        storage_mode = request.args.get('mode', 'stream')
+        
+        # 配置文件路径
+        pdf_dir = os.path.join(os.getcwd(), 'static', 'pdfs')
+        os.makedirs(pdf_dir, exist_ok=True)
+        pdf_path = os.path.join(pdf_dir, f"bazi_analysis_{result_id}.pdf")
+        
+        # 强制删除旧的PDF文件，确保每次请求都生成新的PDF
         if os.path.exists(pdf_path):
-            # 微信环境中，优先返回JSON格式的URL
-            if is_weixin:
-                # 生成一个临时的可访问URL (在实际部署中，应该使用真实的域名和路径)
-                server_url = request.host_url.rstrip('/')
-                pdf_url = f"{server_url}/pdfs/{result_id}.pdf"
-                
-                return jsonify(
-                    code=200,
-                    message="PDF生成成功",
-                    data={"url": pdf_url}
-                )
+            try:
+                os.remove(pdf_path)
+                logging.info(f"删除旧的PDF文件: {pdf_path}")
+            except Exception as e:
+                logging.warning(f"删除旧文件时出错: {str(e)}")
+        
+        # 现在PDF文件不存在，需要生成新的PDF
+        # 导入PDF生成模块
+        from utils.pdf_generator import generate_pdf
+        
+        # 处理数据
+        logging.info(f"原始结果数据类型: {type(result)}")
+        logging.info(f"原始结果数据键: {list(result.keys()) if isinstance(result, dict) else 'not a dict'}")
+        
+        # 确保结果数据结构合理
+        pdf_data = {}
+        pdf_data['_id'] = result_id
+        
+        # 处理八字命盘数据
+        if isinstance(result, dict):
+            # 复制分析结果和八字图表数据
+            if 'aiAnalysis' in result:
+                pdf_data['analysis'] = result['aiAnalysis']
+            elif 'analysis' in result:
+                pdf_data['analysis'] = result['analysis']
             
-            # 非微信环境，直接发送文件
-            return send_file(
+            # 复制八字数据 
+            if 'baziChart' in result:
+                # 将baziChart数据整合到pdf_data
+                bazi_chart = result['baziChart']
+                if isinstance(bazi_chart, dict):
+                    # 提取八字命盘信息
+                    year_pillar = bazi_chart.get('yearPillar', {})
+                    month_pillar = bazi_chart.get('monthPillar', {})
+                    day_pillar = bazi_chart.get('dayPillar', {})
+                    hour_pillar = bazi_chart.get('hourPillar', {})
+                    
+                    # 构建八字文本
+                    bazi_text = ""
+                    if all([year_pillar, month_pillar, day_pillar, hour_pillar]):
+                        year_stem = year_pillar.get('heavenlyStem', '')
+                        year_branch = year_pillar.get('earthlyBranch', '')
+                        month_stem = month_pillar.get('heavenlyStem', '')
+                        month_branch = month_pillar.get('earthlyBranch', '')
+                        day_stem = day_pillar.get('heavenlyStem', '')
+                        day_branch = day_pillar.get('earthlyBranch', '')
+                        hour_stem = hour_pillar.get('heavenlyStem', '')
+                        hour_branch = hour_pillar.get('earthlyBranch', '')
+                        
+                        bazi_text = f"年柱: {year_stem}{year_branch} 月柱: {month_stem}{month_branch} 日柱: {day_stem}{day_branch} 时柱: {hour_stem}{hour_branch}"
+                    
+                    # 添加到pdf_data
+                    pdf_data['bazi'] = bazi_text
+                    
+                    # 五行数据
+                    if 'fiveElements' in bazi_chart:
+                        pdf_data['five_elements'] = bazi_chart['fiveElements']
+            
+            # 处理各种可能的数据格式
+            if 'formatted_data' in result and isinstance(result['formatted_data'], dict):
+                formatted_data = result['formatted_data']
+                
+                # 提取可能的数据
+                if 'bazi' in formatted_data and not pdf_data.get('bazi'):
+                    pdf_data['bazi'] = formatted_data['bazi']
+                
+                if 'five_elements' in formatted_data and not pdf_data.get('five_elements'):
+                    pdf_data['five_elements'] = formatted_data['five_elements']
+                
+                if 'shen_sha' in formatted_data:
+                    pdf_data['shen_sha'] = formatted_data['shen_sha']
+                
+                if 'da_yun' in formatted_data:
+                    pdf_data['da_yun'] = formatted_data['da_yun']
+                
+                if 'qi_yun' in formatted_data:
+                    pdf_data['qi_yun'] = formatted_data['qi_yun']
+        
+        # 确保分析数据存在
+        if not pdf_data.get('analysis'):
+            pdf_data['analysis'] = {
+                'health': '您的八字中五行需要平衡。从健康角度看，应注意保持规律作息，避免过度劳累和情绪波动。',
+                'wealth': '您的财运有发展空间，适合稳健的理财方式。投资方面，建议分散投资组合，避免投机性强的项目。',
+                'career': '您的事业发展有良好前景，具有一定的组织能力和执行力。建议持续提升专业技能，扩展人脉关系。',
+                'relationship': '您的婚姻感情关系值得经营。已婚者需注意与伴侣的沟通，单身者有望遇到合适的对象。',
+                'children': '您与子女关系和谐。教育方面，建议采用引导式的方法，尊重子女的兴趣发展。',
+                'overall': '您的八字展现出潜力，人生发展有诸多可能。建议在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。'
+            }
+        
+        # 确保八字数据存在  
+        if not pdf_data.get('bazi'):
+            pdf_data['bazi'] = "年柱: 甲子 月柱: 丙寅 日柱: 戊午 时柱: 庚申"
+            
+        # 确保五行数据存在
+        if not pdf_data.get('five_elements'):
+            pdf_data['five_elements'] = {"metal": 1, "wood": 1, "water": 1, "fire": 1, "earth": 1}
+        
+        # 添加标题
+        pdf_data['title'] = "八字命理分析报告"
+            
+        # 生成PDF
+        logging.info(f"生成PDF的数据结构: {json.dumps(pdf_data, ensure_ascii=False)[:500]}")
+        pdf_path = generate_pdf(pdf_data)
+        
+        if not pdf_path or not os.path.exists(pdf_path):
+            return jsonify(code=500, message="生成PDF失败"), 500
+        
+        # 如果使用云存储模式
+        if storage_mode == 'cloud':
+            try:
+                from utils.cloud_storage import upload_to_cloud_storage, is_cloud_storage_available, get_fallback_url
+                
+                # 检查云存储是否可用
+                if not is_cloud_storage_available():
+                    logging.warning("云存储服务未配置，使用直接流方式回退")
+                    # 云存储不可用，返回回退URL
+                    return jsonify(
+                        code=400, 
+                        message="云存储服务尚未配置，请使用stream模式",
+                        data={
+                            "fallback_url": get_fallback_url(result_id),
+                            "fallback_mode": "stream"
+                        }
+                    ), 400
+                
+                # 尝试上传到云存储
+                cloud_url = upload_to_cloud_storage(pdf_path, result_id)
+                
+                # 更新数据库记录PDF URL
+                if cloud_url:
+                    BaziResultModel.update_pdf_url(result_id, cloud_url)
+                    
+                    return jsonify(
+                        code=200,
+                        message="PDF上传云存储成功",
+                        data={"url": cloud_url}
+                    )
+                else:
+                    # 上传失败，返回回退URL
+                    return jsonify(
+                        code=500,
+                        message="上传云存储失败，请使用stream模式",
+                        data={
+                            "fallback_url": get_fallback_url(result_id),
+                            "fallback_mode": "stream"
+                        }
+                    ), 500
+            except ImportError:
+                logging.error("云存储模块导入失败")
+                return jsonify(
+                    code=500,
+                    message="云存储模块不可用，请使用stream模式",
+                    data={
+                        "fallback_url": get_fallback_url(result_id),
+                        "fallback_mode": "stream"
+                    }
+                ), 500
+        
+        # 默认使用流模式：直接返回文件
+        logging.info(f"使用流模式返回PDF文件: {pdf_path}")
+        
+        # 检查文件是否存在
+        if not os.path.exists(pdf_path):
+            return jsonify(code=404, message="PDF文件不存在"), 404
+            
+        # 发送PDF文件流
+        try:
+            response = send_file(
                 pdf_path,
                 as_attachment=True,
                 download_name=f"八字命理分析_{result_id}.pdf",
                 mimetype='application/pdf'
             )
-        
-        # 如果文件不存在，但有URL，返回URL
-        return jsonify(
-            code=200,
-            message="重定向到PDF",
-            data={"url": result['pdfUrl']}
-        )
+            # 添加缓存控制头以防止浏览器缓存
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+        except Exception as send_error:
+            logging.exception(f"发送文件时出错: {str(send_error)}")
+            return jsonify(code=500, message=f"发送PDF文件失败: {str(send_error)}"), 500
     
-    # 如果没有PDF URL，先生成PDF
-    from utils.pdf_generator import generate_pdf
-    
-    # 确保结果中包含必要的数据
-    if not result.get('baziChart') or not result.get('aiAnalysis'):
-        return jsonify(code=400, message="分析数据不完整，无法生成PDF"), 400
-    
-    # 构建适合PDF生成的结构化数据
-    pdf_data = {
-        "_id": result_id,
-        "gender": result.get('gender', 'male'),
-        "birthTime": {
-            "year": result.get('birthTime', '2000-01-01').split(' ')[0].split('-')[0],
-            "month": result.get('birthTime', '2000-01-01').split(' ')[0].split('-')[1],
-            "day": result.get('birthTime', '2000-01-01').split(' ')[0].split('-')[2],
-            "hour": result.get('birthTime', '子时').split(' ')[1] if ' ' in result.get('birthTime', '') else '子时',
-            "isLunar": result.get('calendarType', 'solar') == 'lunar'
-        },
-        "baziData": {
-            "yearPillar": result['baziChart']['yearPillar'],
-            "monthPillar": result['baziChart']['monthPillar'],
-            "dayPillar": result['baziChart']['dayPillar'],
-            "hourPillar": result['baziChart']['hourPillar'],
-            "fiveElements": {
-                "金": result['baziChart']['fiveElements']['metal'],
-                "木": result['baziChart']['fiveElements']['wood'],
-                "水": result['baziChart']['fiveElements']['water'],
-                "火": result['baziChart']['fiveElements']['fire'],
-                "土": result['baziChart']['fiveElements']['earth']
-            }
-        },
-        "aiAnalysis": result['aiAnalysis']
-    }
-    
-    # 生成PDF
-    logging.info(f"开始生成PDF: {result_id}")
-    pdf_url = generate_pdf(pdf_data)
-    
-    if not pdf_url:
-        return jsonify(code=500, message="生成PDF失败"), 500
-    
-    # 更新数据库记录PDF URL
-    BaziResultModel.update_pdf_url(result_id, pdf_url)
-    
-    # 检查PDF文件
-    pdf_path = os.path.join(os.getcwd(), 'pdfs', f"{result_id}.pdf")
-    if os.path.exists(pdf_path):
-        # 微信环境中，优先返回JSON格式的URL
-        if is_weixin:
-            # 生成一个临时的可访问URL (在实际部署中，应该使用真实的域名和路径)
-            server_url = request.host_url.rstrip('/')
-            pdf_url = f"{server_url}/pdfs/{result_id}.pdf"
-            
-            return jsonify(
-                code=200,
-                message="PDF生成成功",
-                data={"url": pdf_url}
-            )
-        
-        # 非微信环境，直接发送文件
-        return send_file(
-            pdf_path,
-            as_attachment=True,
-            download_name=f"八字命理分析_{result_id}.pdf",
-            mimetype='application/pdf'
-        )
-    
-    # 如果本地文件不存在，返回URL
-    return jsonify(
-        code=200,
-        message="PDF生成成功",
-        data={"url": pdf_url}
-    ) 
+    except Exception as e:
+        logging.exception(f"生成PDF时出错: {str(e)}")
+        return jsonify(code=500, message=f"生成PDF失败: {str(e)}"), 500 

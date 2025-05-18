@@ -47,7 +47,7 @@
 <script>
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { showToast } from 'vant';
+import { Toast } from 'vant';
 
 export default {
   name: 'UserPage',
@@ -97,7 +97,7 @@ export default {
     
     const goToHistory = () => {
       if (!isLoggedIn.value) {
-        showToast('请先登录');
+        Toast('请先登录');
         goToLogin();
         return;
       }
@@ -107,12 +107,12 @@ export default {
     
     const goToOrders = () => {
       if (!isLoggedIn.value) {
-        showToast('请先登录');
+        Toast('请先登录');
         goToLogin();
         return;
       }
       
-      showToast('订单功能开发中');
+      Toast('订单功能开发中');
     };
     
     const viewResult = (resultId) => {
@@ -120,7 +120,7 @@ export default {
     };
     
     const logout = () => {
-      showToast('退出成功');
+      Toast('退出成功');
       userInfo.value = {};
     };
     

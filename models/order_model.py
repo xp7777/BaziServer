@@ -1,8 +1,13 @@
 from datetime import datetime
 from bson import ObjectId
-from pymongo import ReturnDocument
-from app import db
+from pymongo import ReturnDocument, MongoClient
+import os
 import logging
+
+# 获取MongoDB URI
+mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+client = MongoClient(mongo_uri)
+db = client.get_database()
 
 orders_collection = db.orders
 

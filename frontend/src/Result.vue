@@ -140,9 +140,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { showToast } from 'vant';
+import { Toast } from 'vant';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import axios from 'axios';
@@ -231,15 +231,15 @@ const aiAnalysis = ref({
 
 const testApiConnection = async () => {
   try {
-    showToast('正在测试API连接...');
+    Toast.loading('正在测试API连接...');
     // 使用配置好的http实例
     const response = await http.get('/');
     console.log('API根路径响应:', response.data);
-    showToast('API连接成功');
+    Toast.success('API连接成功');
     return true;
   } catch (error) {
     console.error('API连接测试失败:', error);
-    showToast('API连接失败，请检查后端服务');
+    Toast.fail('API连接失败，请检查后端服务');
     return false;
   }
 };
@@ -264,7 +264,7 @@ onMounted(async () => {
   
   if (!finalResultId) {
     console.error('缺少结果ID，无法获取分析结果');
-    showToast('缺少结果ID，无法获取分析结果');
+    Toast.fail('缺少结果ID，无法获取分析结果');
     return;
   }
   
@@ -272,7 +272,7 @@ onMounted(async () => {
     console.log('调用API获取结果:', `/api/bazi/result/${finalResultId}`);
     
     // 显示加载提示，提醒用户需要等待
-    showToast({
+    Toast.loading({
       message: '正在调用AI进行八字分析，请耐心等待30-60秒...',
       duration: 10000,
       position: 'middle'
@@ -289,13 +289,13 @@ onMounted(async () => {
       baziData.value = response.data.data.baziChart;
       aiAnalysis.value = response.data.data.aiAnalysis;
       focusAreas.value = response.data.data.focusAreas;
-      showToast('分析结果加载成功');
+      Toast.success('分析结果加载成功');
     } else if (response.data.code === 202) {
       // 服务器接受了请求但还在处理中（异步分析）
       console.log('分析正在进行中，等待时间:', response.data.data.waitTime || '未知');
       
       // 显示清晰的等待提示，告知用户确切的等待情况
-      showToast({
+      Toast.loading({
         message: `AI正在专注分析您的八字命盘，已经分析了${response.data.data.waitTime || 0}秒，完整分析需要30-60秒，请稍候...`,
         duration: 8000,
         position: 'middle'
@@ -324,7 +324,7 @@ onMounted(async () => {
             baziData.value = pollResponse.data.data.baziChart;
             aiAnalysis.value = pollResponse.data.data.aiAnalysis;
             focusAreas.value = pollResponse.data.data.focusAreas;
-            showToast('分析结果加载成功！您的八字命盘解析已完成');
+            Toast.success('分析结果加载成功！您的八字命盘解析已完成');
             clearInterval(pollInterval); // 停止轮询
             
             // 自动切换到AI分析结果标签
@@ -332,14 +332,14 @@ onMounted(async () => {
           } else if (pollResponse.data.code !== 202) {
             // 如果返回其他错误码，停止轮询
             console.error('轮询时发生错误:', pollResponse.data.message);
-            showToast(`查询错误: ${pollResponse.data.message}`);
+            Toast.fail(`查询错误: ${pollResponse.data.message}`);
             clearInterval(pollInterval); // 停止轮询
           } else {
             // 仍在分析中，更新等待时间
             const waitTime = pollResponse.data.data.waitTime || 0;
             const remainingTime = Math.max(0, 60 - waitTime);  // 假设总时间为60秒
             
-            showToast({
+            Toast.loading({
               message: `AI正在专注分析中(${Math.round(waitTime/60*100)}%)，预计还需${remainingTime}秒完成...`,
               duration: 5000,
               position: 'middle'
@@ -359,7 +359,7 @@ onMounted(async () => {
           console.log('超过最大轮询时间，停止轮询');
           
           // 显示一个友好的提示，询问用户是否要继续等待
-          showDialog({
+          Toast.confirm({
             title: '分析耗时较长',
             message: '您的八字命理分析正在进行中，但耗时较长。您可以选择继续等待或稍后再查看结果。',
             showCancelButton: true,
@@ -377,12 +377,12 @@ onMounted(async () => {
       }, 180000); // 最多轮询3分钟
     } else {
       console.error('API返回错误:', response.data.message);
-      showToast(response.data.message || '获取分析结果失败');
+      Toast.fail(response.data.message || '获取分析结果失败');
     }
   } catch (error) {
     console.error('获取分析结果出错:', error);
     console.error('错误详情:', error.response ? error.response.data : '无响应数据');
-    showToast('获取分析结果失败，请稍后重试');
+    Toast.fail('获取分析结果失败，请稍后重试');
     
     // 备选方案：如果ID以"RES"开头，尝试模拟支付再获取结果
     if (finalResultId.startsWith('RES')) {
@@ -390,7 +390,7 @@ onMounted(async () => {
         console.log('尝试使用模拟支付接口...');
         
         // 显示加载提示
-        showToast({
+        Toast.loading({
           message: '正在模拟支付并进行八字分析，请耐心等待30-60秒...',
           duration: 10000,
           position: 'middle'
@@ -408,7 +408,7 @@ onMounted(async () => {
             baziData.value = retryResponse.data.data.baziChart;
             aiAnalysis.value = retryResponse.data.data.aiAnalysis;
             focusAreas.value = retryResponse.data.data.focusAreas;
-            showToast('分析结果加载成功');
+            Toast.success('分析结果加载成功');
             return;
           }
         }
@@ -435,153 +435,174 @@ const onClickLeft = () => {
 };
 
 const downloadPDF = async () => {
-  showToast({
-    message: '正在生成PDF，请稍候...',
+  Toast.loading({
+    message: '正在生成并下载PDF报告...',
     duration: 5000,
     position: 'middle'
   });
   
   if (!resultId) {
-    showToast('缺少结果ID，无法生成PDF');
+    Toast.fail('缺少结果ID，无法生成报告');
+    return;
+  }
+  
+  // 使用流式下载模式
+  await downloadPDFAsStream();
+};
+
+// 新增直接流下载函数
+const downloadPDFAsStream = async () => {
+  Toast.loading({
+    message: '正在生成PDF并下载报告...',
+    duration: 0,
+    position: 'middle',
+    forbidClick: true
+  });
+  
+  if (!resultId) {
+    Toast.clear();
+    Toast.fail('缺少结果ID，无法下载报告');
     return;
   }
   
   try {
-    // 调用后端API生成并下载PDF
-    console.log('调用API下载PDF:', `/api/bazi/pdf/${resultId}`);
+    console.log('直接下载报告, 结果ID:', resultId);
     
-    // 检测是否在微信环境中
-    const isWeixinBrowser = /MicroMessenger/i.test(navigator.userAgent);
-    console.log('是否在微信环境:', isWeixinBrowser);
+    // 请求PDF文件流
+    const response = await fetch(`/api/bazi/pdf/${resultId}?mode=stream`);
     
-    if (isWeixinBrowser) {
-      // 微信环境使用直接打开链接的方式，返回JSON包含URL
-      const response = await http.get(`/api/bazi/pdf/${resultId}`);
-      
-      if (response.data.code === 200 && response.data.data?.url) {
-        // 在新窗口打开URL
-        window.open(response.data.data.url, '_blank');
-        showToast('PDF生成成功，请点击右上角菜单在浏览器中打开以下载');
-        return;
-      } else if (response.data.code === 302 && response.data.data?.url) {
-        // 处理重定向
-        window.open(response.data.data.url, '_blank');
-        showToast('PDF生成成功，请点击右上角菜单在浏览器中打开以下载');
-        return;
-      } else {
-        showToast(response.data.message || 'PDF已生成，请在浏览器中查看');
-        return;
+    // 检查错误
+    if (!response.ok) {
+      let errorMsg = '下载失败';
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.message || errorMsg;
+      } catch (e) {
+        // 如果不是JSON格式的错误，使用默认错误信息
       }
+      throw new Error(errorMsg);
     }
     
-    // 非微信环境使用Blob下载
-    // 由于文件下载需要处理二进制数据，使用特殊配置
-    const response = await http.get(`/api/bazi/pdf/${resultId}`, {
-      responseType: 'blob', // 设置响应类型为二进制数据
-    }).catch(error => {
-      // 直接处理错误，因为有些响应可能是JSON格式的错误消息
-      if (error.response) {
-        // 如果是JSON错误，尝试转换并显示
-        if (error.response.headers['content-type']?.includes('application/json')) {
-          return error.response;
-        }
-      }
-      throw error; // 其他错误重新抛出
+    // 检查内容类型
+    const contentType = response.headers.get('content-type');
+    if (!contentType || contentType.indexOf('application/pdf') === -1) {
+      throw new Error('服务器返回的不是PDF文件');
+    }
+    
+    // 转换为Blob对象
+    const blob = await response.blob();
+    
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `八字命理分析_${resultId}.pdf`;
+    
+    // 触发下载
+    document.body.appendChild(a);
+    a.click();
+    
+    // 清理
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    Toast.clear();
+    Toast.success('报告下载成功');
+  } catch (error) {
+    console.error('直接下载PDF出错:', error);
+    Toast.clear();
+    Toast.fail(error.message || '下载失败，请稍后重试');
+    
+    // 如果直接下载失败，可以提示用户使用本地PDF生成
+    if (confirm('直接下载失败，是否要使用本地PDF生成方式？')) {
+      generatePDFLocally();
+    }
+  }
+};
+
+// 本地生成PDF的函数
+const generatePDFLocally = async () => {
+  console.log('使用客户端jsPDF库生成PDF');
+  
+  // 获取内容元素
+  const element = document.querySelector('.result-container');
+  if (!element) {
+    throw new Error('找不到要转换的内容元素');
+  }
+  
+  Toast.loading({
+    message: '正在捕获页面内容...',
+    duration: 5000
+  });
+  
+  try {
+    // 使用html2canvas捕获内容
+    const canvas = await html2canvas(element, {
+      scale: 1,
+      useCORS: true,
+      logging: false,
+      windowWidth: document.documentElement.offsetWidth,
+      windowHeight: document.documentElement.offsetHeight,
     });
     
-    // 检查响应状态
-    if (response.status === 200) {
-      // 检查返回的内容类型来确定是PDF还是JSON数据
-      const contentType = response.headers['content-type'];
-      
-      if (contentType?.includes('application/pdf')) {
-        // 创建Blob对象
-        const blob = new Blob([response.data], { type: 'application/pdf' });
+    Toast.loading({
+      message: '正在生成PDF文件...',
+      duration: 5000
+    });
         
-        // 创建下载链接
-        const url = window.URL.createObjectURL(blob);
+    // 创建PDF文档
+    const pdf = new jsPDF('p', 'mm', 'a4');
         
-        // 判断移动设备，可能不支持下载
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        if (isMobile) {
-          // 移动设备上优先打开PDF预览
-          window.open(url, '_blank');
-          showToast('PDF已打开，请使用浏览器的分享/保存功能下载');
-        } else {
-          // 桌面设备上使用标准下载方式
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `八字命理分析_${resultId}.pdf`;
+    // 计算尺寸和比例
+    const imgData = canvas.toDataURL('image/png');
+    const imgWidth = 210; // A4宽度，单位mm
+    const pageHeight = 297; // A4高度，单位mm
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
           
-          // 模拟点击下载
-          document.body.appendChild(link);
-          link.click();
-          
-          // 清理
-          setTimeout(() => {
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(link);
-          }, 100);
-        }
-        
-        showToast('PDF下载成功！');
-        return;
-      }
-      
-      // 处理JSON响应（可能是URL链接）
-      if (contentType?.includes('application/json')) {
-        // 解析JSON响应
-        const reader = new FileReader();
-        reader.onload = function() {
-          try {
-            const jsonResponse = JSON.parse(reader.result);
-            console.log('API响应(JSON):', jsonResponse);
-            
-            // 检查是否有URL
-            if (jsonResponse.code === 200 && jsonResponse.data?.url) {
-              // 在新窗口打开URL
-              window.open(jsonResponse.data.url, '_blank');
-              showToast('PDF生成成功，正在打开...');
-            } else if (jsonResponse.code === 302 && jsonResponse.data?.url) {
-              // 处理重定向
-              window.open(jsonResponse.data.url, '_blank');
-              showToast('PDF生成成功，正在打开...');
-            } else {
-              // 显示其他成功消息
-              showToast(jsonResponse.message || 'PDF操作成功');
-            }
-          } catch (e) {
-            console.error('解析JSON响应出错:', e);
-            showToast('处理PDF响应时出错');
-          }
-        };
-        reader.readAsText(response.data);
-        return;
-      }
+    // 添加首页
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    
+    // 如果内容超过一页，添加更多页
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
     }
     
-    // 处理其他情况
-    showToast('PDF生成过程中出现异常，请重试');
-    console.error('未知的PDF响应:', response);
+    // 添加页脚
+    const pageCount = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(10);
+      pdf.setTextColor(150);
+      pdf.text(`八字命理AI分析报告 - 页 ${i} / ${pageCount}`, pdf.internal.pageSize.getWidth() / 2, pdf.internal.pageSize.getHeight() - 10, { align: 'center' });
+    }
     
+    // 保存PDF
+    pdf.save(`八字命理分析_${resultId}.pdf`);
+    
+    return true;
   } catch (error) {
-    console.error('下载PDF出错:', error);
-    showToast('下载PDF失败: ' + (error.message || '未知错误'));
+    console.error('本地PDF生成错误:', error);
+    throw error;
   }
 };
 
 const shareResult = () => {
-  showToast('分享功能开发中');
+  Toast.success('分享功能开发中');
 };
 
 const reloadBaziData = async () => {
-  showToast('正在重新加载数据...');
+  Toast.loading('正在重新加载数据...');
   
   try {
     // 测试模拟支付接口以获取分析结果
     if (!resultId) {
-      showToast('缺少结果ID');
+      Toast.fail('缺少结果ID');
       return;
     }
     
@@ -590,7 +611,7 @@ const reloadBaziData = async () => {
       console.log('尝试使用模拟支付接口...');
       
       // 显示加载提示
-      showToast({
+      Toast.loading({
         message: '正在重新分析八字，请耐心等待30-60秒...',
         duration: 10000,
         position: 'middle'
@@ -609,7 +630,7 @@ const reloadBaziData = async () => {
           baziData.value = response.data.data.baziChart;
           aiAnalysis.value = response.data.data.aiAnalysis;
           focusAreas.value = response.data.data.focusAreas;
-          showToast('数据加载成功');
+          Toast.success('数据加载成功');
           return;
         }
       }
@@ -624,13 +645,13 @@ const reloadBaziData = async () => {
       baziData.value = response.data.data.baziChart;
       aiAnalysis.value = response.data.data.aiAnalysis;
       focusAreas.value = response.data.data.focusAreas;
-      showToast('数据加载成功');
+      Toast.success('数据加载成功');
     } else {
-      showToast(response.data.message || '加载失败');
+      Toast.fail(response.data.message || '加载失败');
     }
   } catch (error) {
     console.error('重新加载失败:', error);
-    showToast('加载失败: ' + (error.message || '未知错误'));
+    Toast.fail('加载失败: ' + (error.message || '未知错误'));
   }
 };
 </script>

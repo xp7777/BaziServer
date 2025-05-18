@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>八字命理分析系统测试</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+            display: none;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+        .analysis-section {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .analysis-section h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .analysis-content {
+            white-space: pre-line;
+        }
+        .pdf-link {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 8px 15px;
+            background-color: #428bca;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .pdf-link:hover {
+            background-color: #3276b1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>八字命理分析系统测试</h1>
+        
+        <div class="form-group">
+            <label for="gender">性别</label>
+            <select id="gender">
+                <option value="男">男</option>
+                <option value="女">女</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="birthYear">出生年(阳历)</label>
+            <input type="number" id="birthYear" placeholder="如:1986" min="1900" max="2100" value="1986">
+        </div>
+        
+        <div class="form-group">
+            <label for="birthMonth">出生月(阳历)</label>
+            <input type="number" id="birthMonth" placeholder="如:4" min="1" max="12" value="4">
+        </div>
+        
+        <div class="form-group">
+            <label for="birthDay">出生日(阳历)</label>
+            <input type="number" id="birthDay" placeholder="如:23" min="1" max="31" value="23">
+        </div>
+        
+        <div class="form-group">
+            <label for="birthHour">出生时辰(24小时制)</label>
+            <input type="number" id="birthHour" placeholder="如:17" min="0" max="23" value="17">
+        </div>
+        
+        <div class="form-group">
+            <label for="birthPlace">出生地</label>
+            <input type="text" id="birthPlace" placeholder="如:甘肃陇南" value="甘肃陇南">
+        </div>
+        
+        <div class="form-group">
+            <label for="livingPlace">居住地</label>
+            <input type="text" id="livingPlace" placeholder="如:陕西汉中" value="陕西汉中">
+        </div>
+        
+        <button onclick="analyzeBazi()">开始分析</button>
+        
+        <div class="loading" id="loading">
+            <p>正在进行八字分析，请稍候...</p>
+            <div>预计时间：<span id="waitTime">0</span>秒</div>
+        </div>
+        
+        <div class="result" id="result" style="display:none;">
+            <h2>分析结果</h2>
+            
+            <div class="bazi-info">
+                <h3>八字信息</h3>
+                <div id="baziInfo"></div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>健康分析</h3>
+                <div id="healthAnalysis" class="analysis-content"></div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>财运分析</h3>
+                <div id="wealthAnalysis" class="analysis-content"></div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>事业发展</h3>
+                <div id="careerAnalysis" class="analysis-content"></div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>婚姻感情</h3>
+                <div id="relationshipAnalysis" class="analysis-content"></div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>子女情况</h3>
+                <div id="childrenAnalysis" class="analysis-content"></div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>综合建议</h3>
+                <div id="overallAnalysis" class="analysis-content"></div>
+            </div>
+            
+            <div>
+                <a href="#" id="pdfLink" class="pdf-link" target="_blank">下载PDF报告</a>
+                <button id="downloadPdfBtn" class="btn" style="margin-left: 10px;">直接下载PDF</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let analysisId = '';
+        let pollInterval = null;
+        
+        async function analyzeBazi() {
+            // 获取表单数据
+            const gender = document.getElementById('gender').value;
+            const birthYear = parseInt(document.getElementById('birthYear').value);
+            const birthMonth = parseInt(document.getElementById('birthMonth').value);
+            const birthDay = parseInt(document.getElementById('birthDay').value);
+            const birthHour = parseInt(document.getElementById('birthHour').value);
+            const birthPlace = document.getElementById('birthPlace').value;
+            const livingPlace = document.getElementById('livingPlace').value;
+            
+            // 显示加载状态
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            
+            // 准备请求数据
+            const data = {
+                solarYear: birthYear,
+                solarMonth: birthMonth,
+                solarDay: birthDay,
+                solarHour: birthHour,
+                gender: gender,
+                birthPlace: birthPlace,
+                livingPlace: livingPlace,
+            };
+            
+            try {
+                // 发送分析请求
+                const response = await fetch('/api/bazi/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer your-test-token' // 实际项目中应该提供有效的令牌
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    // 如果分析成功
+                    analysisId = result.data.analysis_id;
+                    
+                    // 开始轮询结果
+                    pollAnalysisResult();
+                } else {
+                    // 如果请求失败
+                    alert('分析请求失败: ' + result.message);
+                    document.getElementById('loading').style.display = 'none';
+                }
+            } catch (error) {
+                alert('发生错误: ' + error.message);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        async function pollAnalysisResult() {
+            // 清除之前的轮询
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+            
+            // 设置轮询间隔
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/bazi/result/${analysisId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer your-test-token' // 实际项目中应该提供有效的令牌
+                        }
+                    });
+                    
+                    const result = await response.json();
+                    
+                    // 更新等待时间
+                    if (result.code === 202) {
+                        document.getElementById('waitTime').textContent = result.data.waitTime || '0';
+                        return; // 继续等待
+                    }
+                    
+                    // 分析完成
+                    if (result.code === 200) {
+                        clearInterval(pollInterval);
+                        document.getElementById('loading').style.display = 'none';
+                        displayResult(result.data);
+                    }
+                } catch (error) {
+                    clearInterval(pollInterval);
+                    alert('获取结果时发生错误: ' + error.message);
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }, 2000); // 每2秒查询一次
+        }
+        
+        function displayResult(data) {
+            // 显示结果区域
+            document.getElementById('result').style.display = 'block';
+            
+            // 显示八字信息
+            if (data.baziChart) {
+                const yearPillar = `${data.baziChart.yearPillar.heavenlyStem}${data.baziChart.yearPillar.earthlyBranch}`;
+                const monthPillar = `${data.baziChart.monthPillar.heavenlyStem}${data.baziChart.monthPillar.earthlyBranch}`;
+                const dayPillar = `${data.baziChart.dayPillar.heavenlyStem}${data.baziChart.dayPillar.earthlyBranch}`;
+                const hourPillar = `${data.baziChart.hourPillar.heavenlyStem}${data.baziChart.hourPillar.earthlyBranch}`;
+                
+                document.getElementById('baziInfo').innerHTML = `
+                    <p>八字: ${yearPillar} ${monthPillar} ${dayPillar} ${hourPillar}</p>
+                    <p>五行分布: 
+                        木:${data.baziChart.fiveElements.wood || 0} 
+                        火:${data.baziChart.fiveElements.fire || 0} 
+                        土:${data.baziChart.fiveElements.earth || 0} 
+                        金:${data.baziChart.fiveElements.metal || 0} 
+                        水:${data.baziChart.fiveElements.water || 0}
+                    </p>
+                `;
+            }
+            
+            // 显示分析内容
+            if (data.aiAnalysis) {
+                document.getElementById('healthAnalysis').textContent = data.aiAnalysis.health || '暂无分析';
+                document.getElementById('wealthAnalysis').textContent = data.aiAnalysis.wealth || '暂无分析';
+                document.getElementById('careerAnalysis').textContent = data.aiAnalysis.career || '暂无分析';
+                document.getElementById('relationshipAnalysis').textContent = data.aiAnalysis.relationship || '暂无分析';
+                document.getElementById('childrenAnalysis').textContent = data.aiAnalysis.children || '暂无分析';
+                document.getElementById('overallAnalysis').textContent = data.aiAnalysis.overall || '暂无分析';
+            }
+            
+            // 设置PDF下载链接
+            if (analysisId) {
+                document.getElementById('pdfLink').href = `/api/bazi/pdf/${analysisId}`;
+                
+                // 添加直接下载PDF按钮事件
+                document.getElementById('downloadPdfBtn').addEventListener('click', function() {
+                    downloadPdfAsStream(analysisId);
+                });
+            }
+        }
+
+        // 通过流方式下载PDF
+        async function downloadPdfAsStream(resultId) {
+            try {
+                // 显示下载中提示
+                alert('PDF下载中，请稍候...');
+                
+                // 请求PDF文件流
+                const response = await fetch(`/api/bazi/pdf/${resultId}?mode=stream`);
+                
+                // 检查响应
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'PDF下载失败');
+                }
+                
+                // 检查内容类型
+                const contentType = response.headers.get('content-type');
+                if (!contentType || contentType.indexOf('application/pdf') === -1) {
+                    throw new Error('返回的不是PDF文件');
+                }
+                
+                // 将响应转换为Blob
+                const blob = await response.blob();
+                
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `八字命理分析_${resultId}.pdf`;
+                
+                // 触发下载
+                document.body.appendChild(a);
+                a.click();
+                
+                // 清理
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                alert('PDF下载成功！');
+            } catch (error) {
+                console.error('PDF下载错误:', error);
+                alert('PDF下载失败: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html> 

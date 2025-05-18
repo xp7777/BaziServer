@@ -1,0 +1,48 @@
+import sxtwl
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def test_sxtwl():
+    try:
+        # 获取公历2000年1月1日的信息
+        day_obj = sxtwl.fromSolar(2000, 1, 1)
+        
+        # 打印基本信息
+        logging.info(f"农历年: {day_obj.getLunarYear()}")
+        logging.info(f"农历月: {day_obj.getLunarMonth()}")
+        logging.info(f"农历日: {day_obj.getLunarDay()}")
+        logging.info(f"是否闰月: {day_obj.isLunarLeap()}")
+        
+        # 获取干支信息
+        gz_year = day_obj.getYearGZ()
+        gz_month = day_obj.getMonthGZ()
+        gz_day = day_obj.getDayGZ()
+        
+        logging.info(f"年干支: {gz_year.tg},{gz_year.dz}")
+        logging.info(f"月干支: {gz_month.tg},{gz_month.dz}")
+        logging.info(f"日干支: {gz_day.tg},{gz_day.dz}")
+        
+        # 计算时辰干支
+        hour = 12  # 中午12点
+        time_zhi = hour // 2  # 计算地支索引
+        time_gan = (gz_day.tg * 2 + time_zhi) % 10  # 计算天干索引
+        
+        logging.info(f"时辰: {time_gan},{time_zhi}")
+        
+        # 通过API获取时辰干支
+        shi_gz = sxtwl.getShiGz(gz_day.tg, hour)
+        logging.info(f"时辰干支(API): {shi_gz.tg},{shi_gz.dz}")
+        
+        return True
+        
+    except Exception as e:
+        logging.error(f"测试sxtwl失败: {str(e)}")
+        return False
+
+if __name__ == "__main__":
+    success = test_sxtwl()
+    if success:
+        logging.info("测试成功，sxtwl模块工作正常")
+    else:
+        logging.error("测试失败，请检查sxtwl模块") 

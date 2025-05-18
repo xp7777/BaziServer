@@ -57,6 +57,8 @@ def get_payment():
     
     order_id = data.get('orderId')
     payment_method = data.get('paymentMethod')
+    device_type = data.get('deviceType', 'pc')  # 新增设备类型参数
+    return_qr = data.get('returnQrCode', False)  # 是否返回二维码图片
     
     if not order_id or not payment_method:
         return jsonify(code=400, message="请提供订单ID和支付方式"), 400
@@ -81,19 +83,25 @@ def get_payment():
     OrderModel.update_payment(order_id, payment_method)
     
     # 生成支付参数
-    payment_url = None
+    payment_data = None
     if payment_method == 'wechat':
-        payment_url = create_wechat_payment(order_id, order['amount'])
+        payment_data = create_wechat_payment(order_id, order['amount'], return_qr=return_qr)
     elif payment_method == 'alipay':
-        payment_url = create_alipay_payment(order_id, order['amount'])
+        is_mobile = device_type.lower() in ['mobile', 'h5', 'app']
+        payment_data = create_alipay_payment(order_id, order['amount'], is_mobile=is_mobile)
+    
+    if not payment_data:
+        return jsonify(code=500, message="生成支付参数失败"), 500
+    
+    response_data = {
+        "orderId": order_id,
+        **payment_data
+    }
     
     return jsonify(
         code=200,
         message="成功",
-        data={
-            "paymentUrl": payment_url,
-            "orderId": order_id
-        }
+        data=response_data
     )
 
 @order_bp.route('/status/<order_id>', methods=['GET'])
