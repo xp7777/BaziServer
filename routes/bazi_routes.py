@@ -393,6 +393,11 @@ def analyze_bazi():
         birth_place = data['birthPlace']
         living_place = data['livingPlace']
         
+        # 计算当前年龄
+        current_year = datetime.now().year
+        age = current_year - int(solar_year)
+        logging.info(f"年龄计算: {current_year} - {solar_year} = {age}岁")
+        
         # 计算八字
         bazi_data = get_bazi(solar_year, solar_month, solar_day, solar_hour, gender)
         formatted_data = format_bazi_analysis(bazi_data)
@@ -420,6 +425,17 @@ def analyze_bazi():
             qi_yun=formatted_data['qi_yun'],
             da_yun=formatted_data['da_yun']
         )
+        
+        # 根据年龄添加额外的分析指导
+        if age < 0:  # 未出生
+            prompt = f"重要说明：此人尚未出生，出生年份为{solar_year}年。\n" + prompt
+            logging.info(f"检测到未来出生年份: {solar_year}，添加特殊提示")
+        elif age < 6:  # 婴幼儿
+            prompt = f"重要说明：此人目前仅{age}岁，属于婴幼儿阶段。\n" + prompt
+            logging.info(f"检测到婴幼儿: {age}岁，添加特殊提示")
+        elif age < 18:  # 未成年
+            prompt = f"重要说明：此人目前{age}岁，尚未成年。\n" + prompt
+            logging.info(f"检测到未成年人: {age}岁，添加特殊提示")
         
         # 调用DeepSeek API进行分析
         analysis = call_deepseek_api(prompt)
@@ -603,16 +619,41 @@ def call_deepseek_api(prompt):
     # 提取出生年份
     birth_year = None
     try:
+        # 尝试不同的提取模式
         if "阳历" in prompt and "年" in prompt:
             year_index = prompt.index("阳历") + 2
             year_end = prompt.index("年", year_index)
             birth_year = int(prompt[year_index:year_end])
+        elif "出生时间：" in prompt and "年" in prompt:
+            year_index = prompt.index("出生时间：") + 5
+            year_end = prompt.index("年", year_index)
+            birth_year = int(prompt[year_index:year_end])
+        elif "solar_year=" in prompt:
+            # 处理格式化字符串中的占位符
+            start_index = prompt.index("solar_year=") + len("solar_year=")
+            end_index = prompt.find(",", start_index)
+            if end_index == -1:
+                end_index = prompt.find("}", start_index)
+            if end_index > start_index:
+                birth_year = int(prompt[start_index:end_index])
+        # 正则表达式提取所有年份，然后找出最可能的出生年份
+        elif "年" in prompt:
+            import re
+            years = re.findall(r'\d{4}年', prompt)
+            if years:
+                # 假设第一个出现的四位数年份是出生年份
+                birth_year = int(years[0][:-1])  # 去掉"年"字
     except Exception as e:
         logging.warning(f"无法提取出生年份: {str(e)}")
     
     # 计算当前年龄
     current_year = datetime.now().year
     age = current_year - birth_year if birth_year else None
+    
+    if age is not None:
+        logging.info(f"提取出生年份成功: {birth_year}, 当前年龄: {age}")
+    else:
+        logging.warning("无法提取出生年份或计算年龄")
     
     # 添加年龄相关上下文
     system_content = "你是一位顶尖的传统文化命理大师，精通周易，能够将国学和卜卦非常完美地结合运用。请根据用户提供的八字信息，给出专业、详细、实用的分析和建议。"
@@ -623,10 +664,13 @@ def call_deepseek_api(prompt):
         
         if age < 0:  # 未出生
             system_content += f"当事人尚未出生，出生于未来的{birth_year}年。请只分析未来可能的性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。"
+            logging.info(f"检测到未来出生年份: {birth_year}，调整分析内容")
         elif age < 6:  # 婴幼儿
             system_content += f"当事人目前仅{age}岁，属于婴幼儿阶段。请重点分析性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段（如20岁以后）的预测。"
+            logging.info(f"检测到婴幼儿: {age}岁，调整分析内容")
         elif age < 18:  # 未成年
             system_content += f"当事人目前{age}岁，尚未成年。请重点分析性格特点、天赋才能、健康状况和学业发展，避免过多讨论婚姻感情等不适合未成年人的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段的预测。"
+            logging.info(f"检测到未成年人: {age}岁，调整分析内容")
     
     headers = {
         "Content-Type": "application/json",
@@ -748,7 +792,7 @@ def get_bazi_result(result_id):
         if result.get('analyzed') or (result.get('aiAnalysis') and any(result.get('aiAnalysis').values())):
             logging.info(f"结果已分析，直接返回: {result_id}")
             return jsonify(
-                code=200,
+                code=200,  # 确保返回状态码为200，表示成功
                 message="成功",
                 data={
                     "baziChart": result.get('baziChart', {}),
@@ -815,6 +859,26 @@ def get_bazi_result(result_id):
                 gender = result.get('gender', 'male')
                 gender_text = "男性" if gender == "male" else "女性"
                 
+                # 提取出生年份并计算年龄
+                birth_year = None
+                try:
+                    # 尝试从八字命盘中提取出生年份
+                    if 'flowingYears' in bazi_chart and len(bazi_chart['flowingYears']) > 0:
+                        # 假设流年信息中的第一个年份与出生年份相近
+                        first_flowing_year = bazi_chart['flowingYears'][0]['year']
+                        # 通常流年比出生年份大2-10岁左右，这里简单估算
+                        birth_year = first_flowing_year - 10
+                    # 也可以从basicInfo中获取
+                    elif 'basicInfo' in result and 'solarYear' in result['basicInfo']:
+                        birth_year = int(result['basicInfo']['solarYear'])
+                except Exception as e:
+                    logging.warning(f"无法提取出生年份: {str(e)}")
+                
+                # 计算当前年龄
+                current_year = datetime.now().year
+                age = current_year - birth_year if birth_year else None
+                logging.info(f"计算年龄: 当前年份={current_year}, 出生年份={birth_year}, 年龄={age}")
+                
                 # 构建提示词
                 prompt = f"""
                 请你作为一位专业的命理师，为一位{gender_text}分析八字命盘。
@@ -861,10 +925,28 @@ def get_bazi_result(result_id):
                     "Authorization": f"Bearer {deepseek_api_key}"
                 }
                 
+                # 创建包含年龄信息的系统提示
+                system_content = "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"
+                
+                # 添加年龄相关的上下文指导
+                if age is not None:
+                    # 添加年龄相关指导
+                    system_content += "\n\n重要提示：分析时必须考虑当事人的实际年龄。"
+                    
+                    if age < 0:  # 未出生
+                        system_content += f"当事人尚未出生，出生于未来的{birth_year}年。请只分析未来可能的性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。"
+                        logging.info(f"检测到未来出生年份: {birth_year}，调整分析内容")
+                    elif age < 6:  # 婴幼儿
+                        system_content += f"当事人目前仅{age}岁，属于婴幼儿阶段。请重点分析性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段（如20岁以后）的预测。"
+                        logging.info(f"检测到婴幼儿: {age}岁，调整分析内容")
+                    elif age < 18:  # 未成年
+                        system_content += f"当事人目前{age}岁，尚未成年。请重点分析性格特点、天赋才能、健康状况和学业发展，避免过多讨论婚姻感情等不适合未成年人的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段的预测。"
+                        logging.info(f"检测到未成年人: {age}岁，调整分析内容")
+                
                 payload = {
                     "model": "deepseek-chat",
                     "messages": [
-                        {"role": "system", "content": "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"},
+                        {"role": "system", "content": system_content},
                         {"role": "user", "content": prompt}
                     ],
                     "temperature": 0.7,

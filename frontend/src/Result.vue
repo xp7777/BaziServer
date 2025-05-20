@@ -77,40 +77,73 @@
       
       <van-tab title="AI分析结果">
         <div class="ai-analysis">
-          <template v-if="focusAreas.includes('health')">
-            <div class="analysis-section">
-              <h3>身体健康</h3>
-              <p>{{ aiAnalysis.health }}</p>
-            </div>
-          </template>
+          <div v-if="userAge < 0" class="age-notice">
+            <van-notice-bar
+              color="#1989fa"
+              background="#ecf9ff"
+              left-icon="info-o"
+            >
+              此分析针对未来出生的宝宝，重点关注性格特点、天赋才能和健康发展趋势。
+            </van-notice-bar>
+          </div>
+          <div v-else-if="userAge < 6" class="age-notice">
+            <van-notice-bar
+              color="#1989fa"
+              background="#ecf9ff"
+              left-icon="info-o"
+            >
+              此分析针对婴幼儿({{userAge}}岁)，重点关注性格特点、天赋才能和健康发展趋势。
+            </van-notice-bar>
+          </div>
+          <div v-else-if="userAge < 18" class="age-notice">
+            <van-notice-bar
+              color="#1989fa"
+              background="#ecf9ff"
+              left-icon="info-o"
+            >
+              此分析针对未成年人({{userAge}}岁)，重点关注性格特点、学业发展和健康状况。
+            </van-notice-bar>
+          </div>
           
-          <template v-if="focusAreas.includes('wealth')">
-            <div class="analysis-section">
-              <h3>财运分析</h3>
-              <p>{{ aiAnalysis.wealth }}</p>
-            </div>
-          </template>
+          <div class="analysis-section">
+            <h3>身体健康</h3>
+            <p>{{ aiAnalysis.health }}</p>
+          </div>
           
-          <template v-if="focusAreas.includes('career')">
-            <div class="analysis-section">
-              <h3>事业发展</h3>
-              <p>{{ aiAnalysis.career }}</p>
-            </div>
-          </template>
+          <div v-if="userAge < 18 && userAge >= 0" class="analysis-section">
+            <h3>学业发展</h3>
+            <p>{{ getAnalysisContent('学业发展') }}</p>
+          </div>
           
-          <template v-if="focusAreas.includes('relationship')">
-            <div class="analysis-section">
-              <h3>婚姻感情</h3>
-              <p>{{ aiAnalysis.relationship }}</p>
-            </div>
-          </template>
+          <div class="analysis-section">
+            <h3>性格特点</h3>
+            <p>{{ getAnalysisContent('性格特点') }}</p>
+          </div>
           
-          <template v-if="focusAreas.includes('children')">
-            <div class="analysis-section">
-              <h3>子女缘分</h3>
-              <p>{{ aiAnalysis.children }}</p>
-            </div>
-          </template>
+          <div v-if="userAge >= 18 && focusAreas.includes('wealth')" class="analysis-section">
+            <h3>财运分析</h3>
+            <p>{{ aiAnalysis.wealth }}</p>
+          </div>
+          
+          <div v-if="userAge >= 18 && focusAreas.includes('career')" class="analysis-section">
+            <h3>事业发展</h3>
+            <p>{{ aiAnalysis.career }}</p>
+          </div>
+          
+          <div v-if="userAge >= 18 && focusAreas.includes('relationship')" class="analysis-section">
+            <h3>婚姻感情</h3>
+            <p>{{ aiAnalysis.relationship }}</p>
+          </div>
+          
+          <div v-if="userAge >= 18 && focusAreas.includes('children')" class="analysis-section">
+            <h3>子女缘分</h3>
+            <p>{{ aiAnalysis.children }}</p>
+          </div>
+          
+          <div class="analysis-section">
+            <h3>未来发展</h3>
+            <p>{{ getAnalysisContent('未来发展') || aiAnalysis.overall }}</p>
+          </div>
           
           <div class="analysis-section">
             <h3>综合建议</h3>
@@ -140,9 +173,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue';
+import { ref, onMounted, reactive, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Toast } from 'vant';
+import { Toast, Dialog } from 'vant';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import axios from 'axios';
@@ -152,6 +185,39 @@ const route = useRoute();
 const router = useRouter();
 const resultId = route.params.id || route.query.resultId;
 const activeTab = ref(0);
+
+// 用户年龄，从URL参数或localStorage获取
+const userAge = ref(parseInt(route.query.age) || parseInt(localStorage.getItem('userAge')) || null);
+
+// 从分析文本中提取特定部分内容
+const getAnalysisContent = (sectionName) => {
+  try {
+    // 处理健康分析文本，尝试提取学业、性格等内容
+    if (aiAnalysis.value.health) {
+      const healthText = aiAnalysis.value.health;
+      
+      // 查找各部分的标记
+      const academicMatch = healthText.match(new RegExp(`###\\s*${sectionName}([\\s\\S]*?)(?=###|$)`, 'i'));
+      if (academicMatch && academicMatch[1]) {
+        return academicMatch[1].trim();
+      }
+      
+      // 如果是未来发展，尝试从overall中提取
+      if (sectionName === '未来发展' && aiAnalysis.value.overall) {
+        const futureMatch = aiAnalysis.value.overall.match(/未来(\d+)年[：:]([\s\S]*?)(?=（本分析|$)/i);
+        if (futureMatch && futureMatch[2]) {
+          return futureMatch[2].trim();
+        }
+      }
+    }
+    
+    // 如果没有找到对应部分或提取失败，返回空字符串
+    return '';
+  } catch (e) {
+    console.error(`提取${sectionName}内容时出错:`, e);
+    return '';
+  }
+};
 
 // 模拟数据，作为API调用失败时的备用数据
 const focusAreas = ref(['health', 'wealth', 'career', 'relationship']);
@@ -289,6 +355,7 @@ onMounted(async () => {
       baziData.value = response.data.data.baziChart;
       aiAnalysis.value = response.data.data.aiAnalysis;
       focusAreas.value = response.data.data.focusAreas;
+      
       Toast.success('分析结果加载成功');
     } else if (response.data.code === 202) {
       // 服务器接受了请求但还在处理中（异步分析）
@@ -319,8 +386,17 @@ onMounted(async () => {
           console.log('轮询查询分析结果...');
           const pollResponse = await http.get(`/api/bazi/result/${finalResultId}`);
           
-          if (pollResponse.data.code === 200) {
+          // 添加更详细的日志
+          console.log(`轮询响应状态码: ${pollResponse.status}, 响应code: ${pollResponse.data.code}`);
+          
+          // 首先检查是否有分析结果
+          const hasAnalysis = pollResponse.data.data && 
+                              pollResponse.data.data.aiAnalysis && 
+                              Object.values(pollResponse.data.data.aiAnalysis).some(v => v);
+          
+          if (pollResponse.data.code === 200 || hasAnalysis) {
             // 分析完成，更新数据
+            console.log('分析已完成，更新数据');
             baziData.value = pollResponse.data.data.baziChart;
             aiAnalysis.value = pollResponse.data.data.aiAnalysis;
             focusAreas.value = pollResponse.data.data.focusAreas;
@@ -359,13 +435,11 @@ onMounted(async () => {
           console.log('超过最大轮询时间，停止轮询');
           
           // 显示一个友好的提示，询问用户是否要继续等待
-          Toast.confirm({
+          Dialog.confirm({
             title: '分析耗时较长',
             message: '您的八字命理分析正在进行中，但耗时较长。您可以选择继续等待或稍后再查看结果。',
-            showCancelButton: true,
             confirmButtonText: '继续等待',
             cancelButtonText: '稍后查看',
-            theme: 'round-button',
           }).then(() => {
             // 用户选择继续等待，重新启动轮询
             window.location.reload();
@@ -770,5 +844,9 @@ const reloadBaziData = async () => {
 
 .action-buttons {
   padding: 20px 16px;
+}
+
+.age-notice {
+  margin-bottom: 20px;
 }
 </style>

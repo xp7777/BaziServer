@@ -56,7 +56,7 @@ def ensure_chinese_font():
                     if not os.path.exists(local_font_path):
                         shutil.copy2(font_path, local_font_path)
                         logger.info(f"复制字体到本地: {local_font_path}")
-                except Exception as e:
+except Exception as e:
                     logger.warning(f"复制字体文件失败: {str(e)}")
                 
                 # 注册字体 - 尝试直接使用系统字体，如果失败则使用复制的本地字体
@@ -109,7 +109,7 @@ def ensure_chinese_font():
                     FONT_REGISTERED = True
                     logger.info(f"成功注册下载的字体: {font_name}")
                     return True
-            except Exception as e:
+    except Exception as e:
                 logger.warning(f"下载和注册字体 {font_filename} 失败: {str(e)}")
         
         # 最后的备选方案，使用一个空白占位字体
@@ -133,7 +133,7 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
         analysis: 分析结果
         title: PDF标题
         output_path: 输出PDF路径，默认为自动生成
-        
+    
     Returns:
         str: 生成的文件路径
     """
@@ -304,7 +304,7 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
             except Exception as e:
                 logger.warning(f"生成五行分布表格失败: {str(e)}")
                 elements.append(Paragraph("五行分布数据获取失败", styles['Chinese']))
-        else:
+            else:
             elements.append(Paragraph("五行分布数据不可用", styles['Chinese']))
             
         elements.append(Spacer(1, 10))
