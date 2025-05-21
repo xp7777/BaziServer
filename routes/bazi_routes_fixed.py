@@ -377,7 +377,7 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender):
             logging.error(f"错误详情: {response.text}")
             return None
         
-            result = response.json()
+        result = response.json()
         
         # 检查API响应
         if "choices" in result and len(result["choices"]) > 0:
@@ -434,7 +434,7 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender):
             overall_match = re.search(r'综合建议[：:]([\s\S]*?)$', content)
             if overall_match:
                 analysis_result["overall"] = overall_match.group(1).strip()
-        else:
+                else:
                 # 如果没有找到综合建议，使用全部内容
                 analysis_result["overall"] = content
             
@@ -988,48 +988,48 @@ def get_bazi_result(result_id):
         current_year = datetime.now().year
         age = current_year - birth_year if birth_year else None
         logging.info(f"计算年龄: 当前年份={current_year}, 出生年份={birth_year}, 年龄={age}")
-                
-                # 构建提示词
-                prompt = f"""
-                请你作为一位专业的命理师，为一位{gender_text}分析八字命盘。
-                
-                八字命盘信息:
-                年柱: {bazi_chart['yearPillar']['heavenlyStem']}{bazi_chart['yearPillar']['earthlyBranch']}
-                月柱: {bazi_chart['monthPillar']['heavenlyStem']}{bazi_chart['monthPillar']['earthlyBranch']}
-                日柱: {bazi_chart['dayPillar']['heavenlyStem']}{bazi_chart['dayPillar']['earthlyBranch']}
-                时柱: {bazi_chart['hourPillar']['heavenlyStem']}{bazi_chart['hourPillar']['earthlyBranch']}
-                
-                五行分布:
-                金: {bazi_chart['fiveElements']['metal']}
-                木: {bazi_chart['fiveElements']['wood']}
-                水: {bazi_chart['fiveElements']['water']}
-                火: {bazi_chart['fiveElements']['fire']}
-                土: {bazi_chart['fiveElements']['earth']}
-                
-                流年信息(2025-2029):
-                {', '.join([f"{y['year']}年: {y['heavenlyStem']}{y['earthlyBranch']}" for y in bazi_chart['flowingYears']])}
-                
-                请按照以下格式提供分析:
-                
-                健康分析:
-                [详细的健康分析，包括体质特点、易发疾病、养生建议等]
-                
-                财运分析:
-                [详细的财运分析，包括财运特点、适合行业、理财建议等]
-                
-                事业发展:
-                [详细的事业分析，包括事业特点、职业方向、发展建议等]
-                
-                婚姻感情:
-                [详细的婚姻感情分析，包括感情特点、相处方式、注意事项等]
-                
-                子女缘分:
-                [详细的子女缘分分析，包括亲子关系、教育方式、注意事项等]
-                
-                综合建议:
-                [综合分析和建议，未来5年的整体运势趋势]
-                """
-                
+        
+        # 构建提示词
+        prompt = f"""
+        请你作为一位专业的命理师，为一位{gender_text}分析八字命盘。
+        
+        八字命盘信息:
+        年柱: {bazi_chart['yearPillar']['heavenlyStem']}{bazi_chart['yearPillar']['earthlyBranch']}
+        月柱: {bazi_chart['monthPillar']['heavenlyStem']}{bazi_chart['monthPillar']['earthlyBranch']}
+        日柱: {bazi_chart['dayPillar']['heavenlyStem']}{bazi_chart['dayPillar']['earthlyBranch']}
+        时柱: {bazi_chart['hourPillar']['heavenlyStem']}{bazi_chart['hourPillar']['earthlyBranch']}
+        
+        五行分布:
+        金: {bazi_chart['fiveElements']['metal']}
+        木: {bazi_chart['fiveElements']['wood']}
+        水: {bazi_chart['fiveElements']['water']}
+        火: {bazi_chart['fiveElements']['fire']}
+        土: {bazi_chart['fiveElements']['earth']}
+        
+        流年信息(2025-2029):
+        {', '.join([f"{y['year']}年: {y['heavenlyStem']}{y['earthlyBranch']}" for y in bazi_chart['flowingYears']])}
+        
+        请按照以下格式提供分析:
+        
+        健康分析:
+        [详细的健康分析，包括体质特点、易发疾病、养生建议等]
+        
+        财运分析:
+        [详细的财运分析，包括财运特点、适合行业、理财建议等]
+        
+        事业发展:
+        [详细的事业分析，包括事业特点、职业方向、发展建议等]
+        
+        婚姻感情:
+        [详细的婚姻感情分析，包括感情特点、相处方式、注意事项等]
+        
+        子女缘分:
+        [详细的子女缘分分析，包括亲子关系、教育方式、注意事项等]
+        
+        综合建议:
+        [综合分析和建议，未来5年的整体运势趋势]
+        """
+        
         # 创建包含年龄信息的系统提示
         system_content = "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"
         
@@ -1071,17 +1071,17 @@ def get_bazi_result(result_id):
         
         # 准备调用DeepSeek API
         deepseek_api_key = os.getenv('DEEPSEEK_API_KEY', 'sk-a70d312fd07b4bce82624bd2373a4db4')
-                
-                payload = {
-                    "model": "deepseek-chat",
-                    "messages": [
+        
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
                 {"role": "system", "content": system_content},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 3000
-                }
-                
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 3000
+        }
+        
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {deepseek_api_key}"
@@ -1090,76 +1090,76 @@ def get_bazi_result(result_id):
         logging.info("开始直接调用DeepSeek API并返回结果...")
         
         # 直接同步调用API
-                response = requests.post(
-                    DEEPSEEK_API_URL,
-                    headers=headers,
+        response = requests.post(
+            DEEPSEEK_API_URL,
+            headers=headers,
             data=json.dumps(payload),
             timeout=60  # 增加超时时间到60秒
+        )
+        
+        if response.status_code == 200:
+            result_data = response.json()
+            ai_text = result_data['choices'][0]['message']['content']
+            logging.info(f"成功获取DeepSeek API响应: {ai_text[:100]}...")
+            
+            # 解析AI回复，提取各部分分析
+            new_analysis = {}
+            
+            # 提取健康分析
+            if "健康分析" in ai_text:
+                health_start = ai_text.find("健康分析")
+                next_section = min(
+                    [pos for pos in [ai_text.find("财运分析", health_start), 
+                                    ai_text.find("事业发展", health_start),
+                                    ai_text.find("婚姻感情", health_start),
+                                    ai_text.find("子女缘分", health_start),
+                                    ai_text.find("综合建议", health_start)] if pos > 0] or [len(ai_text)]
                 )
-                
-                if response.status_code == 200:
-                    result_data = response.json()
-                    ai_text = result_data['choices'][0]['message']['content']
-                    logging.info(f"成功获取DeepSeek API响应: {ai_text[:100]}...")
-                    
-                    # 解析AI回复，提取各部分分析
-                    new_analysis = {}
-                    
-                    # 提取健康分析
-                    if "健康分析" in ai_text:
-                        health_start = ai_text.find("健康分析")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("财运分析", health_start), 
-                                            ai_text.find("事业发展", health_start),
-                                            ai_text.find("婚姻感情", health_start),
-                                            ai_text.find("子女缘分", health_start),
-                                            ai_text.find("综合建议", health_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['health'] = ai_text[health_start:next_section].replace("健康分析:", "").replace("健康分析", "").strip()
-                    
-                    # 提取财运分析
-                    if "财运分析" in ai_text:
-                        wealth_start = ai_text.find("财运分析")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("事业发展", wealth_start), 
-                                            ai_text.find("婚姻感情", wealth_start),
-                                            ai_text.find("子女缘分", wealth_start),
-                                            ai_text.find("综合建议", wealth_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['wealth'] = ai_text[wealth_start:next_section].replace("财运分析:", "").replace("财运分析", "").strip()
-                    
-                    # 提取事业发展
-                    if "事业发展" in ai_text:
-                        career_start = ai_text.find("事业发展")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("婚姻感情", career_start), 
-                                            ai_text.find("子女缘分", career_start),
-                                            ai_text.find("综合建议", career_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['career'] = ai_text[career_start:next_section].replace("事业发展:", "").replace("事业发展", "").strip()
-                    
-                    # 提取婚姻感情
-                    if "婚姻感情" in ai_text:
-                        relationship_start = ai_text.find("婚姻感情")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("子女缘分", relationship_start), 
-                                            ai_text.find("综合建议", relationship_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['relationship'] = ai_text[relationship_start:next_section].replace("婚姻感情:", "").replace("婚姻感情", "").strip()
-                    
-                    # 提取子女缘分
-                    if "子女缘分" in ai_text:
-                        children_start = ai_text.find("子女缘分")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("综合建议", children_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['children'] = ai_text[children_start:next_section].replace("子女缘分:", "").replace("子女缘分", "").strip()
-                    
-                    # 提取综合建议
-                    if "综合建议" in ai_text:
-                        overall_start = ai_text.find("综合建议")
-                        new_analysis['overall'] = ai_text[overall_start:].replace("综合建议:", "").replace("综合建议", "").strip()
-                    
+                new_analysis['health'] = ai_text[health_start:next_section].replace("健康分析:", "").replace("健康分析", "").strip()
+            
+            # 提取财运分析
+            if "财运分析" in ai_text:
+                wealth_start = ai_text.find("财运分析")
+                next_section = min(
+                    [pos for pos in [ai_text.find("事业发展", wealth_start), 
+                                    ai_text.find("婚姻感情", wealth_start),
+                                    ai_text.find("子女缘分", wealth_start),
+                                    ai_text.find("综合建议", wealth_start)] if pos > 0] or [len(ai_text)]
+                )
+                new_analysis['wealth'] = ai_text[wealth_start:next_section].replace("财运分析:", "").replace("财运分析", "").strip()
+            
+            # 提取事业发展
+            if "事业发展" in ai_text:
+                career_start = ai_text.find("事业发展")
+                next_section = min(
+                    [pos for pos in [ai_text.find("婚姻感情", career_start), 
+                                    ai_text.find("子女缘分", career_start),
+                                    ai_text.find("综合建议", career_start)] if pos > 0] or [len(ai_text)]
+                )
+                new_analysis['career'] = ai_text[career_start:next_section].replace("事业发展:", "").replace("事业发展", "").strip()
+            
+            # 提取婚姻感情
+            if "婚姻感情" in ai_text:
+                relationship_start = ai_text.find("婚姻感情")
+                next_section = min(
+                    [pos for pos in [ai_text.find("子女缘分", relationship_start), 
+                                    ai_text.find("综合建议", relationship_start)] if pos > 0] or [len(ai_text)]
+                )
+                new_analysis['relationship'] = ai_text[relationship_start:next_section].replace("婚姻感情:", "").replace("婚姻感情", "").strip()
+            
+            # 提取子女缘分
+            if "子女缘分" in ai_text:
+                children_start = ai_text.find("子女缘分")
+                next_section = min(
+                    [pos for pos in [ai_text.find("综合建议", children_start)] if pos > 0] or [len(ai_text)]
+                )
+                new_analysis['children'] = ai_text[children_start:next_section].replace("子女缘分:", "").replace("子女缘分", "").strip()
+            
+            # 提取综合建议
+            if "综合建议" in ai_text:
+                overall_start = ai_text.find("综合建议")
+                new_analysis['overall'] = ai_text[overall_start:].replace("综合建议:", "").replace("综合建议", "").strip()
+            
             # 如果没有成功解析，使用整个文本作为overall
             if not new_analysis:
                 new_analysis['overall'] = ai_text
@@ -1176,8 +1176,8 @@ def get_bazi_result(result_id):
                     "focusAreas": result.get('focusAreas', ["health", "wealth", "career", "relationship"])
                 }
             })
-                else:
-                    logging.error(f"调用DeepSeek API失败: {response.status_code}, {response.text[:200]}")
+        else:
+            logging.error(f"调用DeepSeek API失败: {response.status_code}, {response.text[:200]}")
             # 使用默认分析结果返回
             default_ai_analysis = {
                 "health": "您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。",
@@ -1195,10 +1195,10 @@ def get_bazi_result(result_id):
                 'code': 200,
                 'message': "API调用失败，返回默认分析",
                 'data': {
-                "baziChart": bazi_chart,
-                "aiAnalysis": default_ai_analysis,
-                "focusAreas": result.get('focusAreas', ["health", "wealth", "career", "relationship"])
-            }
+                    "baziChart": bazi_chart,
+                    "aiAnalysis": default_ai_analysis,
+                    "focusAreas": result.get('focusAreas', ["health", "wealth", "career", "relationship"])
+                }
             })
     
     except Exception as e:
@@ -1405,9 +1405,9 @@ def get_pdf(result_id):
                 # 更新数据库记录PDF URL
                 if cloud_url:
                     BaziResultModel.update_pdf_url(result_id, cloud_url)
-                
-                return jsonify(
-                    code=200,
+                    
+                    return jsonify(
+                        code=200,
                         message="PDF上传云存储成功",
                         data={"url": cloud_url}
                     )
@@ -1549,7 +1549,7 @@ def generate_pdf_from_data():
         pdf_path = os.path.join(pdf_dir, f"bazi_analysis_{result_id}.pdf")
         
         # 强制删除旧的PDF文件，确保每次请求都生成新的PDF
-    if os.path.exists(pdf_path):
+        if os.path.exists(pdf_path):
             try:
                 os.remove(pdf_path)
                 logging.info(f"删除旧的PDF文件: {pdf_path}")
@@ -1616,11 +1616,11 @@ def generate_pdf_from_data():
         # 发送PDF文件流
         try:
             response = send_file(
-            pdf_path,
-            as_attachment=True,
-            download_name=f"八字命理分析_{result_id}.pdf",
-            mimetype='application/pdf'
-        )
+                pdf_path,
+                as_attachment=True,
+                download_name=f"八字命理分析_{result_id}.pdf",
+                mimetype='application/pdf'
+            )
             # 添加缓存控制头以防止浏览器缓存
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"
