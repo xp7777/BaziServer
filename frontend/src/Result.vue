@@ -379,9 +379,12 @@ onMounted(async () => {
         focusAreas.value = response.data.data.focusAreas;
       }
       
+      // 创建轮询定时器引用
+      const pollInterval = ref(null);
+      const maxPollTimeout = ref(null);
+      
       // 启动轮询，每15秒查询一次直到分析完成
-      // 增加轮询间隔，减少服务器压力
-      const pollInterval = setInterval(async () => {
+      pollInterval.value = setInterval(async () => {
         try {
           console.log('轮询查询分析结果...');
           const pollResponse = await http.get(`/api/bazi/result/${finalResultId}`);
@@ -401,7 +404,16 @@ onMounted(async () => {
             aiAnalysis.value = pollResponse.data.data.aiAnalysis;
             focusAreas.value = pollResponse.data.data.focusAreas;
             Toast.success('分析结果加载成功！您的八字命盘解析已完成');
-            clearInterval(pollInterval); // 停止轮询
+            
+            // 清除所有定时器
+            if (pollInterval.value) {
+              clearInterval(pollInterval.value);
+              pollInterval.value = null;
+            }
+            if (maxPollTimeout.value) {
+              clearTimeout(maxPollTimeout.value);
+              maxPollTimeout.value = null;
+            }
             
             // 自动切换到AI分析结果标签
             activeTab.value = 1;
@@ -409,7 +421,16 @@ onMounted(async () => {
             // 如果返回其他错误码，停止轮询
             console.error('轮询时发生错误:', pollResponse.data.message);
             Toast.fail(`查询错误: ${pollResponse.data.message}`);
-            clearInterval(pollInterval); // 停止轮询
+            
+            // 清除所有定时器
+            if (pollInterval.value) {
+              clearInterval(pollInterval.value);
+              pollInterval.value = null;
+            }
+            if (maxPollTimeout.value) {
+              clearTimeout(maxPollTimeout.value);
+              maxPollTimeout.value = null;
+            }
           } else {
             // 仍在分析中，更新等待时间
             const waitTime = pollResponse.data.data.waitTime || 0;
@@ -424,14 +445,19 @@ onMounted(async () => {
           }
         } catch (err) {
           console.error('轮询时出错:', err);
-          clearInterval(pollInterval); // 出错也停止轮询
+          // 出错也停止轮询并清除定时器
+          if (pollInterval.value) {
+            clearInterval(pollInterval.value);
+            pollInterval.value = null;
+          }
         }
       }, 15000); // 每15秒查询一次，减少服务器压力
       
       // 设置最大轮询时间，防止无限轮询
-      setTimeout(() => {
-        if (pollInterval) {
-          clearInterval(pollInterval);
+      maxPollTimeout.value = setTimeout(() => {
+        if (pollInterval.value) {
+          clearInterval(pollInterval.value);
+          pollInterval.value = null;
           console.log('超过最大轮询时间，停止轮询');
           
           // 显示一个友好的提示，询问用户是否要继续等待
@@ -542,8 +568,8 @@ const downloadPDFAsStream = async () => {
   try {
     console.log('直接下载报告, 结果ID:', resultId);
     
-    // 请求PDF文件流
-    const response = await fetch(`/api/bazi/pdf/${resultId}?mode=stream`);
+    // 请求PDF文件流，添加随机参数避免缓存
+    const response = await fetch(`/api/bazi/pdf/${resultId}?mode=stream&_=${Date.now()}`);
     
     // 检查错误
     if (!response.ok) {
@@ -552,7 +578,16 @@ const downloadPDFAsStream = async () => {
         const errorData = await response.json();
         errorMsg = errorData.message || errorMsg;
       } catch (e) {
-        // 如果不是JSON格式的错误，使用默认错误信息
+        // 如果不是JSON格式的错误，尝试获取文本错误信息
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMsg = `下载失败: ${errorText.substring(0, 100)}`;
+          }
+        } catch (textError) {
+          // 如果无法获取文本，使用HTTP状态码
+          errorMsg = `下载失败: HTTP错误 ${response.status}`;
+        }
       }
       throw new Error(errorMsg);
     }
@@ -560,7 +595,15 @@ const downloadPDFAsStream = async () => {
     // 检查内容类型
     const contentType = response.headers.get('content-type');
     if (!contentType || contentType.indexOf('application/pdf') === -1) {
-      throw new Error('服务器返回的不是PDF文件');
+      // 如果返回的不是PDF，尝试解析错误信息
+      let errorMsg = '服务器返回的不是PDF文件';
+      try {
+        const errorData = await response.text();
+        errorMsg = `错误: ${errorData.substring(0, 200)}`;
+      } catch (e) {
+        // 保持默认错误信息
+      }
+      throw new Error(errorMsg);
     }
     
     // 转换为Blob对象
@@ -587,10 +630,19 @@ const downloadPDFAsStream = async () => {
     Toast.clear();
     Toast.fail(error.message || '下载失败，请稍后重试');
     
-    // 如果直接下载失败，可以提示用户使用本地PDF生成
-    if (confirm('直接下载失败，是否要使用本地PDF生成方式？')) {
+    // 如果直接下载失败，提示用户使用本地PDF生成
+    Dialog.confirm({
+      title: 'PDF下载失败',
+      message: '服务器生成PDF失败，是否要使用浏览器生成PDF文件？注意：本地生成的PDF格式可能不如服务器生成的完善。',
+      confirmButtonText: '使用本地生成',
+      cancelButtonText: '取消',
+    }).then(() => {
+      // 用户选择使用本地生成
       generatePDFLocally();
-    }
+    }).catch(() => {
+      // 用户取消
+      console.log('用户取消本地PDF生成');
+    });
   }
 };
 

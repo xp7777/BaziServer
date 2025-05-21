@@ -54,6 +54,22 @@
           </template>
         </van-field>
         
+        <van-field 
+          v-model="formData.birthPlace" 
+          name="birthPlace" 
+          label="出生地" 
+          placeholder="请输入出生地（如：北京市海淀区）"
+          :rules="[{ required: true, message: '请填写出生地' }]"
+        />
+        
+        <van-field 
+          v-model="formData.livingPlace" 
+          name="livingPlace" 
+          label="居住地" 
+          placeholder="请输入当前居住地（如：上海市浦东新区）"
+          :rules="[{ required: true, message: '请填写居住地' }]"
+        />
+        
         <van-field name="focusAreas" label="推算侧重点">
           <template #input>
             <van-checkbox-group v-model="formData.focusAreas" direction="horizontal">
@@ -82,7 +98,7 @@
       <van-steps direction="vertical" :active="0">
         <van-step>
           <h3>填写信息</h3>
-          <p>输入性别、出生年月日时和关注领域</p>
+          <p>输入性别、出生年月日时、出生地、居住地和关注领域</p>
         </van-step>
         <van-step>
           <h3>完成支付</h3>
@@ -104,7 +120,7 @@
 <script setup>
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
-import { Toast } from 'vant';
+import { Toast, Dialog } from 'vant';
 
 const router = useRouter();
 
@@ -129,6 +145,8 @@ const formData = reactive({
   calendarType: 'solar',
   birthDate: '',
   birthTime: '',
+  birthPlace: '',
+  livingPlace: '',
   focusAreas: []
 });
 
@@ -141,6 +159,16 @@ const onSubmit = () => {
   
   if (!formData.birthTime) {
     Toast.fail('请选择出生时辰');
+    return;
+  }
+  
+  if (!formData.birthPlace) {
+    Toast.fail('请填写出生地');
+    return;
+  }
+  
+  if (!formData.livingPlace) {
+    Toast.fail('请填写居住地');
     return;
   }
   
@@ -158,6 +186,8 @@ const onSubmit = () => {
       calendarType: formData.calendarType,
       birthDate: formData.birthDate,
       birthTime: formData.birthTime,
+      birthPlace: formData.birthPlace,
+      livingPlace: formData.livingPlace,
       focusAreas: formData.focusAreas.join(',')
     }
   });

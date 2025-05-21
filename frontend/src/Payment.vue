@@ -92,6 +92,8 @@ export default {
     const calendarType = route.query.calendarType;
     const birthDate = route.query.birthDate;
     const birthTime = route.query.birthTime;
+    const birthPlace = route.query.birthPlace;
+    const livingPlace = route.query.livingPlace;
     const focusAreas = route.query.focusAreas?.split(',') || [];
     
     // 支付相关状态
@@ -108,6 +110,8 @@ export default {
         calendarType,
         birthDate,
         birthTime,
+        birthPlace,
+        livingPlace,
         focusAreas
       });
     });

@@ -93,6 +93,18 @@ def calculate_bazi(birth_date, birth_time, gender):
     year_stem_index = (year - 4) % 10
     year_branch_index = (year - 4) % 12
     
+    # 校验2025年的结果，确保是乙巳年
+    if year == 2025:
+        logging.info("检测到2025年，验证天干地支")
+        correct_stem = "乙"
+        correct_branch = "巳"
+        if heavenly_stems[year_stem_index] != correct_stem or earthly_branches[year_branch_index] != correct_branch:
+            logging.warning(f"2025年计算出错误的天干地支: {heavenly_stems[year_stem_index]}{earthly_branches[year_branch_index]}，应为{correct_stem}{correct_branch}")
+            # 强制修正
+            year_stem_index = heavenly_stems.index(correct_stem)
+            year_branch_index = earthly_branches.index(correct_branch)
+            logging.info(f"已修正2025年的天干地支为: {correct_stem}{correct_branch}")
+    
     month_stem_index = (year_stem_index * 2 + month) % 10
     month_branch_index = (month + 1) % 12
     
@@ -140,16 +152,62 @@ def calculate_bazi(birth_date, birth_time, gender):
     current_year = datetime.now().year
     flowing_years = []
     
+    # 添加调试信息，确认年份
+    logging.info(f"当前系统年份: {current_year}，计算未来5年流年")
+    
+    # 正确的年份-干支对照表（2020-2030）
+    year_ganzhi_map = {
+        2020: ["庚", "子"],  # 庚子年
+        2021: ["辛", "丑"],  # 辛丑年
+        2022: ["壬", "寅"],  # 壬寅年
+        2023: ["癸", "卯"],  # 癸卯年
+        2024: ["甲", "辰"],  # 甲辰年
+        2025: ["乙", "巳"],  # 乙巳年
+        2026: ["丙", "午"],  # 丙午年
+        2027: ["丁", "未"],  # 丁未年
+        2028: ["戊", "申"],  # 戊申年
+        2029: ["己", "酉"],  # 己酉年
+        2030: ["庚", "戌"]   # 庚戌年
+    }
+    
     for i in range(5):
         flow_year = current_year + i
-        flow_stem_index = (flow_year - 4) % 10
-        flow_branch_index = (flow_year - 4) % 12
+        
+        # 使用标准计算方法
+        calculated_stem_index = (flow_year - 4) % 10
+        calculated_branch_index = (flow_year - 4) % 12
+        calculated_stem = heavenly_stems[calculated_stem_index]
+        calculated_branch = earthly_branches[calculated_branch_index]
+        
+        # 检查是否有准确的对照记录
+        if flow_year in year_ganzhi_map:
+            correct_stem = year_ganzhi_map[flow_year][0]
+            correct_branch = year_ganzhi_map[flow_year][1]
+            
+            # 添加日志，验证计算
+            if calculated_stem != correct_stem or calculated_branch != correct_branch:
+                logging.warning(f"流年 {flow_year}: 计算得到 {calculated_stem}{calculated_branch}，但正确值应为 {correct_stem}{correct_branch}")
+                # 使用正确的值
+                stem = correct_stem
+                branch = correct_branch
+                element_index = heavenly_stems.index(correct_stem) % 5
+            else:
+                logging.info(f"流年 {flow_year}: 计算正确 {calculated_stem}{calculated_branch}")
+                stem = calculated_stem
+                branch = calculated_branch
+                element_index = calculated_stem_index % 5
+        else:
+            # 使用计算值，但添加警告
+            logging.warning(f"流年 {flow_year}: 没有预设干支对照，使用计算值 {calculated_stem}{calculated_branch}")
+            stem = calculated_stem
+            branch = calculated_branch
+            element_index = calculated_stem_index % 5
         
         flowing_years.append({
             'year': flow_year,
-            'heavenlyStem': heavenly_stems[flow_stem_index],
-            'earthlyBranch': earthly_branches[flow_branch_index],
-            'element': elements[flow_stem_index]
+            'heavenlyStem': stem,
+            'earthlyBranch': branch,
+            'element': elements[element_index]
         })
     
     # 生成八字命盘
@@ -194,7 +252,25 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender):
     """
     # 准备提示词
     gender_text = "男性" if gender == "male" else "女性"
-    birth_year = 2025  # 使用示例年份，实际应从bazi_chart中提取
+    current_year = datetime.now().year
+    
+    # 格式化流年信息
+    flowing_years_text = "\n流年信息("
+    start_year = current_year
+    end_year = current_year + 4
+    flowing_years_text += f"{start_year}-{end_year}):\n"
+    
+    flowing_years_list = []
+    for year_info in bazi_chart['flowingYears']:
+        year_str = f"{year_info['year']}年: {year_info['heavenlyStem']}{year_info['earthlyBranch']}"
+        flowing_years_list.append(year_str)
+    
+    flowing_years_text += ", ".join(flowing_years_list)
+    
+    # 记录重要年份的天干地支，用于后期验证
+    year_ganzhi_map = {}
+    for year_info in bazi_chart['flowingYears']:
+        year_ganzhi_map[year_info['year']] = f"{year_info['heavenlyStem']}{year_info['earthlyBranch']}"
     
     # 简化的提示词
     prompt = f"""
@@ -213,8 +289,9 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender):
     火: {bazi_chart['fiveElements']['fire']}
     土: {bazi_chart['fiveElements']['earth']}
     
-    流年信息(2025-2029):
-    {', '.join([f"{y['year']}年: {y['heavenlyStem']}{y['earthlyBranch']}" for y in bazi_chart['flowingYears']])}
+    {flowing_years_text}
+    
+    当前年份是{current_year}年，请严格使用上述流年信息进行分析，不要自行计算流年。
     
     请按照以下格式提供分析:
     
@@ -251,10 +328,39 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender):
             "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
         }
         
+        # 准备系统提示，确保包含正确的年份干支对照
+        system_content = f"你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。当前年份是{current_year}年，请确保分析中的年份和天干地支信息准确无误。特别注意流年分析时，{current_year}年是{year_ganzhi_map.get(current_year, '')}年，不要使用错误的信息。"
+        
+        # 添加年龄信息（从solar_year计算）
+        try:
+            birth_year = int(result.get('basicInfo', {}).get('solarYear', 0))
+            if birth_year > 0:
+                age = current_year - birth_year
+                age_str = f"{age}岁" if age >= 0 else f"未出生，将于{birth_year}年出生"
+                system_content += f"\n\n重要提示：当事人当前年龄为{age_str}（出生年份{birth_year}年），请在分析时明确考虑这一点。"
+                logging.info(f"添加年龄信息: {age_str}")
+        except Exception as e:
+            logging.warning(f"计算年龄失败: {e}")
+        
+        # 添加明确的年份干支对照表
+        system_content += "\n\n年份与天干地支对照表（2020-2030）："
+        system_content += "\n2020年 - 庚子年"
+        system_content += "\n2021年 - 辛丑年"
+        system_content += "\n2022年 - 壬寅年"
+        system_content += "\n2023年 - 癸卯年"
+        system_content += "\n2024年 - 甲辰年"
+        system_content += "\n2025年 - 乙巳年（注意：2025年是乙巳年，不是乙丑年）"
+        system_content += "\n2026年 - 丙午年"
+        system_content += "\n2027年 - 丁未年"
+        system_content += "\n2028年 - 戊申年"
+        system_content += "\n2029年 - 己酉年"
+        system_content += "\n2030年 - 庚戌年"
+        system_content += "\n请在分析中严格遵循上述对照表，避免使用不正确的干支信息。"
+        
         payload = {
             "model": "deepseek-chat",
             "messages": [
-                {"role": "system", "content": "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"},
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7,
@@ -262,112 +368,84 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender):
         }
         
         logging.info("准备调用DeepSeek API...")
-        logging.info(f"API端点: {DEEPSEEK_API_URL}")
-        logging.info(f"请求头: {headers}")
-        logging.info(f"请求负载: {json.dumps(payload, ensure_ascii=False)[:200]}...")
         
-        response = requests.post(
-            DEEPSEEK_API_URL,
-            headers=headers,
-            data=json.dumps(payload)
-        )
-        
-        logging.info(f"API响应状态码: {response.status_code}")
+        # 调用 API
+        response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload)
+        # 检查响应状态码
         if response.status_code != 200:
-            logging.error(f"API错误响应: {response.text[:500]}")
-        else:
-            logging.info(f"API成功响应(前200字符): {response.text[:200]}...")
+            logging.error(f"调用DeepSeek API失败: HTTP {response.status_code}")
+            logging.error(f"错误详情: {response.text}")
+            return None
         
-        if response.status_code == 200:
-            result = response.json()
-            logging.info(f"成功解析JSON响应: {json.dumps(result, ensure_ascii=False)[:200]}...")
-            
-            ai_text = result['choices'][0]['message']['content']
-            logging.info(f"提取的AI回复(前200字符): {ai_text[:200]}...")
-            
-            # 解析AI回复，提取各部分分析
-            analysis = {}
-            
-            # 提取健康分析
-            if "健康分析" in ai_text:
-                health_start = ai_text.find("健康分析")
-                next_section = min(
-                    [pos for pos in [ai_text.find("财运分析", health_start), 
-                                     ai_text.find("事业发展", health_start),
-                                     ai_text.find("婚姻感情", health_start),
-                                     ai_text.find("子女缘分", health_start),
-                                     ai_text.find("综合建议", health_start)] if pos > 0] or [len(ai_text)]
-                )
-                analysis['health'] = ai_text[health_start:next_section].replace("健康分析", "").strip()
-            
-            # 提取财运分析
-            if "财运分析" in ai_text:
-                wealth_start = ai_text.find("财运分析")
-                next_section = min(
-                    [pos for pos in [ai_text.find("事业发展", wealth_start), 
-                                     ai_text.find("婚姻感情", wealth_start),
-                                     ai_text.find("子女缘分", wealth_start),
-                                     ai_text.find("综合建议", wealth_start)] if pos > 0] or [len(ai_text)]
-                )
-                analysis['wealth'] = ai_text[wealth_start:next_section].replace("财运分析", "").strip()
-            
-            # 提取事业发展
-            if "事业发展" in ai_text:
-                career_start = ai_text.find("事业发展")
-                next_section = min(
-                    [pos for pos in [ai_text.find("婚姻感情", career_start), 
-                                     ai_text.find("子女缘分", career_start),
-                                     ai_text.find("综合建议", career_start)] if pos > 0] or [len(ai_text)]
-                )
-                analysis['career'] = ai_text[career_start:next_section].replace("事业发展", "").strip()
-            
-            # 提取婚姻感情
-            if "婚姻感情" in ai_text:
-                relationship_start = ai_text.find("婚姻感情")
-                next_section = min(
-                    [pos for pos in [ai_text.find("子女缘分", relationship_start), 
-                                     ai_text.find("综合建议", relationship_start)] if pos > 0] or [len(ai_text)]
-                )
-                analysis['relationship'] = ai_text[relationship_start:next_section].replace("婚姻感情", "").strip()
-            
-            # 提取子女缘分
-            if "子女缘分" in ai_text:
-                children_start = ai_text.find("子女缘分")
-                next_section = min(
-                    [pos for pos in [ai_text.find("综合建议", children_start)] if pos > 0] or [len(ai_text)]
-                )
-                analysis['children'] = ai_text[children_start:next_section].replace("子女缘分", "").strip()
-            
-            # 提取综合建议
-            if "综合建议" in ai_text:
-                overall_start = ai_text.find("综合建议")
-                analysis['overall'] = ai_text[overall_start:].replace("综合建议", "").strip()
-            
-            return analysis
+        result = response.json()
         
-        else:
-            logging.error(f"DeepSeek API调用失败: {response.status_code}, {response.text}")
-            # 返回默认分析结果
-            return {
-                'health': '您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。',
-                'wealth': '您的财运在2025年有明显上升趋势，特别是在春夏季节。八字中金水相生，适合从事金融、贸易、水利相关行业。投资方面，稳健为主，可考虑分散投资组合。2027年有意外财运，但需谨慎对待，避免投机性强的项目。',
-                'career': '您的事业宫位较为稳定，具有较强的组织能力和执行力。2025-2026年是事业发展的关键期，有升职或转行的机会。建议提升专业技能，扩展人脉关系。您适合在团队中担任协调或管理角色，发挥沟通才能。',
-                'relationship': '您的八字中日柱为戊午，感情态度较为务实。2025年下半年至2026年上半年是感情发展的良好时期。已婚者需注意与伴侣的沟通，避免因工作忙碌而忽略家庭。单身者有机会通过社交活动或朋友介绍认识合适的对象。',
-                'children': '您的子女宫位较为温和，与子女关系和谐。教育方面，建议采用引导式而非强制式的方法，尊重子女的兴趣发展。2026-2027年是子女发展的重要阶段，可能需要您更多的关注和支持。',
-                'overall': '综合分析您的八字，2025-2027年是您人生的一个上升期，各方面都有良好发展。建议把握这段时间，在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。您的人生态度积极乐观，具有较强的适应能力和抗压能力，这将帮助您度过人生中的各种挑战。'
+        # 检查API响应
+        if "choices" in result and len(result["choices"]) > 0:
+            content = result["choices"][0]["message"]["content"]
+            
+            # 后处理：修正年份和天干地支的对应关系
+            import re
+            for year, ganzhi in year_ganzhi_map.items():
+                # 查找类似"2025年乙丑"的模式并替换为正确的"2025年乙巳"
+                wrong_patterns = [
+                    rf"{year}年(?!{ganzhi})[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]",
+                    rf"{year}\s*年(?!{ganzhi})[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]"
+                ]
+                
+                for pattern in wrong_patterns:
+                    matches = re.findall(pattern, content)
+                    if matches:
+                        logging.warning(f"发现错误的年份天干地支对应: {matches}")
+                        content = re.sub(pattern, f"{year}年{ganzhi}", content)
+            
+            logging.info("成功从DeepSeek获取分析")
+            
+            # 解析响应内容成不同领域的分析
+            analysis_result = {
+                "health": "",
+                "wealth": "",
+                "career": "",
+                "relationship": "",
+                "children": "",
+                "overall": ""
             }
+            
+            # 提取各部分内容
+            health_match = re.search(r'健康分析[：:]([\s\S]*?)(?=财运分析[：:]|婚姻感情[：:]|事业发展[：:]|子女缘分[：:]|综合建议[：:]|$)', content)
+            if health_match:
+                analysis_result["health"] = health_match.group(1).strip()
+            
+            wealth_match = re.search(r'财运分析[：:]([\s\S]*?)(?=健康分析[：:]|婚姻感情[：:]|事业发展[：:]|子女缘分[：:]|综合建议[：:]|$)', content)
+            if wealth_match:
+                analysis_result["wealth"] = wealth_match.group(1).strip()
+            
+            career_match = re.search(r'事业发展[：:]([\s\S]*?)(?=健康分析[：:]|财运分析[：:]|婚姻感情[：:]|子女缘分[：:]|综合建议[：:]|$)', content)
+            if career_match:
+                analysis_result["career"] = career_match.group(1).strip()
+            
+            relationship_match = re.search(r'婚姻感情[：:]([\s\S]*?)(?=健康分析[：:]|财运分析[：:]|事业发展[：:]|子女缘分[：:]|综合建议[：:]|$)', content)
+            if relationship_match:
+                analysis_result["relationship"] = relationship_match.group(1).strip()
+            
+            children_match = re.search(r'子女缘分[：:]([\s\S]*?)(?=健康分析[：:]|财运分析[：:]|事业发展[：:]|婚姻感情[：:]|综合建议[：:]|$)', content)
+            if children_match:
+                analysis_result["children"] = children_match.group(1).strip()
+            
+            overall_match = re.search(r'综合建议[：:]([\s\S]*?)$', content)
+            if overall_match:
+                analysis_result["overall"] = overall_match.group(1).strip()
+            else:
+                # 如果没有找到综合建议，使用全部内容
+                analysis_result["overall"] = content
+            
+            return analysis_result
+        else:
+            logging.error(f"从DeepSeek API返回的结果中没有找到choices: {result}")
+            return None
     
     except Exception as e:
-        logging.error(f"调用DeepSeek AI时发生错误: {str(e)}")
-        # 返回默认分析结果
-        return {
-            'health': '您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。',
-            'wealth': '您的财运在2025年有明显上升趋势，特别是在春夏季节。八字中金水相生，适合从事金融、贸易、水利相关行业。投资方面，稳健为主，可考虑分散投资组合。2027年有意外财运，但需谨慎对待，避免投机性强的项目。',
-            'career': '您的事业宫位较为稳定，具有较强的组织能力和执行力。2025-2026年是事业发展的关键期，有升职或转行的机会。建议提升专业技能，扩展人脉关系。您适合在团队中担任协调或管理角色，发挥沟通才能。',
-            'relationship': '您的八字中日柱为戊午，感情态度较为务实。2025年下半年至2026年上半年是感情发展的良好时期。已婚者需注意与伴侣的沟通，避免因工作忙碌而忽略家庭。单身者有机会通过社交活动或朋友介绍认识合适的对象。',
-            'children': '您的子女宫位较为温和，与子女关系和谐。教育方面，建议采用引导式而非强制式的方法，尊重子女的兴趣发展。2026-2027年是子女发展的重要阶段，可能需要您更多的关注和支持。',
-            'overall': '综合分析您的八字，2025-2027年是您人生的一个上升期，各方面都有良好发展。建议把握这段时间，在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。您的人生态度积极乐观，具有较强的适应能力和抗压能力，这将帮助您度过人生中的各种挑战。'
-        }
+        logging.exception(f"生成AI分析时出错: {str(e)}")
+        return None
 
 @bazi_bp.route('/analyze', methods=['POST'])
 # 暂时移除JWT验证，用于测试
@@ -396,7 +474,10 @@ def analyze_bazi():
         # 计算当前年龄
         current_year = datetime.now().year
         age = current_year - int(solar_year)
-        logging.info(f"年龄计算: {current_year} - {solar_year} = {age}岁")
+        if int(solar_year) > current_year:
+            logging.info(f"未来出生年份: {solar_year} > {current_year}，年龄计算为负数: {age}岁")
+        else:
+            logging.info(f"年龄计算: {current_year} - {solar_year} = {age}岁")
         
         # 计算八字
         bazi_data = get_bazi(solar_year, solar_month, solar_day, solar_hour, gender)
@@ -651,20 +732,44 @@ def call_deepseek_api(prompt):
     age = current_year - birth_year if birth_year else None
     
     if age is not None:
-        logging.info(f"提取出生年份成功: {birth_year}, 当前年龄: {age}")
+        if birth_year > current_year:
+            logging.info(f"检测到未来出生年份: {birth_year}，当前年龄为负数: {age}")
+        else:
+            logging.info(f"提取出生年份成功: {birth_year}, 当前年龄: {age}")
     else:
         logging.warning("无法提取出生年份或计算年龄")
     
     # 添加年龄相关上下文
     system_content = "你是一位顶尖的传统文化命理大师，精通周易，能够将国学和卜卦非常完美地结合运用。请根据用户提供的八字信息，给出专业、详细、实用的分析和建议。"
     
+    # 明确添加年龄信息
+    if age is not None:
+        age_str = f"{age}岁" if age >= 0 else f"未出生，将于{birth_year}年出生"
+        system_content += f"\n\n重要提示：当事人当前年龄为{age_str}（出生年份{birth_year}年），请在分析时明确考虑这一点。"
+        logging.info(f"添加年龄信息到系统提示: {age_str}")
+    
+    # 添加明确的年份干支对照表
+    system_content += "\n\n年份与天干地支对照表（2020-2030）："
+    system_content += "\n2020年 - 庚子年"
+    system_content += "\n2021年 - 辛丑年"
+    system_content += "\n2022年 - 壬寅年"
+    system_content += "\n2023年 - 癸卯年"
+    system_content += "\n2024年 - 甲辰年"
+    system_content += "\n2025年 - 乙巳年（注意：2025年是乙巳年，不是乙丑年）"
+    system_content += "\n2026年 - 丙午年"
+    system_content += "\n2027年 - 丁未年"
+    system_content += "\n2028年 - 戊申年"
+    system_content += "\n2029年 - 己酉年"
+    system_content += "\n2030年 - 庚戌年"
+    system_content += "\n请在分析中严格遵循上述对照表，不要自行计算错误的干支信息。"
+    
     if age is not None:
         # 添加年龄相关指导
         system_content += "\n\n重要提示：分析时必须考虑当事人的实际年龄。"
         
-        if age < 0:  # 未出生
+        if birth_year > current_year:  # 未出生（未来出生日期）
             system_content += f"当事人尚未出生，出生于未来的{birth_year}年。请只分析未来可能的性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。"
-            logging.info(f"检测到未来出生年份: {birth_year}，调整分析内容")
+            logging.info(f"检测到未来出生日期: {birth_year}年，调整分析内容")
         elif age < 6:  # 婴幼儿
             system_content += f"当事人目前仅{age}岁，属于婴幼儿阶段。请重点分析性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段（如20岁以后）的预测。"
             logging.info(f"检测到婴幼儿: {age}岁，调整分析内容")
@@ -696,6 +801,29 @@ def call_deepseek_api(prompt):
         # 获取回复内容
         if "choices" in result and len(result["choices"]) > 0:
             analysis = result["choices"][0]["message"]["content"]
+            
+            # 修正可能错误的干支信息
+            import re
+            # 查找类似"2025年乙丑"的模式并替换为正确的"2025年乙巳"
+            if "2025年乙丑" in analysis:
+                analysis = analysis.replace("2025年乙丑", "2025年乙巳")
+                logging.info("修正了分析结果中的'2025年乙丑'为'2025年乙巳'")
+            
+            # 使用正则表达式查找其他可能的错误格式
+            wrong_patterns = [
+                r'2025\s*年(?!乙巳)[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]',
+                r'2025年.*?[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥](?!乙巳)'
+            ]
+            
+            for pattern in wrong_patterns:
+                matches = re.findall(pattern, analysis)
+                if matches:
+                    for match in matches:
+                        logging.info(f"找到错误的2025年干支表达: {match}")
+                        corrected = re.sub(r'[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]', '乙巳', match)
+                        analysis = analysis.replace(match, corrected)
+                        logging.info(f"已更正为: {corrected}")
+            
             return analysis
         else:
             logging.error(f"DeepSeek API返回格式错误: {result}")
@@ -863,14 +991,16 @@ def get_bazi_result(result_id):
                 birth_year = None
                 try:
                     # 尝试从八字命盘中提取出生年份
-                    if 'flowingYears' in bazi_chart and len(bazi_chart['flowingYears']) > 0:
+                    if 'basicInfo' in result and 'solarYear' in result['basicInfo']:
+                        birth_year = int(result['basicInfo']['solarYear'])
+                        logging.info(f"从基本信息中提取出生年份: {birth_year}")
+                    # 只有在无法从基本信息中获取时，才尝试从流年推算（不推荐的方法）
+                    elif 'flowingYears' in bazi_chart and len(bazi_chart['flowingYears']) > 0:
                         # 假设流年信息中的第一个年份与出生年份相近
                         first_flowing_year = bazi_chart['flowingYears'][0]['year']
                         # 通常流年比出生年份大2-10岁左右，这里简单估算
                         birth_year = first_flowing_year - 10
-                    # 也可以从basicInfo中获取
-                    elif 'basicInfo' in result and 'solarYear' in result['basicInfo']:
-                        birth_year = int(result['basicInfo']['solarYear'])
+                        logging.warning(f"无法获取准确出生年份，从流年估算: {first_flowing_year} - 10 = {birth_year}，这可能不准确")
                 except Exception as e:
                     logging.warning(f"无法提取出生年份: {str(e)}")
                 
@@ -920,22 +1050,38 @@ def get_bazi_result(result_id):
                 [综合分析和建议，未来5年的整体运势趋势]
                 """
                 
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {deepseek_api_key}"
-                }
-                
                 # 创建包含年龄信息的系统提示
                 system_content = "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"
+                
+                # 明确添加年龄信息
+                if age is not None:
+                    age_str = f"{age}岁" if age >= 0 else f"未出生，将于{birth_year}年出生"
+                    system_content += f"\n\n重要提示：当事人当前年龄为{age_str}（出生年份{birth_year}年），请在分析时明确考虑这一点。"
+                    logging.info(f"添加年龄信息到系统提示: {age_str}")
+                
+                # 添加明确的年份干支对照表
+                system_content += "\n\n年份与天干地支对照表（2020-2030）："
+                system_content += "\n2020年 - 庚子年"
+                system_content += "\n2021年 - 辛丑年"
+                system_content += "\n2022年 - 壬寅年"
+                system_content += "\n2023年 - 癸卯年"
+                system_content += "\n2024年 - 甲辰年"
+                system_content += "\n2025年 - 乙巳年（注意：2025年是乙巳年，不是乙丑年）"
+                system_content += "\n2026年 - 丙午年"
+                system_content += "\n2027年 - 丁未年"
+                system_content += "\n2028年 - 戊申年"
+                system_content += "\n2029年 - 己酉年"
+                system_content += "\n2030年 - 庚戌年"
+                system_content += "\n请在分析中严格遵循上述对照表，不要使用错误的干支信息。"
                 
                 # 添加年龄相关的上下文指导
                 if age is not None:
                     # 添加年龄相关指导
                     system_content += "\n\n重要提示：分析时必须考虑当事人的实际年龄。"
                     
-                    if age < 0:  # 未出生
+                    if birth_year > current_year:  # 未出生（未来出生日期）
                         system_content += f"当事人尚未出生，出生于未来的{birth_year}年。请只分析未来可能的性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。"
-                        logging.info(f"检测到未来出生年份: {birth_year}，调整分析内容")
+                        logging.info(f"检测到未来出生日期: {birth_year}年，调整分析内容")
                     elif age < 6:  # 婴幼儿
                         system_content += f"当事人目前仅{age}岁，属于婴幼儿阶段。请重点分析性格特点、天赋才能和健康状况，不要分析婚姻感情、学业情况或职业发展等不适合婴幼儿的内容。如果需要提到这些方面，请明确指出这是未来特定年龄段（如20岁以后）的预测。"
                         logging.info(f"检测到婴幼儿: {age}岁，调整分析内容")
@@ -951,6 +1097,11 @@ def get_bazi_result(result_id):
                     ],
                     "temperature": 0.7,
                     "max_tokens": 3000
+                }
+                
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {deepseek_api_key}"
                 }
                 
                 logging.info("准备调用DeepSeek API...")
@@ -1284,3 +1435,72 @@ def get_pdf(result_id):
     except Exception as e:
         logging.exception(f"生成PDF时出错: {str(e)}")
         return jsonify(code=500, message=f"生成PDF失败: {str(e)}"), 500 
+
+@bazi_bp.route('/calculate', methods=['POST'])
+def calculate_bazi():
+    """
+    计算八字数据（不包含AI分析）
+    
+    此接口仅计算八字命盘数据，不进行AI分析，主要用于测试八字计算功能。
+    所有八字计算均基于公历生日进行。
+    """
+    try:
+        data = request.json
+        
+        # 验证必要参数
+        required_params = ['solarYear', 'solarMonth', 'solarDay', 'solarHour', 
+                          'gender', 'birthPlace', 'livingPlace']
+        
+        for param in required_params:
+            if param not in data:
+                return jsonify({'code': 400, 'message': f'缺少参数: {param}'}), 400
+        
+        # 从请求中获取数据
+        solar_year = data['solarYear']
+        solar_month = data['solarMonth']
+        solar_day = data['solarDay']
+        solar_hour = data['solarHour']
+        gender = data['gender']
+        birth_place = data['birthPlace']
+        living_place = data['livingPlace']
+        
+        # 计算八字
+        bazi_data = get_bazi(solar_year, solar_month, solar_day, solar_hour, gender)
+        formatted_data = format_bazi_analysis(bazi_data)
+        
+        # 获取农历日期
+        lunar_date = bazi_data.get("lunar_date", {})
+        lunar_year = lunar_date.get("year", solar_year)
+        lunar_month = lunar_date.get("month", solar_month)
+        lunar_day = lunar_date.get("day", solar_day)
+        
+        return jsonify({
+            'code': 200,
+            'message': '计算成功',
+            'data': {
+                'solar_date': {
+                    'year': solar_year,
+                    'month': solar_month,
+                    'day': solar_day,
+                    'hour': solar_hour
+                },
+                'lunar_date': {
+                    'year': lunar_year,
+                    'month': lunar_month,
+                    'day': lunar_day
+                },
+                'gender': gender,
+                'birth_place': birth_place,
+                'living_place': living_place,
+                'bazi': formatted_data['bazi'],
+                'shen_sha': formatted_data['shen_sha'],
+                'qi_yun': formatted_data['qi_yun'],
+                'da_yun': formatted_data['da_yun'],
+                'bazi_data': bazi_data,
+                'formatted_data': formatted_data
+            }
+        })
+    
+    except Exception as e:
+        logging.error(f"八字计算错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'计算失败: {str(e)}'}), 500
