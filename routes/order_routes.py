@@ -246,7 +246,8 @@ def mock_payment(order_id):
     
     try:
         # 获取请求中的出生日期和时间数据（如果有）
-        data = request.get_json() or {}
+        # 使用force=True参数允许处理不同Content-Type的请求
+        data = request.get_json(force=True) or {}
         requested_birth_date = data.get('birthDate')
         requested_birth_time = data.get('birthTime')
         requested_gender = data.get('gender')

@@ -533,6 +533,15 @@ onMounted(async () => {
         // 添加参数到URL
         const mockPaymentUrl = `/api/order/mock/pay/${orderId}?birthDate=${encodeURIComponent(validBirthDate)}&birthTime=${encodeURIComponent(birthTime)}&gender=${encodeURIComponent(gender)}`;
         
+        // 准备请求数据
+        const requestData = {
+          birthDate: validBirthDate,
+          birthTime: birthTime,
+          gender: gender
+        };
+        
+        console.log('模拟支付请求数据:', requestData);
+        
         // 尝试最多3次请求
         let retryCount = 0;
         let mockPaymentResponse = null;
@@ -540,7 +549,12 @@ onMounted(async () => {
         while (retryCount < 3) {
           try {
             console.log(`尝试请求模拟支付 (${retryCount + 1}/3)...`);
-            mockPaymentResponse = await http.post(mockPaymentUrl);
+            // 发送POST请求，确保设置正确的Content-Type
+            mockPaymentResponse = await http.post(mockPaymentUrl, requestData, {
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
             
             // 如果成功，跳出循环
             if (mockPaymentResponse && mockPaymentResponse.data && mockPaymentResponse.data.code === 200) {
