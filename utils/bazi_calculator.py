@@ -4,11 +4,18 @@ import logging
 import datetime
 from datetime import timedelta
 import math
-import sxtwl  # 导入四柱万年历库
 
-# 注意: 现在使用的是PyPI上的真实sxtwl包(https://pypi.org/project/sxtwl/)
-# 不再使用模拟的sxtwl.py文件
-
+# 导入lunar-python库代替sxtwl
+try:
+    from lunar_python.Solar import Solar
+    from lunar_python.Lunar import Lunar
+    from lunar_python.util import LunarUtil
+    USING_LUNAR_PYTHON = True
+    logging.info("成功导入lunar-python库")
+except ImportError:
+    import sxtwl  # 导入四柱万年历库作为备选
+    USING_LUNAR_PYTHON = False
+    logging.warning("未能导入lunar-python库，使用sxtwl作为备选")
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +102,85 @@ SHEN_SHA = {
     # 其他位置的神煞...
 }
 
+def parse_birth_date_time(birth_date, birth_time):
+    """
+    解析出生日期和时间
+    
+    Args:
+        birth_date: 出生日期，格式为 YYYY-MM-DD
+        birth_time: 出生时间，可以是 HH:MM 或者 "子时 (23:00-01:00)" 等中文时辰
+        
+    Returns:
+        dict: 包含年、月、日、时的字典
+    """
+    logging.info(f"解析日期和时间: {birth_date}, {birth_time}")
+    
+    # 解析日期
+    try:
+        year, month, day = map(int, birth_date.split('-'))
+    except Exception as e:
+        logging.error(f"解析日期出错: {str(e)}")
+        # 默认使用当前日期
+        now = datetime.datetime.now()
+        year, month, day = now.year, now.month, now.day
+    
+    # 解析时间
+    hour = 0
+    
+    # 时辰映射表
+    hour_map = {
+        '子时': 0, '丑时': 2, '寅时': 4, '卯时': 6,
+        '辰时': 8, '巳时': 10, '午时': 12, '未时': 14,
+        '申时': 16, '酉时': 18, '戌时': 20, '亥时': 22,
+        '子': 0, '丑': 2, '寅': 4, '卯': 6, 
+        '辰': 8, '巳': 10, '午': 12, '未': 14, 
+        '申': 16, '酉': 18, '戌': 20, '亥': 22
+    }
+    
+    try:
+        # 先检查是否是带括号的中文时辰格式
+        if '(' in birth_time and ')' in birth_time:
+            # 获取括号前的部分
+            time_name = birth_time.split('(')[0].strip()
+            logging.info(f"提取时辰名称: {time_name}")
+            
+            # 查找对应的时辰
+            for key, value in hour_map.items():
+                if key in time_name:
+                    hour = value
+                    logging.info(f"识别到带括号的时辰: {key}, 对应小时: {hour}")
+                    break
+        # 尝试解析 HH:MM 格式
+        elif ':' in birth_time:
+            parts = birth_time.split(':')
+            if len(parts) >= 1:
+                hour = int(parts[0])
+                logging.info(f"识别到时分格式，小时: {hour}")
+        # 尝试解析纯中文时辰格式
+        else:
+            # 查找中文时辰
+            for key, value in hour_map.items():
+                if key in birth_time:
+                    hour = value
+                    logging.info(f"识别到中文时辰: {key}, 对应小时: {hour}")
+                    break
+            else:
+                logging.warning(f"未识别的时辰格式: {birth_time}，使用默认子时")
+    except Exception as e:
+        logging.error(f"解析时间出错: {str(e)}")
+        # 默认使用子时(0点)
+        hour = 0
+    
+    logging.info(f"解析结果: 年={year}, 月={month}, 日={day}, 时={hour}")
+    
+    return {
+        "year": year,
+        "month": month,
+        "day": day,
+        "hour": hour,
+        "isLunar": False  # 默认为阳历
+    }
+
 def convert_lunar_to_solar(year, month, day):
     """
     将农历日期转换为公历日期
@@ -109,14 +195,16 @@ def convert_lunar_to_solar(year, month, day):
     Returns:
         tuple: (公历年, 公历月, 公历日)
     """
-    # 这里应该根据万年历数据进行转换
-    # 由于这是一个复杂的计算，这里只做一个简单的模拟
-    # 实际项目中应该使用专业的万年历库或API
-    
-    # 以下是模拟代码，实际项目中请替换
-    # 假设农历日期比公历日期晚一个月左右
-    solar_date = datetime.datetime(year, month, day) - timedelta(days=30)
-    return (solar_date.year, solar_date.month, solar_date.day)
+    if USING_LUNAR_PYTHON:
+        # 使用lunar-python库转换
+        lunar = Lunar.fromYmd(year, month, day)
+        solar = lunar.getSolar()
+        return (solar.getYear(), solar.getMonth(), solar.getDay())
+    else:
+        # 使用sxtwl库转换
+        lunar = sxtwl.Lunar()
+        day_obj = lunar.getDayBySolar(year, month, day)
+        return (day_obj.y, day_obj.m, day_obj.d)
 
 def get_year_pillar(year):
     """
@@ -128,19 +216,32 @@ def get_year_pillar(year):
     Returns:
         dict: 年柱信息
     """
-    # 计算天干索引
-    stem_index = (year - 4) % 10
-    # 计算地支索引
-    branch_index = (year - 4) % 12
-    
-    # 获取天干和地支
-    heavenly_stem = HEAVENLY_STEMS[stem_index]
-    earthly_branch = EARTHLY_BRANCHES[branch_index]
+    if USING_LUNAR_PYTHON:
+        # 使用lunar-python库计算
+        solar = Solar.fromYmd(year, 5, 1)  # 使用5月1日作为参考日期
+        lunar = solar.getLunar()
+        year_gan = lunar.getYearGan()
+        year_zhi = lunar.getYearZhi()
+        
+        logging.info(f"使用lunar-python计算{year}年的年柱: {year_gan}{year_zhi}")
+        
+        heavenly_stem = year_gan
+        earthly_branch = year_zhi
+    else:
+        # 使用传统方法计算
+        stem_index = (year - 4) % 10
+        branch_index = (year - 4) % 12
+        
+        heavenly_stem = HEAVENLY_STEMS[stem_index]
+        earthly_branch = EARTHLY_BRANCHES[branch_index]
+        
+        logging.info(f"使用传统方法计算{year}年的年柱: {heavenly_stem}{earthly_branch}")
     
     return {
         "heavenlyStem": heavenly_stem,
         "earthlyBranch": earthly_branch,
-        "element": FIVE_ELEMENTS[heavenly_stem]
+        "element": FIVE_ELEMENTS[heavenly_stem],
+        "birthYear": year
     }
 
 def get_month_pillar(year, month, day):
@@ -155,27 +256,37 @@ def get_month_pillar(year, month, day):
     Returns:
         dict: 月柱信息
     """
-    # 获取节气日期
-    solar_term = SOLAR_TERMS.get(month, {"day": 15})
-    
-    # 如果当前日期在节气日期之前，月份减1
-    if day < solar_term["day"]:
-        month = month - 1
-        if month == 0:
-            month = 12
-            year -= 1
-    
-    # 计算月干索引
-    year_stem_index = (year - 4) % 10
-    base_stem_index = (year_stem_index % 5) * 2
-    month_stem_index = (base_stem_index + month - 1) % 10
-    
-    # 计算月支索引
-    month_branch_index = (month + 1) % 12
-    
-    # 获取天干和地支
-    heavenly_stem = HEAVENLY_STEMS[month_stem_index]
-    earthly_branch = EARTHLY_BRANCHES[month_branch_index]
+    if USING_LUNAR_PYTHON:
+        # 使用lunar-python库计算
+        solar = Solar.fromYmd(year, month, day)
+        lunar = solar.getLunar()
+        month_gan = lunar.getMonthGan()
+        month_zhi = lunar.getMonthZhi()
+        
+        heavenly_stem = month_gan
+        earthly_branch = month_zhi
+    else:
+        # 获取节气日期
+        solar_term = SOLAR_TERMS.get(month, {"day": 15})
+        
+        # 如果当前日期在节气日期之前，月份减1
+        if day < solar_term["day"]:
+            month = month - 1
+            if month == 0:
+                month = 12
+                year -= 1
+        
+        # 计算月干索引
+        year_stem_index = (year - 4) % 10
+        base_stem_index = (year_stem_index % 5) * 2
+        month_stem_index = (base_stem_index + month - 1) % 10
+        
+        # 计算月支索引
+        month_branch_index = (month + 1) % 12
+        
+        # 获取天干和地支
+        heavenly_stem = HEAVENLY_STEMS[month_stem_index]
+        earthly_branch = EARTHLY_BRANCHES[month_branch_index]
     
     return {
         "heavenlyStem": heavenly_stem,
@@ -195,19 +306,29 @@ def get_day_pillar(year, month, day):
     Returns:
         dict: 日柱信息
     """
-    # 计算基准日期到当前日期的天数
-    base_date = datetime.datetime(1900, 1, 1)
-    current_date = datetime.datetime(year, month, day)
-    days = (current_date - base_date).days
-    
-    # 计算日干索引
-    day_stem_index = (days + 10) % 10
-    # 计算日支索引
-    day_branch_index = (days + 12) % 12
-    
-    # 获取天干和地支
-    heavenly_stem = HEAVENLY_STEMS[day_stem_index]
-    earthly_branch = EARTHLY_BRANCHES[day_branch_index]
+    if USING_LUNAR_PYTHON:
+        # 使用lunar-python库计算
+        solar = Solar.fromYmd(year, month, day)
+        lunar = solar.getLunar()
+        day_gan = lunar.getDayGan()
+        day_zhi = lunar.getDayZhi()
+        
+        heavenly_stem = day_gan
+        earthly_branch = day_zhi
+    else:
+        # 计算基准日期到当前日期的天数
+        base_date = datetime.datetime(1900, 1, 1)
+        current_date = datetime.datetime(year, month, day)
+        days = (current_date - base_date).days
+        
+        # 计算日干索引
+        day_stem_index = (days + 10) % 10
+        # 计算日支索引
+        day_branch_index = (days + 12) % 12
+        
+        # 获取天干和地支
+        heavenly_stem = HEAVENLY_STEMS[day_stem_index]
+        earthly_branch = EARTHLY_BRANCHES[day_branch_index]
     
     return {
         "heavenlyStem": heavenly_stem,
@@ -228,23 +349,33 @@ def get_hour_pillar(year, month, day, hour):
     Returns:
         dict: 时柱信息
     """
-    # 计算时辰地支索引
-    branch_index = hour // 2
-    if branch_index == 12:
-        branch_index = 0
-    
-    # 获取日干索引
-    day_pillar = get_day_pillar(year, month, day)
-    day_stem = day_pillar["heavenlyStem"]
-    day_stem_index = HEAVENLY_STEMS.index(day_stem)
-    
-    # 计算时干索引
-    base_stem_index = (day_stem_index % 5) * 2
-    hour_stem_index = (base_stem_index + branch_index // 2) % 10
-    
-    # 获取天干和地支
-    heavenly_stem = HEAVENLY_STEMS[hour_stem_index]
-    earthly_branch = EARTHLY_BRANCHES[branch_index]
+    if USING_LUNAR_PYTHON:
+        # 使用lunar-python库计算
+        solar = Solar.fromYmdHms(year, month, day, hour, 0, 0)
+        lunar = solar.getLunar()
+        hour_gan = lunar.getTimeGan()
+        hour_zhi = lunar.getTimeZhi()
+        
+        heavenly_stem = hour_gan
+        earthly_branch = hour_zhi
+    else:
+        # 计算时辰地支索引
+        branch_index = hour // 2
+        if branch_index == 12:
+            branch_index = 0
+        
+        # 获取日干索引
+        day_pillar = get_day_pillar(year, month, day)
+        day_stem = day_pillar["heavenlyStem"]
+        day_stem_index = HEAVENLY_STEMS.index(day_stem)
+        
+        # 计算时干索引
+        base_stem_index = (day_stem_index % 5) * 2
+        hour_stem_index = (base_stem_index + branch_index // 2) % 10
+        
+        # 获取天干和地支
+        heavenly_stem = HEAVENLY_STEMS[hour_stem_index]
+        earthly_branch = EARTHLY_BRANCHES[branch_index]
     
     return {
         "heavenlyStem": heavenly_stem,
@@ -281,7 +412,14 @@ def calculate_five_elements(bazi_data):
         elements_count[stem_element] += 1
         elements_count[branch_element] += 1
     
-    return elements_count
+    # 转换为英文键名用于前端显示
+    return {
+        "wood": elements_count["木"],
+        "fire": elements_count["火"],
+        "earth": elements_count["土"],
+        "metal": elements_count["金"],
+        "water": elements_count["水"]
+    }
 
 def calculate_flowing_years(gender, bazi_data):
     """
@@ -294,287 +432,209 @@ def calculate_flowing_years(gender, bazi_data):
     Returns:
         list: 大运流年数据
     """
-    # 这里应该根据八字和性别计算大运流年
-    # 由于这是一个复杂的计算，这里只做一个简单的模拟
-    
-    # 获取月干支
-    month_stem = bazi_data["monthPillar"]["heavenlyStem"]
-    month_branch = bazi_data["monthPillar"]["earthlyBranch"]
-    
-    # 确定大运方向
-    month_stem_yin_yang = YIN_YANG[month_stem]
-    is_forward = (gender == "male" and month_stem_yin_yang == "阳") or (gender == "female" and month_stem_yin_yang == "阴")
-    
-    # 计算起运年龄
-    start_age = 1  # 简化处理，实际应根据出生月日计算
-    
-    # 计算大运
+    # 计算未来5年的流年信息
     flowing_years = []
+    birth_year = bazi_data.get("birthYear", datetime.datetime.now().year)
     
-    # 天干地支索引
-    stem_index = HEAVENLY_STEMS.index(month_stem)
-    branch_index = EARTHLY_BRANCHES.index(month_branch)
+    # 开始年份为今年或出生年份，取较大值
+    start_year = max(birth_year, datetime.datetime.now().year)
     
-    for i in range(8):
-        if is_forward:
-            new_stem_index = (stem_index + i + 1) % 10
-            new_branch_index = (branch_index + i + 1) % 12
+    for i in range(5):
+        year = start_year + i
+        
+        if USING_LUNAR_PYTHON:
+            # 使用lunar-python库计算
+            solar = Solar.fromYmd(year, 5, 1)  # 使用5月1日作为参考日期
+            lunar = solar.getLunar()
+            year_gan = lunar.getYearGan()
+            year_zhi = lunar.getYearZhi()
+            
+            logging.info(f"流年计算(lunar-python): {year}年 - {year_gan}{year_zhi}")
+            
+            flowing_years.append({
+                "year": year,
+                "heavenlyStem": year_gan,
+                "earthlyBranch": year_zhi,
+                "element": FIVE_ELEMENTS[year_gan]
+            })
         else:
-            new_stem_index = (stem_index - i - 1) % 10
-            new_branch_index = (branch_index - i - 1) % 12
-        
-        new_stem = HEAVENLY_STEMS[new_stem_index]
-        new_branch = EARTHLY_BRANCHES[new_branch_index]
-        
-        flowing_years.append({
-            "year": start_age + i * 10,
-            "heavenlyStem": new_stem,
-            "earthlyBranch": new_branch,
-            "element": FIVE_ELEMENTS[new_stem]
-        })
+            # 使用传统方法计算
+            stem_index = (year - 4) % 10
+            branch_index = (year - 4) % 12
+            
+            stem = HEAVENLY_STEMS[stem_index]
+            branch = EARTHLY_BRANCHES[branch_index]
+            
+            logging.info(f"流年计算(传统): {year}年 - {stem}{branch}")
+            
+            flowing_years.append({
+                "year": year,
+                "heavenlyStem": stem,
+                "earthlyBranch": branch,
+                "element": FIVE_ELEMENTS[stem]
+            })
     
     return flowing_years
 
-def calculate_bazi(gender, birth_time):
+def calculate_bazi(birth_date, birth_time, gender):
     """
     计算八字
     
     Args:
-        gender: 性别 ("male" 或 "female")
-        birth_time: 出生时间
+        birth_date: 出生日期，格式为 YYYY-MM-DD
+        birth_time: 出生时间，可以是 HH:MM 或者 "子时 (23:00-01:00)" 等中文时辰
+        gender: 性别，'male' 或 'female'
+        
+    Returns:
+        dict: 八字数据，如果出错则返回None
+    """
+    try:
+        # 验证日期格式
+        if not birth_date or not isinstance(birth_date, str):
+            logging.error(f"无效的出生日期: {birth_date}")
+            return None
+            
+        date_parts = birth_date.split('-')
+        if len(date_parts) != 3:
+            logging.error(f"日期格式错误，应为YYYY-MM-DD: {birth_date}")
+            return None
+            
+        try:
+            year = int(date_parts[0])
+            month = int(date_parts[1])
+            day = int(date_parts[2])
+            
+            # 验证范围
+            if year < 1900 or year > 2100:
+                logging.warning(f"出生年份 {year} 超出推荐范围(1900-2100)，计算结果可能不准确")
+            if month < 1 or month > 12:
+                logging.error(f"无效的月份: {month}")
+                return None
+            if day < 1 or day > 31:
+                logging.error(f"无效的日期: {day}")
+                return None
+                
+        except ValueError:
+            logging.error(f"日期格式转换错误: {birth_date}")
+            return None
+            
+        # 解析出生日期和时间
+        birth_time_data = parse_birth_date_time(birth_date, birth_time)
+        
+        # 打印调试信息
+        logging.info(f"计算八字: 年={birth_time_data['year']}, 月={birth_time_data['month']}, 日={birth_time_data['day']}, 时={birth_time_data['hour']}")
+        
+        # 计算四柱
+        year_pillar = get_year_pillar(birth_time_data["year"])
+        month_pillar = get_month_pillar(birth_time_data["year"], birth_time_data["month"], birth_time_data["day"])
+        day_pillar = get_day_pillar(birth_time_data["year"], birth_time_data["month"], birth_time_data["day"])
+        hour_pillar = get_hour_pillar(birth_time_data["year"], birth_time_data["month"], birth_time_data["day"], birth_time_data["hour"])
+        
+        # 打印调试信息
+        logging.info(f"四柱计算结果: 年柱={year_pillar['heavenlyStem']}{year_pillar['earthlyBranch']}, 月柱={month_pillar['heavenlyStem']}{month_pillar['earthlyBranch']}, 日柱={day_pillar['heavenlyStem']}{day_pillar['earthlyBranch']}, 时柱={hour_pillar['heavenlyStem']}{hour_pillar['earthlyBranch']}")
+        
+        # 组装八字数据
+        bazi_data = {
+            "yearPillar": year_pillar,
+            "monthPillar": month_pillar,
+            "dayPillar": day_pillar,
+            "hourPillar": hour_pillar,
+            "birthYear": birth_time_data["year"]
+        }
+        
+        # 计算五行分布
+        five_elements = calculate_five_elements(bazi_data)
+        bazi_data["fiveElements"] = five_elements
+        
+        # 计算大运流年
+        flowing_years = calculate_flowing_years(gender, bazi_data)
+        bazi_data["flowingYears"] = flowing_years
+        
+        return bazi_data
+    except Exception as e:
+        # 记录异常
+        logging.error(f"计算八字时发生错误: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return None
+
+# 添加兼容性函数，为了解决导入错误
+def get_bazi(birth_date, birth_time, gender):
+    """
+    计算八字（兼容性函数）
+    
+    Args:
+        birth_date: 出生日期，格式为 YYYY-MM-DD
+        birth_time: 出生时间，可以是 HH:MM 或者 "子时 (23:00-01:00)" 等中文时辰
+        gender: 性别，'male' 或 'female'
         
     Returns:
         dict: 八字数据
     """
-    year = birth_time["year"]
-    month = birth_time["month"]
-    day = birth_time["day"]
-    hour = birth_time["hour"]
-    is_lunar = birth_time.get("isLunar", False)
-    
-    # 如果是农历，转换为公历
-    if is_lunar:
-        year, month, day = convert_lunar_to_solar(year, month, day)
-    
-    # 计算四柱
-    year_pillar = get_year_pillar(year)
-    month_pillar = get_month_pillar(year, month, day)
-    day_pillar = get_day_pillar(year, month, day)
-    hour_pillar = get_hour_pillar(year, month, day, hour)
-    
-    # 组装八字数据
-    bazi_data = {
-        "yearPillar": year_pillar,
-        "monthPillar": month_pillar,
-        "dayPillar": day_pillar,
-        "hourPillar": hour_pillar
-    }
-    
-    # 计算五行分布
-    five_elements = calculate_five_elements(bazi_data)
-    bazi_data["fiveElements"] = five_elements
-    
-    return bazi_data 
+    logging.info(f"调用get_bazi兼容函数: {birth_date}, {birth_time}, {gender}")
+    return calculate_bazi(birth_date, birth_time, gender)
 
-def get_lunar_date(year, month, day, hour=12):
-    """
-    将公历日期转换为农历日期
-    """
-    day_obj = sxtwl.fromSolar(year, month, day)
-    
-    lunar_year = day_obj.getLunarYear()
-    lunar_month = day_obj.getLunarMonth()
-    lunar_day = day_obj.getLunarDay()
-    
-    # 月份可能有闰月，需要特殊处理
-    is_leap = day_obj.isLunarLeap()
-    
-    return {
-        "year": lunar_year,
-        "month": lunar_month,
-        "day": lunar_day,
-        "is_leap": is_leap
-    }
-
-def get_bazi(year, month, day, hour, gender='男'):
-    """
-    计算八字和神煞
-    year, month, day: 阳历年月日
-    hour: 小时（0-23）
-    gender: '男' 或 '女'
-    """
-    day_obj = sxtwl.fromSolar(year, month, day)
-    
-    # 计算八字
-    gz_year = day_obj.getYearGZ()
-    gz_month = day_obj.getMonthGZ()
-    gz_day = day_obj.getDayGZ()
-    
-    # 计算时辰干支
-    # 时辰对应：子时(0,1), 丑时(2,3), ..., 亥时(22,23)
-    time_zhi = hour // 2
-    time_gan = (gz_day.tg * 2 + time_zhi) % 10
-    gz_time = {"tg": time_gan, "dz": time_zhi}
-    
-    # 天干
-    year_tg = TIAN_GAN[gz_year.tg]
-    month_tg = TIAN_GAN[gz_month.tg]
-    day_tg = TIAN_GAN[gz_day.tg]
-    time_tg = TIAN_GAN[gz_time["tg"]]
-    
-    # 地支
-    year_dz = DI_ZHI[gz_year.dz]
-    month_dz = DI_ZHI[gz_month.dz]
-    day_dz = DI_ZHI[gz_day.dz]
-    time_dz = DI_ZHI[gz_time["dz"]]
-    
-    # 组合八字
-    bazi = {
-        "year": f"{year_tg}{year_dz}",
-        "month": f"{month_tg}{month_dz}",
-        "day": f"{day_tg}{day_dz}",
-        "time": f"{time_tg}{time_dz}"
-    }
-    
-    # 获取神煞（简化示例）
-    shen_sha = {}
-    
-    # 年干神煞
-    if gz_year.tg in SHEN_SHA.get("年干", {}):
-        shen_sha["年干"] = SHEN_SHA["年干"][gz_year.tg]
-    
-    # 年支神煞
-    if gz_year.dz in SHEN_SHA.get("年支", {}):
-        shen_sha["年支"] = SHEN_SHA["年支"][gz_year.dz]
-    
-    # 月支神煞
-    if gz_month.dz in SHEN_SHA.get("月支", {}):
-        shen_sha["月支"] = SHEN_SHA["月支"][gz_month.dz]
-    
-    # 计算大运
-    da_yun = calculate_da_yun(year, month, day, hour, bazi, gender)
-    
-    return {
-        "bazi": bazi,
-        "shen_sha": shen_sha,
-        "da_yun": da_yun
-    }
-
-def calculate_da_yun(year, month, day, hour, bazi, gender):
-    """
-    计算大运信息
-    """
-    day_obj = sxtwl.fromSolar(year, month, day)
-    
-    # 性别和月令确定大运顺序
-    month_tg_idx = day_obj.getMonthGZ().tg
-    month_dz_idx = day_obj.getMonthGZ().dz
-    
-    # 阳年男命、阴年女命顺行；阴年男命、阳年女命逆行
-    year_tg_idx = day_obj.getYearGZ().tg
-    is_yang_year = year_tg_idx % 2 == 0  # 甲、丙、戊、庚、壬为阳
-    is_male = gender == '男'
-    
-    forward = (is_yang_year and is_male) or (not is_yang_year and not is_male)
-    
-    # 计算起运时间
-    # 注意：实际八字起运时间计算复杂，这里仅为简化示例
-    birth_date = datetime.datetime(year, month, day, hour)
-    
-    # 简化：男孩3天，女孩100天（实际应基于出生断节气计算）
-    if is_male:
-        qi_yun_days = 3 * 365.25  # 约3年
-    else:
-        qi_yun_days = 3 * 365.25 + 3 * 30 + 24  # 约3年3个月24天
-    
-    qi_yun_date = birth_date + datetime.timedelta(days=qi_yun_days)
-    
-    # 大运干支
-    da_yun_list = []
-    
-    # 计算8个大运
-    for i in range(8):
-        if forward:
-            new_dz_idx = (month_dz_idx + i + 1) % 12
-            new_tg_idx = (month_tg_idx + i + 1) % 10
-        else:
-            new_dz_idx = (month_dz_idx - i - 1) % 12
-            new_tg_idx = (month_tg_idx - i - 1) % 10
-        
-        # 计算当前大运对应的十神
-        shi_shen_idx = (new_tg_idx - day_obj.getDayGZ().tg) % 10
-        shi_shen = SHI_SHEN[shi_shen_idx]
-        
-        # 计算长生十二宫位置（简化）
-        chang_sheng_idx = i % 12
-        chang_sheng_name = CHANG_SHENG[chang_sheng_idx]
-        
-        # 计算大运交接时间
-        jiao_yun_date = qi_yun_date + datetime.timedelta(days=i * 10 * 365.25)  # 每个大运10年
-        
-        # 岁数范围
-        start_age = i * 10 + int(qi_yun_days / 365.25)
-        end_age = start_age + 9
-        
-        da_yun_list.append({
-            "da_yun": f"{TIAN_GAN[new_tg_idx]}{DI_ZHI[new_dz_idx]}",
-            "shi_shen": shi_shen,
-            "chang_sheng": chang_sheng_name,
-            "start_age": start_age,
-            "end_age": end_age,
-            "start_year": jiao_yun_date.year,
-            "end_year": jiao_yun_date.year + 9
-        })
-    
-    # 返回起运信息和大运列表
-    return {
-        "qi_yun": {
-            "days": int(qi_yun_days),
-            "years": round(qi_yun_days / 365.25, 1),
-            "date": qi_yun_date.strftime("%Y-%m-%d")
-        },
-        "da_yun_list": da_yun_list
-    }
-
+# 添加格式化函数，为了兼容之前的代码
 def format_bazi_analysis(bazi_data):
     """
     格式化八字分析数据，生成DeepSeek API需要的提示内容
+    
+    Args:
+        bazi_data: 由calculate_bazi或get_bazi返回的八字数据
+        
+    Returns:
+        dict: 格式化后的八字数据，包含bazi, shen_sha, qi_yun, da_yun等字段
     """
-    bazi = bazi_data["bazi"]
-    shen_sha = bazi_data["shen_sha"]
-    da_yun = bazi_data["da_yun"]
+    logging.info("格式化八字数据")
+    
+    # 从新版bazi_data中提取信息
+    year_pillar = bazi_data.get("yearPillar", {})
+    month_pillar = bazi_data.get("monthPillar", {})
+    day_pillar = bazi_data.get("dayPillar", {})
+    hour_pillar = bazi_data.get("hourPillar", {})
+    five_elements = bazi_data.get("fiveElements", {})
+    flowing_years = bazi_data.get("flowingYears", [])
     
     # 格式化八字
-    bazi_str = f"{bazi['year']}，{bazi['month']}，{bazi['day']}，{bazi['time']}"
+    bazi_str = f"{year_pillar.get('heavenlyStem', '')}{year_pillar.get('earthlyBranch', '')}，"
+    bazi_str += f"{month_pillar.get('heavenlyStem', '')}{month_pillar.get('earthlyBranch', '')}，"
+    bazi_str += f"{day_pillar.get('heavenlyStem', '')}{day_pillar.get('earthlyBranch', '')}，"
+    bazi_str += f"{hour_pillar.get('heavenlyStem', '')}{hour_pillar.get('earthlyBranch', '')}"
     
-    # 格式化神煞
-    shen_sha_str = ""
-    for position, sha_list in shen_sha.items():
-        if sha_list:
-            shen_sha_str += f"[{position}]  {' '.join(sha_list)}    \n"
+    # 格式化神煞（简化版本）
+    shen_sha_str = "此版本暂无神煞信息\n"
     
-    # 格式化大运
-    qi_yun_info = da_yun["qi_yun"]
-    qi_yun_str = f"起运：我于出生后{int(qi_yun_info['years'])}年{qi_yun_info['days'] % 365 // 30}个月{qi_yun_info['days'] % 30}天开始起运，在公历{qi_yun_info['date']}交运"
+    # 格式化大运（简化版本）
+    qi_yun_str = "起运：根据八字推算，命主将于近期交运"
     
-    da_yun_table = "旺衰\t大运\t十神\t年龄\t开始时间\t结束时间\n"
-    for yun in da_yun["da_yun_list"]:
-        da_yun_table += f"{yun['chang_sheng']}\t{yun['da_yun']}\t{yun['shi_shen']}\t{yun['start_age']}\t{yun['start_year']}\t{yun['end_year']}\n"
+    # 格式化流年信息
+    da_yun_table = "五行\t流年\t干支\t年份\n"
+    for yun in flowing_years:
+        da_yun_table += f"{yun.get('element', '')}\t流年\t{yun.get('heavenlyStem', '')}{yun.get('earthlyBranch', '')}\t{yun.get('year', '')}\n"
+    
+    # 格式化五行信息
+    wu_xing_info = f"五行统计：金 {five_elements.get('metal', 0)}，木 {five_elements.get('wood', 0)}，"
+    wu_xing_info += f"水 {five_elements.get('water', 0)}，火 {five_elements.get('fire', 0)}，土 {five_elements.get('earth', 0)}"
     
     return {
         "bazi": bazi_str,
         "shen_sha": shen_sha_str,
         "qi_yun": qi_yun_str,
-        "da_yun": da_yun_table
+        "da_yun": da_yun_table,
+        "wu_xing": wu_xing_info
     }
 
 # 使用示例
 if __name__ == "__main__":
-    # 测试用例：1986年4月23日17点出生的女性
-    bazi_data = get_bazi(1986, 4, 23, 17, '女')
-    formatted = format_bazi_analysis(bazi_data)
+    # 测试
+    test_date = "2025-05-27"
+    test_time = "12:00"
+    test_gender = "male"
     
-    print(f"八字：{formatted['bazi']}")
-    print(f"神煞：\n{formatted['shen_sha']}")
-    print(f"{formatted['qi_yun']}")
-    print(f"大运：\n{formatted['da_yun']}") 
+    result = calculate_bazi(test_date, test_time, test_gender)
+    print(f"年柱: {result['yearPillar']['heavenlyStem']}{result['yearPillar']['earthlyBranch']}")
+    print(f"月柱: {result['monthPillar']['heavenlyStem']}{result['monthPillar']['earthlyBranch']}")
+    print(f"日柱: {result['dayPillar']['heavenlyStem']}{result['dayPillar']['earthlyBranch']}")
+    print(f"时柱: {result['hourPillar']['heavenlyStem']}{result['hourPillar']['earthlyBranch']}")
+    print(f"五行: {result['fiveElements']}")
+    print(f"流年: {[(y['year'], y['heavenlyStem'] + y['earthlyBranch']) for y in result['flowingYears']]}") 

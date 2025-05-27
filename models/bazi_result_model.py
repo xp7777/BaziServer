@@ -32,6 +32,41 @@ class BaziResultModel:
         return result
     
     @staticmethod
+    def create(result_data):
+        """创建新的八字分析结果（接收完整数据对象）"""
+        logging.info("创建新的八字分析结果")
+        
+        # 确保有创建时间
+        if 'createdAt' not in result_data:
+            result_data['createdAt'] = datetime.now()
+        
+        # 尝试插入数据
+        try:
+            inserted = results_collection.insert_one(result_data)
+            result_id = str(inserted.inserted_id)
+            logging.info(f"成功创建新的八字分析结果，ID: {result_id}")
+            return result_id
+        except Exception as e:
+            logging.error(f"创建八字分析结果失败: {str(e)}")
+            # 如果有自定义ID，尝试upsert
+            if '_id' in result_data:
+                try:
+                    custom_id = result_data['_id']
+                    logging.info(f"尝试使用自定义ID进行upsert: {custom_id}")
+                    result = results_collection.update_one(
+                        {"_id": custom_id},
+                        {"$set": result_data},
+                        upsert=True
+                    )
+                    if result.modified_count > 0 or result.matched_count > 0 or result.upserted_id:
+                        logging.info(f"成功使用upsert创建/更新记录: {custom_id}")
+                        return custom_id
+                except Exception as e2:
+                    logging.error(f"使用自定义ID进行upsert失败: {str(e2)}")
+            
+            return None
+    
+    @staticmethod
     def find_by_id(result_id):
         """通过ID查找结果"""
         logging.info(f"尝试查找结果ID: {result_id}")
@@ -93,7 +128,7 @@ class BaziResultModel:
             except Exception as e:
                 logging.warning(f"字符串ID查询错误: {str(e)}")
         
-                        # 尝试使用订单ID查询
+            # 尝试使用订单ID查询
             if not existing_result:
                 try:
                     order_id = result_id.replace("RES", "")
@@ -109,68 +144,10 @@ class BaziResultModel:
                 existing_result['_id'] = str(existing_result['_id'])
                 return existing_result
             
-            # 如果没有找到，创建一个新的记录并存入数据库
-            logging.info(f"创建新的RES前缀记录: {result_id}")
-            timestamp = result_id.replace("RES", "")
-            birth_date = datetime.now().strftime("%Y-%m-%d")
-            birth_time = "丑时 (01:00-03:00)"  # 默认时辰，可以根据需要修改
-            
-            # 尝试从前端日志中提取信息
-            try:
-                if timestamp.isdigit() and len(timestamp) > 8:
-                    time_obj = datetime.fromtimestamp(int(timestamp) / 1000)
-                    birth_date = time_obj.strftime("%Y-%m-%d")
-            except:
-                pass
-            
-            # 检查是否是特定的2025年5月21日测试
-            if "1747837417551" in timestamp or "2025-05-21" in birth_date:
-                birth_date = "2025-05-21"
-                logging.info(f"检测到特定测试日期: {birth_date}")
-            
-            new_result = {
-                "_id": result_id,  # 使用字符串作为_id
-                "userId": "test_user",
-                "orderId": timestamp,
-                "gender": "male",
-                "birthTime": f"{birth_date} {birth_time}",
-                "focusAreas": ["health", "wealth", "career", "relationship"],
-                # 添加基本信息结构
-                "basicInfo": {
-                    "solarYear": birth_date.split("-")[0] if "-" in birth_date else "2025",
-                    "solarMonth": birth_date.split("-")[1] if "-" in birth_date else "05",
-                    "solarDay": birth_date.split("-")[2] if "-" in birth_date else "21",
-                    "solarHour": birth_time.split(" ")[0],
-                    "gender": "male",
-                    "birthPlace": "北京",
-                    "livingPlace": "北京"
-                },
-                "baziChart": {
-                    "yearPillar": {"heavenlyStem": "甲", "earthlyBranch": "子", "element": "水", "birthYear": birth_date.split("-")[0] if "-" in birth_date else "2025"},
-                    "monthPillar": {"heavenlyStem": "丙", "earthlyBranch": "寅", "element": "木"},
-                    "dayPillar": {"heavenlyStem": "戊", "earthlyBranch": "午", "element": "火"},
-                    "hourPillar": {"heavenlyStem": "庚", "earthlyBranch": "申", "element": "金"},
-                    "fiveElements": {"wood": 2, "fire": 2, "earth": 1, "metal": 2, "water": 1},
-                    "flowingYears": [
-                        {"year": 2025, "heavenlyStem": "乙", "earthlyBranch": "巳", "element": "火"},
-                        {"year": 2026, "heavenlyStem": "丙", "earthlyBranch": "午", "element": "火"},
-                        {"year": 2027, "heavenlyStem": "丁", "earthlyBranch": "未", "element": "土"},
-                        {"year": 2028, "heavenlyStem": "戊", "earthlyBranch": "申", "element": "金"},
-                        {"year": 2029, "heavenlyStem": "己", "earthlyBranch": "酉", "element": "金"}
-                    ]
-                },
-                "createTime": datetime.now(),
-                "analyzed": False  # 设置为False以触发实时分析
-            }
-            
-            # 插入数据库
-            try:
-                results_collection.insert_one(new_result)
-                logging.info(f"成功创建并存储RES前缀记录: {result_id}")
-            except Exception as e:
-                logging.error(f"存储RES前缀记录失败: {str(e)}")
-            
-            return new_result
+            # 如果没有找到，说明是旧记录或缓存问题，请求前端重新提交
+            logging.warning(f"未找到RES前缀记录: {result_id}，可能需要重新分析")
+            # 不再自动创建新记录，让前端重新提交请求
+            return None
         
         # 尝试标准查询方式
         result = None
@@ -396,4 +373,63 @@ class BaziResultModel:
                 {"_id": result_id},
                 {"$set": {"pdfUrl": pdf_url}}
             )
+        return BaziResultModel.find_by_id(result_id)
+    
+    @staticmethod
+    def update_full_analysis(result_id, bazi_chart, ai_analysis):
+        """同时更新八字图、基本信息和AI分析结果"""
+        logging.info(f"全面更新分析结果: {result_id}")
+        success = False
+        
+        # 获取当前结果，以保留未更新的字段
+        current_result = BaziResultModel.find_by_id(result_id)
+        if not current_result:
+            logging.error(f"找不到要更新的结果ID: {result_id}")
+            return None
+        
+        # 准备更新数据
+        update_data = {
+            "baziChart": bazi_chart,
+            "aiAnalysis": ai_analysis,
+            "analyzed": True,
+            "updateTime": datetime.now()
+        }
+        
+        # 尝试使用ObjectId（仅当ID符合ObjectId格式时）
+        if len(result_id) == 24 and all(c in '0123456789abcdef' for c in result_id):
+            try:
+                logging.info("尝试使用ObjectId全面更新")
+                result = results_collection.update_one(
+                    {"_id": ObjectId(result_id)},
+                    {"$set": update_data}
+                )
+                if result.modified_count > 0 or result.matched_count > 0:
+                    logging.info(f"成功使用ObjectId全面更新记录: {result_id}")
+                    success = True
+                else:
+                    logging.warning(f"没有匹配到ObjectId记录: {result_id}")
+            except Exception as e:
+                logging.warning(f"使用ObjectId全面更新失败: {str(e)}")
+        
+        # 如果ObjectId更新失败，尝试使用字符串ID
+        if not success:
+            try:
+                logging.info("尝试使用字符串ID全面更新")
+                result = results_collection.update_one(
+                    {"_id": result_id},
+                    {"$set": update_data}
+                )
+                if result.modified_count > 0 or result.matched_count > 0:
+                    logging.info(f"成功使用字符串ID全面更新记录: {result_id}")
+                    success = True
+                else:
+                    logging.warning(f"没有匹配到字符串ID记录: {result_id}")
+            except Exception as e:
+                logging.warning(f"使用字符串ID全面更新失败: {str(e)}")
+        
+        # 最后检查更新是否成功
+        if not success:
+            logging.error(f"无法全面更新分析结果: {result_id}，所有方法都失败")
+        
+        # 返回更新后的结果
         return BaziResultModel.find_by_id(result_id) 

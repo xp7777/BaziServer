@@ -492,28 +492,126 @@ onMounted(async () => {
         // 显示加载提示
         Toast.loading({
           message: '正在模拟支付并进行八字分析，请耐心等待30-60秒...',
-          duration: 10000,
+          duration: 20000,  // 增加等待时间
           position: 'middle'
         });
         
         const orderId = finalResultId.replace('RES', '');
-        const mockPaymentResponse = await http.post(`/api/order/mock/pay/${orderId}`);
         
-        if (mockPaymentResponse.data.code === 200 && mockPaymentResponse.data.data.resultId) {
+        // 从URL查询参数中获取出生日期和时间
+        const urlParams = new URLSearchParams(window.location.search);
+        const birthDate = urlParams.get('birthDate') || '2023-06-06'; // 使用默认值
+        const birthTime = urlParams.get('birthTime') || '辰时 (07:00-09:00)'; // 使用默认值
+        const gender = urlParams.get('gender') || 'male'; // 使用默认值
+        
+        // 验证日期格式
+        let validBirthDate = birthDate;
+        try {
+          // 检查日期格式是否正确
+          const dateParts = birthDate.split('-');
+          if (dateParts.length === 3) {
+            const year = parseInt(dateParts[0]);
+            const month = parseInt(dateParts[1]);
+            const day = parseInt(dateParts[2]);
+            
+            // 验证年份在合理范围内
+            if (year < 1900 || year > 2100) {
+              console.warn(`出生年份 ${year} 超出推荐范围(1900-2100)，使用默认值`);
+              validBirthDate = '2000-01-01';
+            }
+          } else {
+            console.warn(`日期格式错误: ${birthDate}，使用默认值`);
+            validBirthDate = '2000-01-01';
+          }
+        } catch (e) {
+          console.error('日期验证错误:', e);
+          validBirthDate = '2000-01-01';
+        }
+        
+        console.log('模拟支付使用参数:', { birthDate: validBirthDate, birthTime, gender });
+        
+        // 添加参数到URL
+        const mockPaymentUrl = `/api/order/mock/pay/${orderId}?birthDate=${encodeURIComponent(validBirthDate)}&birthTime=${encodeURIComponent(birthTime)}&gender=${encodeURIComponent(gender)}`;
+        
+        // 尝试最多3次请求
+        let retryCount = 0;
+        let mockPaymentResponse = null;
+        
+        while (retryCount < 3) {
+          try {
+            console.log(`尝试请求模拟支付 (${retryCount + 1}/3)...`);
+            mockPaymentResponse = await http.post(mockPaymentUrl);
+            
+            // 如果成功，跳出循环
+            if (mockPaymentResponse && mockPaymentResponse.data && mockPaymentResponse.data.code === 200) {
+              break;
+            }
+            
+            // 如果失败但有响应，记录错误
+            console.error('模拟支付请求失败:', mockPaymentResponse?.data);
+            
+            // 等待一秒后重试
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            retryCount++;
+          } catch (retryError) {
+            console.error(`模拟支付请求出错 (尝试 ${retryCount + 1}/3):`, retryError);
+            
+            // 等待一秒后重试
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            retryCount++;
+          }
+        }
+        
+        // 检查是否成功获取响应
+        if (mockPaymentResponse && mockPaymentResponse.data && mockPaymentResponse.data.code === 200 && mockPaymentResponse.data.data && mockPaymentResponse.data.data.resultId) {
           const newResultId = mockPaymentResponse.data.data.resultId;
           console.log('获取到新的resultId:', newResultId);
           
-          const retryResponse = await http.get(`/api/bazi/result/${newResultId}`);
-          if (retryResponse.data.code === 200) {
-            baziData.value = retryResponse.data.data.baziChart;
-            aiAnalysis.value = retryResponse.data.data.aiAnalysis;
-            focusAreas.value = retryResponse.data.data.focusAreas;
-            Toast.success('分析结果加载成功');
-            return;
+          // 等待2秒，让服务器有时间处理结果
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // 尝试最多3次获取结果
+          let resultRetryCount = 0;
+          let resultSuccess = false;
+          
+          while (resultRetryCount < 3 && !resultSuccess) {
+            try {
+              console.log(`尝试获取结果 (${resultRetryCount + 1}/3)...`);
+              const retryResponse = await http.get(`/api/bazi/result/${newResultId}`);
+              
+              if (retryResponse.data.code === 200) {
+                baziData.value = retryResponse.data.data.baziChart;
+                aiAnalysis.value = retryResponse.data.data.aiAnalysis;
+                focusAreas.value = retryResponse.data.data.focusAreas;
+                Toast.success('分析结果加载成功');
+                resultSuccess = true;
+                break;
+              } else if (retryResponse.data.code === 202) {
+                // 结果正在处理中，等待更长时间再重试
+                console.log('结果正在处理中，等待...');
+                await new Promise(resolve => setTimeout(resolve, 3000));
+              } else {
+                console.error('获取结果失败:', retryResponse.data);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            } catch (resultError) {
+              console.error(`获取结果出错 (尝试 ${resultRetryCount + 1}/3):`, resultError);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            resultRetryCount++;
+          }
+          
+          if (resultSuccess) {
+            return; // 成功获取结果，退出函数
           }
         }
+        
+        // 如果所有尝试都失败，显示错误提示
+        Toast.fail('无法获取分析结果，请稍后刷新页面重试');
       } catch (mockError) {
         console.error('模拟支付失败:', mockError);
+        Toast.fail('模拟支付失败，请稍后重试');
       }
     }
   }

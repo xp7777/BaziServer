@@ -1,29 +1,48 @@
 #!/usr/bin/env python
-# 修复缩进问题的Python脚本
+# coding: utf-8
 
-with open('routes/bazi_routes.py', 'r', encoding='utf-8') as f:
-    lines = f.readlines()
+import os
+import re
+import datetime
 
-# 查找问题行
-problem_line = -1
-for i, line in enumerate(lines):
-    if "# 如果没有PDF URL，先生成PDF" in line:
-        problem_line = i
-        break
-
-if problem_line > 0:
-    # 确保try块中的代码有正确缩进
-    for i in range(problem_line + 2, len(lines)):
-        if "from utils.pdf_generator import generate_pdf" in line:
-            # 修复缩进
-            lines[i] = "        " + lines[i].lstrip()
-            print(f"修复了第 {i+1} 行的缩进")
-            break
-
-    # 保存修改后的文件
-    with open('routes/bazi_routes.py', 'w', encoding='utf-8') as f:
-        f.writelines(lines)
+def fix_indentation():
+    """修复routes/bazi_routes.py文件中的缩进问题"""
     
-    print("文件已修复")
-else:
-    print("未找到问题行") 
+    # 源文件和目标文件
+    source_file = 'routes/bazi_routes.py'
+    backup_file = f"{source_file}.bak_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    target_file = 'routes/bazi_routes.py'
+    
+    # 读取源文件
+    with open(source_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # 创建备份
+    with open(backup_file, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f"已创建备份: {backup_file}")
+    
+    # 修复第436行附近的缩进问题
+    pattern = r'overall_match = re\.search\(r\'综合建议\[：:\]\([\s\S]*?\)\$\'\, content\)\s+if overall_match:\s+analysis_result\["overall"\] = overall_match\.group\(1\)\.strip\(\)\s+else:\s+# 如果没有找到综合建议，使用全部内容\s+analysis_result\["overall"\] = content\s+\s+return analysis_result\s+else:\s+logging\.error'
+    
+    replacement = '''overall_match = re.search(r'综合建议[：:]([\s\S]*?)$', content)
+            if overall_match:
+                analysis_result["overall"] = overall_match.group(1).strip()
+            else:
+                # 如果没有找到综合建议，使用全部内容
+                analysis_result["overall"] = content
+            
+            return analysis_result
+        else:
+            logging.error'''
+    
+    fixed_content = re.sub(pattern, replacement, content)
+    
+    # 保存修复后的文件
+    with open(target_file, 'w', encoding='utf-8') as f:
+        f.write(fixed_content)
+    
+    print(f"已修复文件: {target_file}")
+
+if __name__ == '__main__':
+    fix_indentation() 

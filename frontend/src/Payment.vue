@@ -149,8 +149,17 @@ export default {
       // 模拟支付成功后的结果ID
       const resultId = 'RES' + Date.now().toString();
       
-      // 跳转到结果页面
-      router.push(`/result/${resultId}`);
+      // 跳转到结果页面，传递出生日期和时间参数
+      router.push({
+        path: `/result/${resultId}`,
+        query: {
+          birthDate,
+          birthTime,
+          gender,
+          birthPlace,
+          livingPlace
+        }
+      });
     };
     
     return {

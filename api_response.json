@@ -1,0 +1,81 @@
+{
+  "code": 200,
+  "data": {
+    "aiAnalysis": {
+      "career": "您的事业宫位较为稳定，具有较强的组织能力和执行力。2025-2026年是事业发展的关键期，有升职或转行的机会。建议提升专业技能，扩展人脉关系。您适合在团队中担任协调或管理角色，发挥沟通才能。",
+      "children": "您的子女宫位较为温和，与子女关系和谐。教育方面，建议采用引导式而非强制式的方法，尊重子女的兴趣发展。2026-2027年是子女发展的重要阶段，可能需要您更多的关注和支持。",
+      "health": "您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。",
+      "overall": "综合分析您的八字，2025-2027年是您人生的一个上升期，各方面都有良好发展。建议把握这段时间，在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。您的人生态度积极乐观，具有较强的适应能力和抗压能力，这将帮助您度过人生中的各种挑战。",
+      "relationship": "您的八字中日柱为丁未，感情态度较为温和。2025年下半年至2026年上半年是感情发展的良好时期。已婚者需注意与伴侣的沟通，避免因工作忙碌而忽略家庭。单身者有机会通过社交活动或朋友介绍认识合适的对象。",
+      "wealth": "您的财运在2025年有明显上升趋势，特别是在春夏季节。八字中金水相生，适合从事金融、贸易、水利相关行业。投资方面，稳健为主，可考虑分散投资组合。2027年有意外财运，但需谨慎对待，避免投机性强的项目。"
+    },
+    "baziChart": {
+      "dayPillar": {
+        "earthlyBranch": "未",
+        "element": "土",
+        "heavenlyStem": "丁"
+      },
+      "fiveElements": {
+        "earth": 2,
+        "fire": 2,
+        "metal": 1,
+        "water": 0,
+        "wood": 1
+      },
+      "flowingYears": [
+        {
+          "earthlyBranch": "巳",
+          "element": "木",
+          "heavenlyStem": "乙",
+          "year": 2025
+        },
+        {
+          "earthlyBranch": "午",
+          "element": "火",
+          "heavenlyStem": "丙",
+          "year": 2026
+        },
+        {
+          "earthlyBranch": "未",
+          "element": "火",
+          "heavenlyStem": "丁",
+          "year": 2027
+        },
+        {
+          "earthlyBranch": "申",
+          "element": "土",
+          "heavenlyStem": "戊",
+          "year": 2028
+        },
+        {
+          "earthlyBranch": "酉",
+          "element": "土",
+          "heavenlyStem": "己",
+          "year": 2029
+        }
+      ],
+      "hourPillar": {
+        "earthlyBranch": "申",
+        "element": "金",
+        "heavenlyStem": "戊"
+      },
+      "monthPillar": {
+        "earthlyBranch": "午",
+        "element": "火",
+        "heavenlyStem": "丙"
+      },
+      "yearPillar": {
+        "earthlyBranch": "巳",
+        "element": "火",
+        "heavenlyStem": "乙"
+      }
+    },
+    "focusAreas": [
+      "health",
+      "wealth",
+      "career",
+      "relationship"
+    ]
+  },
+  "message": "成功"
+}
