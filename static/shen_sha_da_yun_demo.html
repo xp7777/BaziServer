@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>神煞与大运流年展示</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2, h3 {
+            color: #b36d00;
+        }
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .bazi-chart {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .pillar {
+            flex: 1;
+            min-width: 80px;
+            text-align: center;
+            padding: 10px;
+            margin: 5px;
+            background-color: #fff8e1;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .pillar-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #7b5700;
+        }
+        .heavenly-stem {
+            font-size: 18px;
+            font-weight: bold;
+            color: #d32f2f;
+            margin-bottom: 5px;
+        }
+        .earthly-branch {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+        .five-elements {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .element {
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .element-wood {
+            background-color: #c8e6c9;
+            color: #2e7d32;
+        }
+        .element-fire {
+            background-color: #ffcdd2;
+            color: #c62828;
+        }
+        .element-earth {
+            background-color: #fff9c4;
+            color: #f9a825;
+        }
+        .element-metal {
+            background-color: #f5f5f5;
+            color: #616161;
+        }
+        .element-water {
+            background-color: #bbdefb;
+            color: #1565c0;
+        }
+        .shen-sha {
+            margin: 20px 0;
+        }
+        .shen-sha-item {
+            display: flex;
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .shen-sha-label {
+            flex: 1;
+            font-weight: bold;
+            color: #555;
+        }
+        .shen-sha-value {
+            flex: 2;
+        }
+        .da-yun {
+            margin: 20px 0;
+        }
+        .da-yun-info {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #e8f5e9;
+            border-radius: 4px;
+            color: #2e7d32;
+        }
+        .da-yun-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .da-yun-table th, .da-yun-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .da-yun-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        .da-yun-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .da-yun-table tr:hover {
+            background-color: #f1f1f1;
+        }
+        .btn {
+            background-color: #b36d00;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        .btn:hover {
+            background-color: #8c5400;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>神煞与大运流年展示</h1>
+        <p>本页面展示了使用lunar-python库计算的神煞和大运流年信息。</p>
+        
+        <h2>基本八字信息</h2>
+        <div id="basicInfo">
+            <p><strong>姓名：</strong>测试用户</p>
+            <p><strong>性别：</strong>男</p>
+            <p><strong>出生日期：</strong>2006年10月15日</p>
+            <p><strong>出生时辰：</strong>午时 (11:00-13:00)</p>
+        </div>
+        
+        <h2>八字命盘</h2>
+        <div class="bazi-chart">
+            <div class="pillar">
+                <div class="pillar-title">年柱</div>
+                <div class="heavenly-stem">丙</div>
+                <div class="earthly-branch">戌</div>
+            </div>
+            <div class="pillar">
+                <div class="pillar-title">月柱</div>
+                <div class="heavenly-stem">戊</div>
+                <div class="earthly-branch">戌</div>
+            </div>
+            <div class="pillar">
+                <div class="pillar-title">日柱</div>
+                <div class="heavenly-stem">丁</div>
+                <div class="earthly-branch">丑</div>
+            </div>
+            <div class="pillar">
+                <div class="pillar-title">时柱</div>
+                <div class="heavenly-stem">丙</div>
+                <div class="earthly-branch">午</div>
+            </div>
+        </div>
+        
+        <h2>五行分布</h2>
+        <div class="five-elements">
+            <div class="element element-wood">木: 0</div>
+            <div class="element element-fire">火: 3</div>
+            <div class="element element-earth">土: 4</div>
+            <div class="element element-metal">金: 0</div>
+            <div class="element element-water">水: 1</div>
+        </div>
+        
+        <h2>神煞信息</h2>
+        <div class="shen-sha">
+            <div class="shen-sha-item">
+                <div class="shen-sha-label">日冲：</div>
+                <div class="shen-sha-value">牛日冲羊</div>
+            </div>
+            <div class="shen-sha-item">
+                <div class="shen-sha-label">值神：</div>
+                <div class="shen-sha-value">除</div>
+            </div>
+            <div class="shen-sha-item">
+                <div class="shen-sha-label">彭祖百忌：</div>
+                <div class="shen-sha-value">丁不开仓 丑不远行</div>
+            </div>
+            <div class="shen-sha-item">
+                <div class="shen-sha-label">喜神方位：</div>
+                <div class="shen-sha-value">东北</div>
+            </div>
+            <div class="shen-sha-item">
+                <div class="shen-sha-label">福神方位：</div>
+                <div class="shen-sha-value">西南</div>
+            </div>
+            <div class="shen-sha-item">
+                <div class="shen-sha-label">财神方位：</div>
+                <div class="shen-sha-value">正北</div>
+            </div>
+            <div class="shen-sha-item">
+                <div class="shen-sha-label">本命神煞：</div>
+                <div class="shen-sha-value">桃花</div>
+            </div>
+        </div>
+        
+        <h2>大运信息</h2>
+        <div class="da-yun">
+            <div class="da-yun-info">
+                <p><strong>起运年龄：</strong>11岁</p>
+                <p><strong>起运年份：</strong>2017年</p>
+            </div>
+            
+            <table class="da-yun-table">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>大运</th>
+                        <th>五行</th>
+                        <th>年份</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>戊戌</td>
+                        <td>土</td>
+                        <td>2017-2026</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>己亥</td>
+                        <td>土</td>
+                        <td>2027-2036</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td>庚子</td>
+                        <td>金</td>
+                        <td>2037-2046</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td>辛丑</td>
+                        <td>金</td>
+                        <td>2047-2056</td>
+                    </tr>
+                    <tr>
+                        <td>5</td>
+                        <td>壬寅</td>
+                        <td>水</td>
+                        <td>2057-2066</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <button class="btn" onclick="window.location.href='/api/bazi/test'">返回测试页面</button>
+    </div>
+    
+    <script>
+        // 可以添加一些交互效果
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('神煞与大运流年展示页面已加载');
+        });
+    </script>
+</body>
+</html> 

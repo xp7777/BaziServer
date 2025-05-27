@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file, send_from_directory
 import logging
 import os
 import threading
@@ -700,3 +700,9 @@ def get_pdf(result_id):
     except Exception as e:
         logging.error(f"生成PDF时出错: {str(e)}")
         return jsonify(code=500, message=f"生成PDF失败: {str(e)}"), 500
+
+# 添加一个新的路由，用于展示神煞和大运流年的示例页面
+@bazi_bp.route('/shen_sha_da_yun_demo')
+def shen_sha_da_yun_demo():
+    """展示神煞和大运流年的示例页面"""
+    return send_from_directory('static', 'shen_sha_da_yun_demo.html')

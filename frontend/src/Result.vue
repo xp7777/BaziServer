@@ -63,6 +63,35 @@
             </div>
           </div>
           
+          <!-- 添加神煞显示 -->
+          <h3>神煞信息</h3>
+          <div class="shen-sha-info" v-if="baziData.shenSha">
+            <van-cell-group inset>
+              <van-cell title="日冲" :value="baziData.shenSha.dayChong" />
+              <van-cell title="值神" :value="baziData.shenSha.zhiShen" />
+              <van-cell title="彭祖百忌" :value="`${baziData.shenSha.pengZuGan} ${baziData.shenSha.pengZuZhi}`" />
+              <van-cell title="喜神方位" :value="baziData.shenSha.xiShen" />
+              <van-cell title="福神方位" :value="baziData.shenSha.fuShen" />
+              <van-cell title="财神方位" :value="baziData.shenSha.caiShen" />
+              <van-cell title="本命神煞" :value="baziData.shenSha.benMing ? baziData.shenSha.benMing.join('、') : '无'" />
+            </van-cell-group>
+          </div>
+          
+          <!-- 添加大运显示 -->
+          <h3>大运信息</h3>
+          <div class="da-yun-info" v-if="baziData.daYun">
+            <p class="qi-yun-info">起运年龄: {{ baziData.daYun.startAge }}岁，起运年份: {{ baziData.daYun.startYear }}年</p>
+            
+            <div class="da-yun-table">
+              <van-cell-group inset>
+                <van-cell v-for="item in baziData.daYun.daYunList" :key="item.index"
+                  :title="`${item.index}. ${item.heavenlyStem}${item.earthlyBranch} (${item.element})`"
+                  :value="`${item.startYear}-${item.endYear}年`"
+                />
+              </van-cell-group>
+            </div>
+          </div>
+          
           <h3>大运流年</h3>
           <div class="flowing-years">
             <van-steps direction="horizontal" :active="2">
@@ -1012,5 +1041,23 @@ const reloadBaziData = async () => {
 
 .age-notice {
   margin-bottom: 20px;
+}
+
+.shen-sha-info {
+  margin-bottom: 20px;
+}
+
+.da-yun-info {
+  margin-bottom: 20px;
+}
+
+.qi-yun-info {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #646566;
+}
+
+.da-yun-table {
+  margin-top: 10px;
 }
 </style>
