@@ -256,6 +256,14 @@
         分享结果
       </van-button>
       
+      <!-- 本地生成PDF按钮 -->
+      <van-button plain type="info" 
+                  block 
+                  style="margin-top: 10px;" 
+                  @click="handleLocalPDFGeneration">
+        本地生成PDF
+      </van-button>
+      
       <!-- 调试按钮 -->
       <van-button plain type="warning" 
                   block 
@@ -844,13 +852,16 @@ const downloadPDFAsStream = async () => {
     // 转换为Blob对象
     const blob = await response.blob();
     
-    // 检查Blob大小
-    if (blob.size === 0) {
+    // 检查Blob大小 - 注意：当浏览器接管下载时，可能会导致blob.size为0
+    // 因此，如果有Content-Disposition头部，我们应该认为下载已经开始
+    const isDownloadStarted = disposition && disposition.includes('attachment');
+    if (blob.size === 0 && !isDownloadStarted) {
       throw new Error('下载的文件为空');
     }
     
-    // 检查PDF文件的有效性（仅对PDF文件）
-    if (contentType && contentType.includes('pdf')) {
+    // 对于小文件，我们可以验证文件内容
+    // 但对于大文件或浏览器接管的下载，跳过验证
+    if (blob.size > 0 && blob.size < 1024*1024 && contentType && contentType.includes('pdf')) {
       try {
         // 读取文件头部以验证是否为有效的PDF
         const fileReader = new FileReader();
@@ -870,23 +881,34 @@ const downloadPDFAsStream = async () => {
         }
       } catch (e) {
         console.error('验证PDF文件失败:', e);
-        throw new Error('验证PDF文件失败: ' + e.message);
+        // 如果是浏览器接管下载导致的验证失败，我们不抛出错误
+        if (!isDownloadStarted) {
+          throw new Error('验证PDF文件失败: ' + e.message);
+        } else {
+          console.warn('浏览器接管了下载，跳过PDF验证');
+        }
       }
     }
     
-    // 创建下载链接
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    
-    // 触发下载
-    document.body.appendChild(a);
-    a.click();
-    
-    // 清理
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    // 如果浏览器已经接管下载（通过Content-Disposition头部），
+    // 我们不需要手动创建下载链接
+    if (!isDownloadStarted) {
+      // 创建下载链接
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      
+      // 触发下载
+      document.body.appendChild(a);
+      a.click();
+      
+      // 清理
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 100);
+    }
     
     Toast.clear();
     Toast.success('报告下载成功');
@@ -894,21 +916,20 @@ const downloadPDFAsStream = async () => {
   } catch (error) {
     console.error('直接下载PDF出错:', error);
     Toast.clear();
-    Toast.fail(error.message || '下载失败，请稍后重试');
     
-    // 如果直接下载失败，提示用户使用本地PDF生成
-    Dialog.confirm({
-      title: 'PDF下载失败',
-      message: '服务器生成PDF失败，是否要使用浏览器生成PDF文件？注意：本地生成的PDF格式可能不如服务器生成的完善。',
-      confirmButtonText: '使用本地生成',
-      cancelButtonText: '取消',
-    }).then(() => {
-      // 用户选择使用本地生成
-      generatePDFLocally();
-    }).catch(() => {
-      // 用户取消
-      console.log('用户取消本地PDF生成');
-    });
+    // 检查是否是因为浏览器已经接管了下载而导致的错误
+    if (error.message && (
+        error.message.includes('下载的文件为空') || 
+        error.message.includes('验证PDF文件失败')
+      )) {
+      // 如果是这类错误，可能是浏览器已经开始下载，我们不显示错误
+      console.log('可能是浏览器已经接管了下载，不显示错误');
+      Toast.success('报告下载已开始，请等待浏览器完成下载');
+      return true;
+    }
+    
+    // 显示错误信息
+    Toast.fail(error.message || '下载失败，请稍后重试');
     return false;
   }
 };
@@ -952,20 +973,13 @@ const downloadPDF = async () => {
     }
   }
   
-  // 如果多次尝试后仍然失败，尝试本地生成
+  // 如果多次尝试后仍然失败，提示用户
   if (!success) {
-    Toast.loading({
-      message: '尝试本地生成PDF...',
-      duration: 3000
+    Toast.clear();
+    Dialog.alert({
+      title: 'PDF下载失败',
+      message: '下载PDF报告失败，请稍后再试。如果问题持续存在，请联系客服。',
     });
-    
-    try {
-      await generatePDFLocally();
-      Toast.success('本地PDF生成成功');
-    } catch (error) {
-      console.error('本地PDF生成失败:', error);
-      Toast.fail('PDF生成失败，请稍后重试');
-    }
   }
 };
 
@@ -1043,6 +1057,26 @@ const generatePDFLocally = async () => {
 
 const shareResult = () => {
   Toast.success('分享功能开发中');
+};
+
+// 处理本地PDF生成
+const handleLocalPDFGeneration = async () => {
+  try {
+    Toast.loading({
+      message: '正在本地生成PDF...',
+      duration: 0,
+      forbidClick: true
+    });
+    
+    await generatePDFLocally();
+    
+    Toast.clear();
+    Toast.success('本地PDF生成成功');
+  } catch (error) {
+    console.error('本地PDF生成失败:', error);
+    Toast.clear();
+    Toast.fail('本地PDF生成失败: ' + (error.message || '未知错误'));
+  }
 };
 
 const reloadBaziData = async () => {

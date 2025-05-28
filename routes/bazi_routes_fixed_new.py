@@ -10,6 +10,7 @@ from utils.bazi_calculator import calculate_bazi as calculate_bazi_util
 from models.bazi_result_model import BaziResultModel
 from models.order_model import OrderModel
 import traceback
+import urllib.parse
 
 # 创建蓝图
 bazi_bp = Blueprint('bazi', __name__)
@@ -1036,6 +1037,14 @@ def get_pdf(result_id):
             response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
+            
+            # 确保Content-Disposition头部正确设置，避免多次下载弹窗
+            # 使用ASCII文件名，避免Unicode编码错误
+            ascii_filename = f"bazi_analysis_{result_id}.{file_ext}"
+            # 对中文文件名进行URL编码，以便在header中使用
+            encoded_filename = urllib.parse.quote(f"八字命理分析_{result_id}.{file_ext}")
+            # 使用RFC 5987编码格式
+            response.headers['Content-Disposition'] = f'attachment; filename="{ascii_filename}"; filename*=UTF-8\'\'{encoded_filename}'
             
             logging.info("成功发送文件流响应")
             return response
