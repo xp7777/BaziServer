@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>神煞与大运流年展示</title>
+    <title>八字命理系统 - 神煞和大运流年测试</title>
     <style>
         body {
             font-family: 'Microsoft YaHei', Arial, sans-serif;
@@ -15,278 +15,405 @@
             background-color: #f5f5f5;
         }
         h1, h2, h3 {
-            color: #b36d00;
+            color: #333;
         }
         .container {
-            background-color: #fff;
+            background-color: white;
             border-radius: 8px;
             padding: 20px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
-        .bazi-chart {
-            display: flex;
-            justify-content: space-between;
-            margin: 20px 0;
-            flex-wrap: wrap;
-        }
-        .pillar {
-            flex: 1;
-            min-width: 80px;
-            text-align: center;
-            padding: 10px;
-            margin: 5px;
-            background-color: #fff8e1;
-            border-radius: 5px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        .pillar-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #7b5700;
-        }
-        .heavenly-stem {
-            font-size: 18px;
-            font-weight: bold;
-            color: #d32f2f;
-            margin-bottom: 5px;
-        }
-        .earthly-branch {
-            font-size: 18px;
-            font-weight: bold;
-            color: #1976d2;
-        }
-        .five-elements {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin: 20px 0;
-        }
-        .element {
-            padding: 10px 15px;
-            margin: 5px;
-            border-radius: 5px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .element-wood {
-            background-color: #c8e6c9;
-            color: #2e7d32;
-        }
-        .element-fire {
-            background-color: #ffcdd2;
-            color: #c62828;
-        }
-        .element-earth {
-            background-color: #fff9c4;
-            color: #f9a825;
-        }
-        .element-metal {
-            background-color: #f5f5f5;
-            color: #616161;
-        }
-        .element-water {
-            background-color: #bbdefb;
-            color: #1565c0;
-        }
-        .shen-sha {
-            margin: 20px 0;
-        }
-        .shen-sha-item {
-            display: flex;
-            margin-bottom: 10px;
-            padding: 8px;
-            background-color: #f9f9f9;
-            border-radius: 4px;
-        }
-        .shen-sha-label {
-            flex: 1;
-            font-weight: bold;
-            color: #555;
-        }
-        .shen-sha-value {
-            flex: 2;
-        }
-        .da-yun {
-            margin: 20px 0;
-        }
-        .da-yun-info {
+        .form-group {
             margin-bottom: 15px;
-            padding: 10px;
-            background-color: #e8f5e9;
-            border-radius: 4px;
-            color: #2e7d32;
         }
-        .da-yun-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .da-yun-table th, .da-yun-table td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        .da-yun-table th {
-            background-color: #f5f5f5;
+        label {
+            display: block;
+            margin-bottom: 5px;
             font-weight: bold;
         }
-        .da-yun-table tr:nth-child(even) {
-            background-color: #f9f9f9;
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
         }
-        .da-yun-table tr:hover {
-            background-color: #f1f1f1;
-        }
-        .btn {
-            background-color: #b36d00;
+        button {
+            background-color: #4CAF50;
             color: white;
             border: none;
-            padding: 10px 15px;
+            padding: 10px 20px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
-            margin-top: 20px;
         }
-        .btn:hover {
-            background-color: #8c5400;
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        .card {
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .card-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .card-content {
+            padding: 5px 0;
+        }
+        .flex-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .column {
+            flex: 1;
+            min-width: 300px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            margin: 2px;
+            font-size: 12px;
+            border-radius: 10px;
+            background-color: #e0f7fa;
+            color: #00838f;
+        }
+        .current {
+            background-color: #b3e5fc;
+            border: 1px solid #29b6f6;
+        }
+        #loading {
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>神煞与大运流年展示</h1>
-        <p>本页面展示了使用lunar-python库计算的神煞和大运流年信息。</p>
+        <h1>八字命理系统 - 神煞和大运流年测试</h1>
+        <p>此页面用于测试八字命理系统中神煞和大运流年的计算功能</p>
         
-        <h2>基本八字信息</h2>
-        <div id="basicInfo">
-            <p><strong>姓名：</strong>测试用户</p>
-            <p><strong>性别：</strong>男</p>
-            <p><strong>出生日期：</strong>2006年10月15日</p>
-            <p><strong>出生时辰：</strong>午时 (11:00-13:00)</p>
+        <div class="form-group">
+            <label for="birthDate">出生日期</label>
+            <input type="date" id="birthDate" value="2008-05-22">
         </div>
         
-        <h2>八字命盘</h2>
-        <div class="bazi-chart">
-            <div class="pillar">
-                <div class="pillar-title">年柱</div>
-                <div class="heavenly-stem">丙</div>
-                <div class="earthly-branch">戌</div>
-            </div>
-            <div class="pillar">
-                <div class="pillar-title">月柱</div>
-                <div class="heavenly-stem">戊</div>
-                <div class="earthly-branch">戌</div>
-            </div>
-            <div class="pillar">
-                <div class="pillar-title">日柱</div>
-                <div class="heavenly-stem">丁</div>
-                <div class="earthly-branch">丑</div>
-            </div>
-            <div class="pillar">
-                <div class="pillar-title">时柱</div>
-                <div class="heavenly-stem">丙</div>
-                <div class="earthly-branch">午</div>
-            </div>
+        <div class="form-group">
+            <label for="birthTime">出生时间</label>
+            <input type="time" id="birthTime" value="12:00">
         </div>
         
-        <h2>五行分布</h2>
-        <div class="five-elements">
-            <div class="element element-wood">木: 0</div>
-            <div class="element element-fire">火: 3</div>
-            <div class="element element-earth">土: 4</div>
-            <div class="element element-metal">金: 0</div>
-            <div class="element element-water">水: 1</div>
+        <div class="form-group">
+            <label for="gender">性别</label>
+            <select id="gender">
+                <option value="male">男</option>
+                <option value="female">女</option>
+            </select>
         </div>
         
-        <h2>神煞信息</h2>
-        <div class="shen-sha">
-            <div class="shen-sha-item">
-                <div class="shen-sha-label">日冲：</div>
-                <div class="shen-sha-value">牛日冲羊</div>
-            </div>
-            <div class="shen-sha-item">
-                <div class="shen-sha-label">值神：</div>
-                <div class="shen-sha-value">除</div>
-            </div>
-            <div class="shen-sha-item">
-                <div class="shen-sha-label">彭祖百忌：</div>
-                <div class="shen-sha-value">丁不开仓 丑不远行</div>
-            </div>
-            <div class="shen-sha-item">
-                <div class="shen-sha-label">喜神方位：</div>
-                <div class="shen-sha-value">东北</div>
-            </div>
-            <div class="shen-sha-item">
-                <div class="shen-sha-label">福神方位：</div>
-                <div class="shen-sha-value">西南</div>
-            </div>
-            <div class="shen-sha-item">
-                <div class="shen-sha-label">财神方位：</div>
-                <div class="shen-sha-value">正北</div>
-            </div>
-            <div class="shen-sha-item">
-                <div class="shen-sha-label">本命神煞：</div>
-                <div class="shen-sha-value">桃花</div>
-            </div>
-        </div>
+        <button id="calculateBtn">计算八字</button>
+    </div>
+    
+    <div id="loading" class="hidden">
+        <div class="spinner"></div>
+        <p>正在计算中，请稍候...</p>
+    </div>
+    
+    <div id="errorContainer" class="error hidden"></div>
+    
+    <div id="resultContainer" class="container hidden">
+        <h2>计算结果</h2>
         
-        <h2>大运信息</h2>
-        <div class="da-yun">
-            <div class="da-yun-info">
-                <p><strong>起运年龄：</strong>11岁</p>
-                <p><strong>起运年份：</strong>2017年</p>
+        <div class="flex-container">
+            <div class="column">
+                <div class="card">
+                    <div class="card-title">八字命盘</div>
+                    <div class="card-content" id="baziChart"></div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">五行分布</div>
+                    <div class="card-content" id="fiveElements"></div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">神煞信息</div>
+                    <div class="card-content" id="shenSha"></div>
+                </div>
             </div>
             
-            <table class="da-yun-table">
-                <thead>
-                    <tr>
-                        <th>序号</th>
-                        <th>大运</th>
-                        <th>五行</th>
-                        <th>年份</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>1</td>
-                        <td>戊戌</td>
-                        <td>土</td>
-                        <td>2017-2026</td>
-                    </tr>
-                    <tr>
-                        <td>2</td>
-                        <td>己亥</td>
-                        <td>土</td>
-                        <td>2027-2036</td>
-                    </tr>
-                    <tr>
-                        <td>3</td>
-                        <td>庚子</td>
-                        <td>金</td>
-                        <td>2037-2046</td>
-                    </tr>
-                    <tr>
-                        <td>4</td>
-                        <td>辛丑</td>
-                        <td>金</td>
-                        <td>2047-2056</td>
-                    </tr>
-                    <tr>
-                        <td>5</td>
-                        <td>壬寅</td>
-                        <td>水</td>
-                        <td>2057-2066</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="column">
+                <div class="card">
+                    <div class="card-title">大运信息</div>
+                    <div class="card-content" id="daYun"></div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">流年信息</div>
+                    <div class="card-content" id="liuNian"></div>
+                </div>
+            </div>
         </div>
-        
-        <button class="btn" onclick="window.location.href='/api/bazi/test'">返回测试页面</button>
     </div>
     
     <script>
-        // 可以添加一些交互效果
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('神煞与大运流年展示页面已加载');
+            const calculateBtn = document.getElementById('calculateBtn');
+            const loadingDiv = document.getElementById('loading');
+            const resultContainer = document.getElementById('resultContainer');
+            const errorContainer = document.getElementById('errorContainer');
+            
+            calculateBtn.addEventListener('click', function() {
+                const birthDate = document.getElementById('birthDate').value;
+                const birthTime = document.getElementById('birthTime').value;
+                const gender = document.getElementById('gender').value;
+                
+                // 显示加载状态
+                loadingDiv.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+                errorContainer.classList.add('hidden');
+                
+                // 发送API请求
+                fetch('/api/bazi/calculate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        birthDate: birthDate,
+                        birthTime: birthTime,
+                        gender: gender
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 隐藏加载状态
+                    loadingDiv.classList.add('hidden');
+                    
+                    if (data.code === 200) {
+                        // 显示结果
+                        resultContainer.classList.remove('hidden');
+                        displayResults(data.data);
+                    } else {
+                        // 显示错误
+                        errorContainer.textContent = data.message || '计算八字时发生错误';
+                        errorContainer.classList.remove('hidden');
+                    }
+                })
+                .catch(error => {
+                    // 隐藏加载状态，显示错误
+                    loadingDiv.classList.add('hidden');
+                    errorContainer.textContent = '请求失败: ' + error.message;
+                    errorContainer.classList.remove('hidden');
+                });
+            });
+            
+            function displayResults(data) {
+                // 显示八字命盘
+                const baziChartDiv = document.getElementById('baziChart');
+                baziChartDiv.innerHTML = `
+                    <p>年柱: ${data.yearPillar.heavenlyStem}${data.yearPillar.earthlyBranch} (${data.yearPillar.naYin})</p>
+                    <p>月柱: ${data.monthPillar.heavenlyStem}${data.monthPillar.earthlyBranch} (${data.monthPillar.naYin})</p>
+                    <p>日柱: ${data.dayPillar.heavenlyStem}${data.dayPillar.earthlyBranch} (${data.dayPillar.naYin})</p>
+                    <p>时柱: ${data.hourPillar.heavenlyStem}${data.hourPillar.earthlyBranch} (${data.hourPillar.naYin})</p>
+                    <p>生肖: ${data.shengXiao}</p>
+                `;
+                
+                // 显示五行分布
+                const fiveElementsDiv = document.getElementById('fiveElements');
+                fiveElementsDiv.innerHTML = `
+                    <p>金: ${data.fiveElements.metal}</p>
+                    <p>木: ${data.fiveElements.wood}</p>
+                    <p>水: ${data.fiveElements.water}</p>
+                    <p>火: ${data.fiveElements.fire}</p>
+                    <p>土: ${data.fiveElements.earth}</p>
+                `;
+                
+                // 显示神煞信息
+                const shenShaDiv = document.getElementById('shenSha');
+                if (data.shenSha) {
+                    let shenShaHtml = `
+                        <p>日冲: ${data.shenSha.dayChong || '无'}</p>
+                        <p>值神: ${data.shenSha.zhiShen || '无'}</p>
+                        <p>彭祖百忌: ${data.shenSha.pengZuGan || '无'}, ${data.shenSha.pengZuZhi || '无'}</p>
+                        <p>喜神方位: ${data.shenSha.xiShen || '无'}</p>
+                        <p>福神方位: ${data.shenSha.fuShen || '无'}</p>
+                        <p>财神方位: ${data.shenSha.caiShen || '无'}</p>
+                    `;
+                    
+                    // 本命神煞
+                    shenShaHtml += '<p>本命神煞: ';
+                    if (data.shenSha.benMing && data.shenSha.benMing.length > 0) {
+                        data.shenSha.benMing.forEach(item => {
+                            shenShaHtml += `<span class="badge">${item}</span>`;
+                        });
+                    } else {
+                        shenShaHtml += '无';
+                    }
+                    shenShaHtml += '</p>';
+                    
+                    // 年干神煞
+                    shenShaHtml += '<p>年干神煞: ';
+                    if (data.shenSha.yearGan && data.shenSha.yearGan.length > 0) {
+                        data.shenSha.yearGan.forEach(item => {
+                            shenShaHtml += `<span class="badge">${item}</span>`;
+                        });
+                    } else {
+                        shenShaHtml += '无';
+                    }
+                    shenShaHtml += '</p>';
+                    
+                    // 年支神煞
+                    shenShaHtml += '<p>年支神煞: ';
+                    if (data.shenSha.yearZhi && data.shenSha.yearZhi.length > 0) {
+                        data.shenSha.yearZhi.forEach(item => {
+                            shenShaHtml += `<span class="badge">${item}</span>`;
+                        });
+                    } else {
+                        shenShaHtml += '无';
+                    }
+                    shenShaHtml += '</p>';
+                    
+                    // 日干神煞
+                    shenShaHtml += '<p>日干神煞: ';
+                    if (data.shenSha.dayGan && data.shenSha.dayGan.length > 0) {
+                        data.shenSha.dayGan.forEach(item => {
+                            shenShaHtml += `<span class="badge">${item}</span>`;
+                        });
+                    } else {
+                        shenShaHtml += '无';
+                    }
+                    shenShaHtml += '</p>';
+                    
+                    // 日支神煞
+                    shenShaHtml += '<p>日支神煞: ';
+                    if (data.shenSha.dayZhi && data.shenSha.dayZhi.length > 0) {
+                        data.shenSha.dayZhi.forEach(item => {
+                            shenShaHtml += `<span class="badge">${item}</span>`;
+                        });
+                    } else {
+                        shenShaHtml += '无';
+                    }
+                    shenShaHtml += '</p>';
+                    
+                    shenShaDiv.innerHTML = shenShaHtml;
+                } else {
+                    shenShaDiv.innerHTML = '<p>无神煞信息</p>';
+                }
+                
+                // 显示大运信息
+                const daYunDiv = document.getElementById('daYun');
+                if (data.daYun && typeof data.daYun === 'object') {
+                    let daYunHtml = `
+                        <p>起运年龄: ${data.daYun.startAge || '未知'}岁</p>
+                        <p>起运年份: ${data.daYun.startYear || '未知'}年</p>
+                        <p>大运列表:</p>
+                    `;
+                    
+                    if (data.daYun.daYun && data.daYun.daYun.length > 0) {
+                        data.daYun.daYun.forEach(item => {
+                            let currentClass = item.isCurrent ? 'current' : '';
+                            daYunHtml += `
+                                <div class="card ${currentClass}">
+                                    <div class="card-title">第${item.index}运 (${item.startAge}-${item.endAge}岁, ${item.startYear}-${item.endYear}年)</div>
+                                    <div class="card-content">
+                                        <p>干支: ${item.ganZhi}</p>
+                                        <p>五行: ${item.gan}(${item.ganWuxing}), ${item.zhi}(${item.zhiWuxing})</p>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        daYunHtml += '<p>无大运信息</p>';
+                    }
+                    
+                    daYunDiv.innerHTML = daYunHtml;
+                } else {
+                    daYunDiv.innerHTML = '<p>无大运信息</p>';
+                }
+                
+                // 显示流年信息
+                const liuNianDiv = document.getElementById('liuNian');
+                let liuNianHtml = '<p>当前及未来流年:</p>';
+                let liuNianFound = false;
+                
+                // 查找当前大运的流年
+                if (data.daYun && data.daYun.daYun) {
+                    data.daYun.daYun.forEach(daYunItem => {
+                        if (daYunItem.isCurrent && daYunItem.liuNian && daYunItem.liuNian.length > 0) {
+                            liuNianFound = true;
+                            
+                            daYunItem.liuNian.forEach(liuNian => {
+                                let currentClass = liuNian.isCurrent ? 'current' : '';
+                                liuNianHtml += `
+                                    <div class="card ${currentClass}">
+                                        <div class="card-title">${liuNian.year}年 (${liuNian.age}岁)</div>
+                                        <div class="card-content">
+                                            <p>干支: ${liuNian.ganZhi} (${liuNian.shengXiao})</p>
+                                            <p>五行: ${liuNian.gan}(${liuNian.ganWuxing}), ${liuNian.zhi}(${liuNian.zhiWuxing})</p>
+                                            <p>关系: 天干-${liuNian.relations.ganRelation}, 地支-${liuNian.relations.zhiRelation}</p>
+                                            <p>神煞: `;
+                                
+                                if (liuNian.shenSha && liuNian.shenSha.length > 0) {
+                                    liuNian.shenSha.forEach(item => {
+                                        liuNianHtml += `<span class="badge">${item}</span>`;
+                                    });
+                                } else {
+                                    liuNianHtml += '无';
+                                }
+                                
+                                liuNianHtml += `</p>
+                                            <p>岁运: ${liuNian.suiYun.taiSui}, ${liuNian.suiYun.taiYin}, ${liuNian.suiYun.taiYang}</p>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                        }
+                    });
+                }
+                
+                if (!liuNianFound) {
+                    liuNianHtml += '<p>无流年信息</p>';
+                }
+                
+                liuNianDiv.innerHTML = liuNianHtml;
+            }
         });
     </script>
 </body>

@@ -1,50 +1,25 @@
-import lunar_python
-from lunar_python.Solar import Solar
-from lunar_python.Lunar import Lunar
+import sys
+import os
 
-def test_lunar_basic():
-    """测试lunar_python库的基本用法"""
-    print("测试lunar_python库的基本用法...")
-    
-    # 创建公历对象
-    solar = Solar.fromYmdHms(1990, 1, 15, 12, 0, 0)
-    print("公历:", solar.toYmd())
-    
-    # 转换为农历
-    lunar = solar.getLunar()
-    print("农历:", lunar.toString())
-    
-    # 获取八字
-    bazi = lunar.getBaZi()
-    print("八字:", bazi)
-    
-    # 获取年柱
-    year_gan_zhi = lunar.getYearInGanZhi()
-    print("年柱:", year_gan_zhi)
-    
-    # 获取月柱
-    month_gan_zhi = lunar.getMonthInGanZhi()
-    print("月柱:", month_gan_zhi)
-    
-    # 获取日柱
-    day_gan_zhi = lunar.getDayInGanZhi()
-    print("日柱:", day_gan_zhi)
-    
-    # 获取时柱
-    hour_gan_zhi = lunar.getTimeInGanZhi()
-    print("时柱:", hour_gan_zhi)
-    
-    # 获取八字对象
-    eight_char = lunar.getEightChar()
-    print("八字对象:", eight_char)
-    
-    # 获取大运
-    yun = eight_char.getYun(1)  # 1表示男性
-    print("大运起始年龄:", yun.getStartAge())
-    
-    # 获取大运干支
-    da_yun = yun.getDaYun()
-    print("大运干支:", da_yun)
+print("Python版本:", sys.version)
+print("当前工作目录:", os.getcwd())
 
-if __name__ == "__main__":
-    test_lunar_basic() 
+try:
+    import lunar_python
+    print("成功导入lunar_python库")
+    print("lunar_python路径:", lunar_python.__file__ if hasattr(lunar_python, "__file__") else "无路径信息")
+    
+    # 尝试使用基本功能
+    try:
+        from lunar_python.Solar import Solar
+        solar = Solar.fromYmd(2023, 1, 1)
+        print("创建Solar对象成功:", solar.toYmd())
+    except Exception as e:
+        print("使用Solar类失败:", str(e))
+    
+except ImportError as e:
+    print("导入lunar_python库失败:", str(e))
+except Exception as e:
+    print("发生其他错误:", str(e))
+
+print("测试完成") 
