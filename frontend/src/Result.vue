@@ -16,7 +16,7 @@
       <van-tab title="命盘信息">
         <div class="bazi-chart">
           <h3>八字命盘</h3>
-          <van-grid :column-num="4" :border="false">
+          <van-grid :column-num="4" :border="false" v-if="baziData && baziData.yearPillar && baziData.monthPillar && baziData.dayPillar && baziData.hourPillar">
             <van-grid-item>
               <template #default>
                 <div class="pillar">
@@ -55,51 +55,99 @@
             </van-grid-item>
           </van-grid>
           
+          <!-- 数据缺失时显示占位符 -->
+          <van-grid :column-num="4" :border="false" v-else>
+            <van-grid-item v-for="pillar in ['年柱', '月柱', '日柱', '时柱']" :key="pillar">
+              <template #default>
+                <div class="pillar">
+                  <div class="stem placeholder">--</div>
+                  <div class="branch placeholder">--</div>
+                  <div class="label">{{ pillar }}</div>
+                </div>
+              </template>
+            </van-grid-item>
+          </van-grid>
+          
           <h3>五行分布</h3>
-          <div class="five-elements">
+          <div class="five-elements" v-if="baziData && baziData.fiveElements">
             <div class="element" v-for="(value, element) in baziData.fiveElements" :key="element">
               <div class="element-name">{{ getElementName(element) }}</div>
               <div class="element-value">{{ value }}</div>
             </div>
           </div>
+          <div class="five-elements" v-else>
+            <div class="element" v-for="element in ['wood', 'fire', 'earth', 'metal', 'water']" :key="element">
+              <div class="element-name">{{ getElementName(element) }}</div>
+              <div class="element-value">--</div>
+            </div>
+          </div>
           
           <!-- 添加神煞显示 -->
           <h3>神煞信息</h3>
-          <div class="shen-sha-info" v-if="baziData.shenSha">
+          <div class="shen-sha-info" v-if="baziData && baziData.shenSha">
             <van-cell-group inset>
-              <van-cell title="日冲" :value="baziData.shenSha.dayChong" />
-              <van-cell title="值神" :value="baziData.shenSha.zhiShen" />
-              <van-cell title="彭祖百忌" :value="`${baziData.shenSha.pengZuGan} ${baziData.shenSha.pengZuZhi}`" />
-              <van-cell title="喜神方位" :value="baziData.shenSha.xiShen" />
-              <van-cell title="福神方位" :value="baziData.shenSha.fuShen" />
-              <van-cell title="财神方位" :value="baziData.shenSha.caiShen" />
+              <van-cell title="日冲" :value="baziData.shenSha.dayChong || '无'" />
+              <van-cell title="值神" :value="baziData.shenSha.zhiShen || '无'" />
+              <van-cell title="彭祖百忌" :value="(baziData.shenSha.pengZuGan && baziData.shenSha.pengZuZhi) ? `${baziData.shenSha.pengZuGan} ${baziData.shenSha.pengZuZhi}` : '无'" />
+              <van-cell title="喜神方位" :value="baziData.shenSha.xiShen || '无'" />
+              <van-cell title="福神方位" :value="baziData.shenSha.fuShen || '无'" />
+              <van-cell title="财神方位" :value="baziData.shenSha.caiShen || '无'" />
               <van-cell title="本命神煞" :value="baziData.shenSha.benMing ? baziData.shenSha.benMing.join('、') : '无'" />
+            </van-cell-group>
+          </div>
+          <div class="shen-sha-info" v-else>
+            <van-cell-group inset>
+              <van-cell title="神煞信息" value="暂无数据" />
             </van-cell-group>
           </div>
           
           <!-- 添加大运显示 -->
           <h3>大运信息</h3>
-          <div class="da-yun-info" v-if="baziData.daYun">
-            <p class="qi-yun-info">起运年龄: {{ baziData.daYun.startAge }}岁，起运年份: {{ baziData.daYun.startYear }}年</p>
+          <div class="da-yun-info" v-if="baziData && baziData.daYun">
+            <p class="qi-yun-info">起运年龄: {{ baziData.daYun.startAge || '--' }}岁，起运年份: {{ baziData.daYun.startYear || '--' }}年</p>
             
-            <div class="da-yun-table">
+            <div class="da-yun-table" v-if="baziData.daYun.daYunList && baziData.daYun.daYunList.length">
               <van-cell-group inset>
                 <van-cell v-for="item in baziData.daYun.daYunList" :key="item.index"
-                  :title="`${item.index}. ${item.heavenlyStem}${item.earthlyBranch} (${item.element})`"
-                  :value="`${item.startYear}-${item.endYear}年`"
+                  :title="`${item.index || '--'}. ${item.heavenlyStem || '--'}${item.earthlyBranch || '--'} (${item.element || '--'})`"
+                  :value="`${item.startYear || '--'}-${item.endYear || '--'}年`"
                 />
               </van-cell-group>
             </div>
+            <!-- 处理数据结构不一致的情况：daYun下有daYun数组 -->
+            <div class="da-yun-table" v-else-if="baziData.daYun.daYun && baziData.daYun.daYun.length">
+              <van-cell-group inset>
+                <van-cell v-for="item in baziData.daYun.daYun" :key="item.index || item.ganZhi"
+                  :title="`${item.index || '--'}. ${item.heavenlyStem || item.ganZhi?.slice(0,1) || '--'}${item.earthlyBranch || item.ganZhi?.slice(1,2) || '--'} (${item.element || '--'})`"
+                  :value="`${item.startYear || '--'}-${item.endYear || '--'}年`"
+                />
+              </van-cell-group>
+            </div>
+            <div v-else>
+              <van-cell-group inset>
+                <van-cell title="大运信息" value="暂无详细数据" />
+              </van-cell-group>
+            </div>
+          </div>
+          <div class="da-yun-info" v-else>
+            <van-cell-group inset>
+              <van-cell title="大运信息" value="暂无数据" />
+            </van-cell-group>
           </div>
           
           <h3>大运流年</h3>
-          <div class="flowing-years">
+          <div class="flowing-years" v-if="baziData && baziData.flowingYears && baziData.flowingYears.length">
             <van-steps direction="horizontal" :active="2">
               <van-step v-for="(year, index) in baziData.flowingYears.slice(0, 5)" :key="index">
-                {{ year.year }}年<br>
-                {{ year.heavenlyStem }}{{ year.earthlyBranch }}
+                {{ year.year || '--' }}年<br>
+                {{ year.heavenlyStem || '--' }}{{ year.earthlyBranch || '--' }}
               </van-step>
             </van-steps>
+          </div>
+          <div class="flowing-years" v-else>
+            <van-cell-group inset>
+              <van-cell title="流年信息" value="暂无数据" />
+            </van-cell-group>
           </div>
         </div>
       </van-tab>
@@ -139,39 +187,57 @@
             <p>{{ aiAnalysis.health }}</p>
           </div>
           
-          <div v-if="userAge < 18 && userAge >= 0" class="analysis-section">
-            <h3>学业发展</h3>
-            <p>{{ getAnalysisContent('学业发展') }}</p>
-          </div>
-          
           <div class="analysis-section">
             <h3>性格特点</h3>
-            <p>{{ getAnalysisContent('性格特点') }}</p>
+            <p>{{ aiAnalysis.personality || getAnalysisContent('性格特点') }}</p>
           </div>
           
-          <div v-if="userAge >= 18 && focusAreas.includes('wealth')" class="analysis-section">
-            <h3>财运分析</h3>
+          <!-- 学业分析（对所有年龄段显示，但侧重点不同） -->
+          <div class="analysis-section">
+            <h3>学业分析</h3>
+            <p>{{ aiAnalysis.education || getAnalysisContent('学业分析') }}</p>
+          </div>
+          
+          <!-- 父母情况（所有年龄段都显示） -->
+          <div class="analysis-section">
+            <h3>父母情况</h3>
+            <p>{{ aiAnalysis.parents || '暂无父母情况分析' }}</p>
+          </div>
+          
+          <!-- 人际关系（所有年龄段都显示） -->
+          <div class="analysis-section">
+            <h3>人际关系</h3>
+            <p>{{ aiAnalysis.social || '暂无人际关系分析' }}</p>
+          </div>
+          
+          <!-- 财运分析（18岁以上显示，或者标注为未来发展） -->
+          <div class="analysis-section">
+            <h3>{{ userAge >= 18 ? '财运分析' : '未来财运发展' }}</h3>
             <p>{{ aiAnalysis.wealth }}</p>
           </div>
           
-          <div v-if="userAge >= 18 && focusAreas.includes('career')" class="analysis-section">
-            <h3>事业发展</h3>
+          <!-- 事业发展（18岁以上显示，或者标注为未来发展） -->
+          <div class="analysis-section">
+            <h3>{{ userAge >= 18 ? '事业发展' : '未来事业发展' }}</h3>
             <p>{{ aiAnalysis.career }}</p>
           </div>
           
-          <div v-if="userAge >= 18 && focusAreas.includes('relationship')" class="analysis-section">
-            <h3>婚姻感情</h3>
+          <!-- 婚姻感情（18岁以上显示，或者标注为未来发展） -->
+          <div class="analysis-section">
+            <h3>{{ userAge >= 18 ? '婚姻感情' : '未来感情发展' }}</h3>
             <p>{{ aiAnalysis.relationship }}</p>
           </div>
           
-          <div v-if="userAge >= 18 && focusAreas.includes('children')" class="analysis-section">
-            <h3>子女缘分</h3>
+          <!-- 子女情况（18岁以上显示，或者标注为未来发展） -->
+          <div class="analysis-section">
+            <h3>{{ userAge >= 18 ? '子女情况' : '未来子女缘分' }}</h3>
             <p>{{ aiAnalysis.children }}</p>
           </div>
           
+          <!-- 近五年运势（所有年龄段都显示） -->
           <div class="analysis-section">
-            <h3>未来发展</h3>
-            <p>{{ getAnalysisContent('未来发展') || aiAnalysis.overall }}</p>
+            <h3>近五年运势</h3>
+            <p>{{ aiAnalysis.future || getAnalysisContent('近五年运势') || aiAnalysis.overall }}</p>
           </div>
           
           <div class="analysis-section">
@@ -221,14 +287,23 @@ const userAge = ref(parseInt(route.query.age) || parseInt(localStorage.getItem('
 // 从分析文本中提取特定部分内容
 const getAnalysisContent = (sectionName) => {
   try {
+    // 如果是性格特点或学业发展，直接从对应字段获取
+    if (sectionName === '性格特点' && aiAnalysis.value.personality) {
+      return aiAnalysis.value.personality;
+    }
+    
+    if (sectionName === '学业发展' && aiAnalysis.value.education) {
+      return aiAnalysis.value.education;
+    }
+    
     // 处理健康分析文本，尝试提取学业、性格等内容
     if (aiAnalysis.value.health) {
       const healthText = aiAnalysis.value.health;
       
       // 查找各部分的标记
-      const academicMatch = healthText.match(new RegExp(`###\\s*${sectionName}([\\s\\S]*?)(?=###|$)`, 'i'));
-      if (academicMatch && academicMatch[1]) {
-        return academicMatch[1].trim();
+      const sectionMatch = healthText.match(new RegExp(`###\\s*${sectionName}([\\s\\S]*?)(?=###|$)`, 'i'));
+      if (sectionMatch && sectionMatch[1]) {
+        return sectionMatch[1].trim();
       }
       
       // 如果是未来发展，尝试从overall中提取
@@ -381,9 +456,21 @@ onMounted(async () => {
     if (response.data.code === 200) {
       console.log('获取成功，更新数据');
       // 确保从API获取数据并更新视图
-      baziData.value = response.data.data.baziChart;
-      aiAnalysis.value = response.data.data.aiAnalysis;
-      focusAreas.value = response.data.data.focusAreas;
+      if (response.data.data.baziChart) {
+        baziData.value = response.data.data.baziChart;
+      } else {
+        console.warn('返回数据中没有baziChart字段，使用默认值');
+      }
+      
+      if (response.data.data.aiAnalysis) {
+        aiAnalysis.value = response.data.data.aiAnalysis;
+      } else {
+        console.warn('返回数据中没有aiAnalysis字段，使用默认值');
+      }
+      
+      if (response.data.data.focusAreas) {
+        focusAreas.value = response.data.data.focusAreas;
+      }
       
       Toast.success('分析结果加载成功');
     } else if (response.data.code === 202) {
@@ -661,6 +748,8 @@ onMounted(async () => {
 });
 
 const getElementName = (element) => {
+  if (!element) return '--';
+  
   const elementNames = {
     wood: '木',
     fire: '火',
@@ -675,23 +764,7 @@ const onClickLeft = () => {
   router.push('/');
 };
 
-const downloadPDF = async () => {
-  Toast.loading({
-    message: '正在生成并下载PDF报告...',
-    duration: 5000,
-    position: 'middle'
-  });
-  
-  if (!resultId) {
-    Toast.fail('缺少结果ID，无法生成报告');
-    return;
-  }
-  
-  // 使用流式下载模式
-  await downloadPDFAsStream();
-};
-
-// 新增直接流下载函数
+// 修改后的直接流下载函数，适应后端始终返回文件流
 const downloadPDFAsStream = async () => {
   Toast.loading({
     message: '正在生成PDF并下载报告...',
@@ -703,58 +776,109 @@ const downloadPDFAsStream = async () => {
   if (!resultId) {
     Toast.clear();
     Toast.fail('缺少结果ID，无法下载报告');
-    return;
+    return false;
   }
   
   try {
     console.log('直接下载报告, 结果ID:', resultId);
     
-    // 请求PDF文件流，添加随机参数避免缓存
-    const response = await fetch(`/api/bazi/pdf/${resultId}?mode=stream&_=${Date.now()}`);
+    // 创建下载链接，添加时间戳避免缓存问题
+    const timestamp = new Date().getTime();
+    const downloadUrl = `/api/bazi/pdf/${resultId}?t=${timestamp}`;
+    console.log('下载URL:', downloadUrl);
+    
+    // 使用fetch API获取文件流
+    const response = await fetch(downloadUrl, {
+      method: 'GET',
+      cache: 'no-cache',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
     
     // 检查错误
     if (!response.ok) {
-      let errorMsg = '下载失败';
+      let errorMsg = `下载失败: HTTP错误 ${response.status}`;
       try {
-        const errorData = await response.json();
-        errorMsg = errorData.message || errorMsg;
-      } catch (e) {
-        // 如果不是JSON格式的错误，尝试获取文本错误信息
-        try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } else {
+          // 如果不是JSON格式的错误，尝试获取文本错误信息
           const errorText = await response.text();
           if (errorText) {
             errorMsg = `下载失败: ${errorText.substring(0, 100)}`;
           }
-        } catch (textError) {
-          // 如果无法获取文本，使用HTTP状态码
-          errorMsg = `下载失败: HTTP错误 ${response.status}`;
         }
+      } catch (e) {
+        console.error('解析错误响应失败:', e);
       }
       throw new Error(errorMsg);
     }
     
     // 检查内容类型
     const contentType = response.headers.get('content-type');
-    if (!contentType || contentType.indexOf('application/pdf') === -1) {
-      // 如果返回的不是PDF，尝试解析错误信息
-      let errorMsg = '服务器返回的不是PDF文件';
-      try {
-        const errorData = await response.text();
-        errorMsg = `错误: ${errorData.substring(0, 200)}`;
-      } catch (e) {
-        // 保持默认错误信息
+    const disposition = response.headers.get('content-disposition');
+    
+    console.log('响应内容类型:', contentType);
+    console.log('响应内容处置:', disposition);
+    
+    // 确定文件名和扩展名
+    let filename = `八字命理分析_${resultId}.pdf`;
+    if (disposition && disposition.includes('filename=')) {
+      const filenameMatch = disposition.match(/filename=["']?([^"']+)["']?/);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1];
       }
-      throw new Error(errorMsg);
+    }
+    
+    // 确定文件类型
+    const fileExtension = contentType && contentType.includes('html') ? 'html' : 'pdf';
+    if (!filename.endsWith(fileExtension)) {
+      filename = `八字命理分析_${resultId}.${fileExtension}`;
     }
     
     // 转换为Blob对象
     const blob = await response.blob();
     
+    // 检查Blob大小
+    if (blob.size === 0) {
+      throw new Error('下载的文件为空');
+    }
+    
+    // 检查PDF文件的有效性（仅对PDF文件）
+    if (contentType && contentType.includes('pdf')) {
+      try {
+        // 读取文件头部以验证是否为有效的PDF
+        const fileReader = new FileReader();
+        const headerPromise = new Promise((resolve, reject) => {
+          fileReader.onloadend = (e) => resolve(e.target.result);
+          fileReader.onerror = (e) => reject(e);
+        });
+        fileReader.readAsArrayBuffer(blob.slice(0, 5));
+        
+        const header = await headerPromise;
+        const headerView = new Uint8Array(header);
+        const headerString = String.fromCharCode.apply(null, headerView);
+        
+        if (!headerString.startsWith('%PDF')) {
+          console.error('无效的PDF文件头:', headerString);
+          throw new Error('下载的不是有效的PDF文件');
+        }
+      } catch (e) {
+        console.error('验证PDF文件失败:', e);
+        throw new Error('验证PDF文件失败: ' + e.message);
+      }
+    }
+    
     // 创建下载链接
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `八字命理分析_${resultId}.pdf`;
+    a.download = filename;
     
     // 触发下载
     document.body.appendChild(a);
@@ -766,6 +890,7 @@ const downloadPDFAsStream = async () => {
     
     Toast.clear();
     Toast.success('报告下载成功');
+    return true;
   } catch (error) {
     console.error('直接下载PDF出错:', error);
     Toast.clear();
@@ -784,6 +909,63 @@ const downloadPDFAsStream = async () => {
       // 用户取消
       console.log('用户取消本地PDF生成');
     });
+    return false;
+  }
+};
+
+// 修改主下载函数，添加重试逻辑
+const downloadPDF = async () => {
+  Toast.loading({
+    message: '正在生成并下载PDF报告...',
+    duration: 5000,
+    position: 'middle'
+  });
+  
+  if (!resultId) {
+    Toast.fail('缺少结果ID，无法生成报告');
+    return;
+  }
+  
+  // 最多尝试3次下载
+  let attempts = 0;
+  let success = false;
+  
+  while (attempts < 3 && !success) {
+    attempts++;
+    
+    if (attempts > 1) {
+      console.log(`尝试第${attempts}次下载...`);
+      Toast.loading({
+        message: `尝试第${attempts}次下载...`,
+        duration: 2000
+      });
+      // 在重试之前等待一段时间
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    // 使用流式下载模式，并处理返回值
+    success = await downloadPDFAsStream();
+    
+    // 如果流式下载成功，直接返回，不再尝试其他方法
+    if (success === true) {
+      return;
+    }
+  }
+  
+  // 如果多次尝试后仍然失败，尝试本地生成
+  if (!success) {
+    Toast.loading({
+      message: '尝试本地生成PDF...',
+      duration: 3000
+    });
+    
+    try {
+      await generatePDFLocally();
+      Toast.success('本地PDF生成成功');
+    } catch (error) {
+      console.error('本地PDF生成失败:', error);
+      Toast.fail('PDF生成失败，请稍后重试');
+    }
   }
 };
 
@@ -1059,5 +1241,10 @@ const reloadBaziData = async () => {
 
 .da-yun-table {
   margin-top: 10px;
+}
+
+.placeholder {
+  background-color: #f2f3f5;
+  color: #969799;
 }
 </style>

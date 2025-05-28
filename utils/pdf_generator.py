@@ -11,6 +11,15 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 import urllib.request
 import shutil
+import pdfkit
+from jinja2 import Template
+
+# 添加一个自定义JSON编码器处理datetime对象
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super(DateTimeEncoder, self).default(obj)
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +28,268 @@ logger = logging.getLogger(__name__)
 # 字体全局变量
 FONT_REGISTERED = False
 DEFAULT_FONT_NAME = 'SimHei'
+
+# 创建PDF保存目录
+PDF_DIR = os.path.join(os.getcwd(), 'static', 'pdfs')
+if not os.path.exists(PDF_DIR):
+    os.makedirs(PDF_DIR, exist_ok=True)
+
+# 尝试导入reportlab
+try:
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    
+    # 注册中文字体
+    fonts_registered = False
+    try:
+        # 尝试注册系统字体
+        if os.name == 'nt':  # Windows
+            font_paths = [
+                os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts'),
+                os.path.join(os.getcwd(), 'fonts')
+            ]
+            
+            # 创建fonts目录
+            os.makedirs(os.path.join(os.getcwd(), 'fonts'), exist_ok=True)
+            
+            # 尝试注册宋体
+            for font_path in font_paths:
+                simsun_path = os.path.join(font_path, 'simsun.ttc')
+                if os.path.exists(simsun_path):
+                    try:
+                        pdfmetrics.registerFont(TTFont('SimSun', simsun_path))
+                        logger.info(f"成功注册宋体字体: {simsun_path}")
+                        fonts_registered = True
+                        break
+                    except Exception as e:
+                        logger.warning(f"注册宋体字体失败: {str(e)}")
+        
+        if not fonts_registered:
+            logger.warning("未能注册中文字体，PDF中可能无法正确显示中文")
+    except Exception as e:
+        logger.warning(f"注册字体时出错: {str(e)}")
+    
+    reportlab_available = True
+    logger.info("reportlab库已加载，可以用作PDF生成备选方案")
+except ImportError:
+    reportlab_available = False
+    logger.warning("reportlab库不可用，无法使用备选PDF生成方案")
+
+# HTML模板
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>八字命理分析报告</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        h3 {
+            color: #555;
+            margin-top: 20px;
+        }
+        .info {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .pillar {
+            display: inline-block;
+            width: 22%;
+            text-align: center;
+            margin-right: 3%;
+            vertical-align: top;
+        }
+        .pillar-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .stem {
+            background-color: #4a90e2;
+            color: white;
+            padding: 5px 0;
+            margin-bottom: 5px;
+        }
+        .branch {
+            background-color: #50c878;
+            color: white;
+            padding: 5px 0;
+        }
+        .five-elements {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .element {
+            text-align: center;
+            width: 18%;
+        }
+        .element-name {
+            font-weight: bold;
+        }
+        .element-value {
+            font-size: 18px;
+            color: #4a90e2;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>八字命理分析报告</h1>
+    <div class="info">
+        <p>生成时间：{{ generate_time }}</p>
+    </div>
+
+    <h2>八字命盘</h2>
+    <div class="section">
+        <div class="pillar">
+            <div class="pillar-title">年柱</div>
+            <div class="stem">{{ year_stem }}</div>
+            <div class="branch">{{ year_branch }}</div>
+        </div>
+        <div class="pillar">
+            <div class="pillar-title">月柱</div>
+            <div class="stem">{{ month_stem }}</div>
+            <div class="branch">{{ month_branch }}</div>
+        </div>
+        <div class="pillar">
+            <div class="pillar-title">日柱</div>
+            <div class="stem">{{ day_stem }}</div>
+            <div class="branch">{{ day_branch }}</div>
+        </div>
+        <div class="pillar">
+            <div class="pillar-title">时柱</div>
+            <div class="stem">{{ hour_stem }}</div>
+            <div class="branch">{{ hour_branch }}</div>
+        </div>
+    </div>
+
+    <h2>五行分布</h2>
+    <div class="section">
+        <table>
+            <tr>
+                <th>金</th>
+                <th>木</th>
+                <th>水</th>
+                <th>火</th>
+                <th>土</th>
+            </tr>
+            <tr>
+                <td>{{ five_elements.metal }}</td>
+                <td>{{ five_elements.wood }}</td>
+                <td>{{ five_elements.water }}</td>
+                <td>{{ five_elements.fire }}</td>
+                <td>{{ five_elements.earth }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2>AI分析结果</h2>
+    
+    <div class="section">
+        <h3>总体分析</h3>
+        <p>{{ ai_analysis.overall|default('暂无综合分析数据') }}</p>
+    </div>
+    
+    <div class="section">
+        <h3>健康分析</h3>
+        <p>{{ ai_analysis.health|default('暂无健康分析数据') }}</p>
+    </div>
+    
+    <div class="section">
+        <h3>财富分析</h3>
+        <p>{{ ai_analysis.wealth|default('暂无财富分析数据') }}</p>
+    </div>
+    
+    <div class="section">
+        <h3>事业分析</h3>
+        <p>{{ ai_analysis.career|default('暂无事业分析数据') }}</p>
+    </div>
+    
+    <div class="section">
+        <h3>婚姻感情分析</h3>
+        <p>{{ ai_analysis.relationship|default('暂无婚姻感情分析数据') }}</p>
+    </div>
+    
+    <div class="section">
+        <h3>子女分析</h3>
+        <p>{{ ai_analysis.children|default('暂无子女分析数据') }}</p>
+    </div>
+
+    <div class="section">
+        <h3>性格特点</h3>
+        <p>{{ ai_analysis.personality|default('暂无性格特点分析数据') }}</p>
+    </div>
+
+    <div class="section">
+        <h3>学业分析</h3>
+        <p>{{ ai_analysis.education|default('暂无学业发展分析数据') }}</p>
+    </div>
+
+    <div class="section">
+        <h3>父母情况</h3>
+        <p>{{ ai_analysis.parents|default('暂无父母情况分析数据') }}</p>
+    </div>
+
+    <div class="section">
+        <h3>人际关系</h3>
+        <p>{{ ai_analysis.social|default('暂无人际关系分析数据') }}</p>
+    </div>
+
+    <div class="section">
+        <h3>近五年运势</h3>
+        <p>{{ ai_analysis.future|default('暂无近五年运势分析数据') }}</p>
+    </div>
+    
+    <div class="footer">
+        <p>© 2025 八字命理AI人生指导系统 - 本报告由AI生成，仅供参考</p>
+    </div>
+</body>
+</html>
+"""
 
 def ensure_chinese_font():
     """
@@ -109,7 +380,7 @@ def ensure_chinese_font():
                     FONT_REGISTERED = True
                     logger.info(f"成功注册下载的字体: {font_name}")
                     return True
-    except Exception as e:
+            except Exception as e:
                 logger.warning(f"下载和注册字体 {font_filename} 失败: {str(e)}")
         
         # 最后的备选方案，使用一个空白占位字体
@@ -222,9 +493,13 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
         elements.append(Spacer(1, 20))
         
         # 打印调试信息
-        logger.info(f"格式化数据类型: {type(formatted_data)}")
-        logger.info(f"格式化数据内容: {json.dumps(formatted_data, ensure_ascii=False)[:500]}")
-        logger.info(f"分析内容: {json.dumps(analysis, ensure_ascii=False)[:500]}")
+        try:
+            logger.info(f"格式化数据类型: {type(formatted_data)}")
+            logger.info(f"格式化数据内容: {json.dumps(formatted_data, ensure_ascii=False, cls=DateTimeEncoder)[:500]}")
+            logger.info(f"分析内容: {json.dumps(analysis, ensure_ascii=False, cls=DateTimeEncoder)[:500]}")
+        except Exception as e:
+            logger.warning(f"序列化数据时出错: {str(e)}")
+            # 继续执行，不让序列化错误影响PDF生成
         
         # 添加八字命盘信息（从formatted_data获取，或从baziChart获取）
         elements.append(Paragraph('八字命盘', styles['ChineseHeading1']))
@@ -304,7 +579,7 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
             except Exception as e:
                 logger.warning(f"生成五行分布表格失败: {str(e)}")
                 elements.append(Paragraph("五行分布数据获取失败", styles['Chinese']))
-            else:
+        else:
             elements.append(Paragraph("五行分布数据不可用", styles['Chinese']))
             
         elements.append(Spacer(1, 10))
@@ -351,7 +626,9 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
                 'wealth': '暂无财富分析数据',
                 'career': '暂无事业分析数据',
                 'relationship': '暂无婚姻感情分析数据',
-                'children': '暂无子女分析数据'
+                'children': '暂无子女分析数据',
+                'personality': '暂无性格特点分析数据',
+                'education': '暂无学业发展分析数据'
             }
         
         # 添加总体分析
@@ -413,31 +690,220 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
         logger.exception(f"生成八字分析PDF失败: {str(e)}")
         return None
 
-def generate_pdf(data):
-    """
-    生成PDF文件
+def generate_pdf(result_data):
+    """生成PDF文件
     
     Args:
-        data: 分析数据
+        result_data: 分析结果数据
         
     Returns:
-        str: 文件路径
+        生成的PDF文件URL
     """
     try:
-        result_id = data.get('_id', '')
-        if not result_id:
-            result_id = datetime.now().strftime('%Y%m%d%H%M%S')
+        logger.info("开始生成PDF")
         
-        # 确保PDF目录存在
-        pdf_dir = os.path.join(os.getcwd(), 'static', 'pdfs')
-        os.makedirs(pdf_dir, exist_ok=True)
+        # 提取必要数据
+        result_id = str(result_data.get('_id', 'unknown'))
         
-        # 创建输出路径
-        output_path = os.path.join(pdf_dir, f'bazi_analysis_{result_id}.pdf')
+        # 获取八字命盘数据
+        bazi_chart = result_data.get('baziChart', {})
+        if not bazi_chart:
+            logger.warning("八字命盘数据为空")
+            bazi_chart = {}
         
-        # 生成PDF
-        return generate_bazi_pdf(result_id, data, data.get('analysis', {}), title=data.get('title'), output_path=output_path)
+        # 获取年月日时四柱
+        year_pillar = bazi_chart.get('yearPillar', {})
+        month_pillar = bazi_chart.get('monthPillar', {})
+        day_pillar = bazi_chart.get('dayPillar', {})
+        hour_pillar = bazi_chart.get('hourPillar', {})
+        
+        # 获取五行分布
+        five_elements = bazi_chart.get('fiveElements', {})
+        if not five_elements:
+            five_elements = {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0}
+        
+        # 获取AI分析结果
+        ai_analysis = result_data.get('aiAnalysis', {})
+        if not ai_analysis:
+            logger.warning("AI分析结果为空")
+            ai_analysis = {}
+            
+        # 检查并记录AI分析结果中的字段
+        analysis_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
+                           'personality', 'education', 'parents', 'social', 'future']
+        for field in analysis_fields:
+            if field in ai_analysis:
+                logger.info(f"AI分析结果包含字段: {field}")
+                # 截取前50个字符用于日志记录
+                content = ai_analysis[field]
+                if content and isinstance(content, str):
+                    logger.info(f"{field}内容: {content[:50]}...")
+            else:
+                logger.warning(f"AI分析结果缺少字段: {field}")
+                # 添加默认值
+                ai_analysis[field] = f"暂无{field}分析数据"
+        
+        # 确定输出路径
+        html_path = os.path.join(PDF_DIR, f"bazi_analysis_{result_id}.html")
+        pdf_path = os.path.join(PDF_DIR, f"bazi_analysis_{result_id}.pdf")
+        
+        # 首先尝试使用reportlab直接生成PDF
+        pdf_generated = False
+        
+        if reportlab_available:
+            try:
+                logger.info("尝试使用reportlab直接生成PDF...")
+                # 确保目录存在
+                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+                
+                # 先删除可能存在的旧文件
+                if os.path.exists(pdf_path):
+                    try:
+                        os.remove(pdf_path)
+                        logger.info(f"已删除旧的PDF文件: {pdf_path}")
+                    except Exception as e:
+                        logger.warning(f"删除旧PDF文件失败: {str(e)}")
+                
+                # 生成PDF
+                fallback_pdf_path = generate_bazi_pdf(result_id, result_data, ai_analysis, output_path=pdf_path)
+                
+                # 验证生成的PDF文件
+                if fallback_pdf_path and os.path.exists(fallback_pdf_path) and os.path.getsize(fallback_pdf_path) > 0:
+                    logger.info(f"使用reportlab成功生成PDF: {fallback_pdf_path}, 文件大小: {os.path.getsize(fallback_pdf_path)} 字节")
+                    
+                    # 尝试验证PDF文件是否有效
+                    try:
+                        with open(fallback_pdf_path, 'rb') as f:
+                            header = f.read(5)
+                            if header.startswith(b'%PDF-'):
+                                logger.info("PDF文件头验证通过")
+                                pdf_generated = True
+                                return f"/static/pdfs/bazi_analysis_{result_id}.pdf"
+                            else:
+                                logger.warning(f"生成的文件不是有效的PDF文件，文件头: {header}")
+                    except Exception as e:
+                        logger.warning(f"验证PDF文件时出错: {str(e)}")
+                else:
+                    logger.error("reportlab生成PDF失败或文件无效")
+            except Exception as e:
+                logger.error(f"reportlab生成PDF出错: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
+        
+        # 如果reportlab失败，尝试生成HTML文件然后转换为PDF
+        if not pdf_generated:
+            try:
+                # 渲染HTML模板
+                template = Template(HTML_TEMPLATE)
+                html_content = template.render(
+                    generate_time=datetime.now().strftime('%Y年%m月%d日 %H:%M'),
+                    year_stem=year_pillar.get('heavenlyStem', ''),
+                    year_branch=year_pillar.get('earthlyBranch', ''),
+                    month_stem=month_pillar.get('heavenlyStem', ''),
+                    month_branch=month_pillar.get('earthlyBranch', ''),
+                    day_stem=day_pillar.get('heavenlyStem', ''),
+                    day_branch=day_pillar.get('earthlyBranch', ''),
+                    hour_stem=hour_pillar.get('heavenlyStem', ''),
+                    hour_branch=hour_pillar.get('earthlyBranch', ''),
+                    five_elements=five_elements,
+                    ai_analysis=ai_analysis
+                )
+                
+                # 保存HTML文件
+                with open(html_path, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
+                
+                logger.info(f"HTML文件已保存: {html_path}")
+                
+                # 检查wkhtmltopdf是否可用
+                wkhtmltopdf_available = False
+                config = None
+                
+                # 检查系统中是否有wkhtmltopdf
+                try:
+                    import subprocess
+                    result = subprocess.run(['wkhtmltopdf', '-V'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    if result.returncode == 0:
+                        logger.info("系统中已安装wkhtmltopdf")
+                        wkhtmltopdf_available = True
+                except:
+                    logger.warning("系统中未找到wkhtmltopdf命令")
+                
+                # 检查本地bin目录中是否有wkhtmltopdf
+                if not wkhtmltopdf_available and os.name == 'nt':  # Windows
+                    wkhtmltopdf_path = os.path.join(os.getcwd(), 'bin', 'wkhtmltopdf.exe')
+                    if os.path.exists(wkhtmltopdf_path):
+                        logger.info(f"找到本地wkhtmltopdf: {wkhtmltopdf_path}")
+                        config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_path)
+                        wkhtmltopdf_available = True
+                
+                # 尝试使用pdfkit生成PDF
+                try:
+                    if wkhtmltopdf_available:
+                        # 先删除可能存在的旧文件
+                        if os.path.exists(pdf_path):
+                            try:
+                                os.remove(pdf_path)
+                                logger.info(f"已删除旧的PDF文件: {pdf_path}")
+                            except Exception as e:
+                                logger.warning(f"删除旧PDF文件失败: {str(e)}")
+                        
+                        # 设置pdfkit选项
+                        options = {
+                            'encoding': 'UTF-8',
+                            'page-size': 'A4',
+                            'margin-top': '1cm',
+                            'margin-right': '1cm',
+                            'margin-bottom': '1cm',
+                            'margin-left': '1cm',
+                            'enable-local-file-access': None,
+                            'quiet': '',
+                            'no-outline': None
+                        }
+                        
+                        # 生成PDF
+                        if config:
+                            logger.info(f"使用本地wkhtmltopdf生成PDF: {pdf_path}")
+                            pdfkit.from_file(html_path, pdf_path, options=options, configuration=config)
+                        else:
+                            logger.info(f"使用系统wkhtmltopdf生成PDF: {pdf_path}")
+                            pdfkit.from_file(html_path, pdf_path, options=options)
+                        
+                        # 检查PDF是否成功生成
+                        if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                            logger.info(f"PDF文件已生成: {pdf_path}, 文件大小: {os.path.getsize(pdf_path)} 字节")
+                            
+                            # 尝试验证PDF文件是否有效
+                            try:
+                                with open(pdf_path, 'rb') as f:
+                                    header = f.read(5)
+                                    if header.startswith(b'%PDF-'):
+                                        logger.info("PDF文件头验证通过")
+                                        pdf_generated = True
+                                        return f"/static/pdfs/bazi_analysis_{result_id}.pdf"
+                                    else:
+                                        logger.warning(f"生成的文件不是有效的PDF文件，文件头: {header}")
+                            except Exception as e:
+                                logger.warning(f"验证PDF文件时出错: {str(e)}")
+                        else:
+                            logger.error(f"PDF文件生成失败或为空: {pdf_path}")
+                    else:
+                        logger.error("无法生成PDF：wkhtmltopdf不可用")
+                except Exception as e:
+                    logger.error(f"wkhtmltopdf生成PDF失败: {str(e)}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+            except Exception as e:
+                logger.error(f"HTML生成过程出错: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
+        
+        # 如果所有方法都失败，返回HTML
+        logger.warning(f"所有PDF生成方法都失败，返回HTML: {html_path}")
+        return f"/static/pdfs/bazi_analysis_{result_id}.html"
     
     except Exception as e:
-        logger.error(f"生成PDF失败: {str(e)}")
+        logger.error(f"PDF生成过程出错: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return None 

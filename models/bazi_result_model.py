@@ -3,6 +3,12 @@ from pymongo import MongoClient, ReturnDocument
 from bson import ObjectId
 import os
 import logging
+import json
+import traceback
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 获取MongoDB URI
 mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
@@ -10,6 +16,13 @@ client = MongoClient(mongo_uri)
 db = client.get_database()
 
 results_collection = db.bazi_results
+
+# 自定义JSON编码器处理datetime对象
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super(DateTimeEncoder, self).default(obj)
 
 class BaziResultModel:
     @staticmethod
@@ -32,153 +45,129 @@ class BaziResultModel:
         return result
     
     @staticmethod
-    def create(result_data):
-        """创建新的八字分析结果（接收完整数据对象）"""
-        logging.info("创建新的八字分析结果")
+    def create(data):
+        """创建新的分析结果
         
-        # 确保有创建时间
-        if 'createdAt' not in result_data:
-            result_data['createdAt'] = datetime.now()
-        
-        # 尝试插入数据
+        Args:
+            data: 分析结果数据
+            
+        Returns:
+            str: 新创建的结果ID
+        """
         try:
-            inserted = results_collection.insert_one(result_data)
-            result_id = str(inserted.inserted_id)
-            logging.info(f"成功创建新的八字分析结果，ID: {result_id}")
+            # 确保有_id字段
+            if '_id' not in data:
+                data['_id'] = str(ObjectId())
+                
+            # 添加创建时间
+            if 'createTime' not in data:
+                data['createTime'] = datetime.now()
+                
+            # 检查aiAnalysis字段的完整性
+            if 'aiAnalysis' in data:
+                logger.info(f"创建结果时检查aiAnalysis字段: {list(data['aiAnalysis'].keys())}")
+                
+                # 确保所有必要字段都存在
+                required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children']
+                for field in required_fields:
+                    if field not in data['aiAnalysis'] or not data['aiAnalysis'][field]:
+                        logger.warning(f"aiAnalysis缺少必要字段: {field}，添加默认值")
+                        data['aiAnalysis'][field] = f"正在分析{field}..."
+                        
+            # 检查baziChart字段的完整性
+            if 'baziChart' in data:
+                logger.info(f"创建结果时检查baziChart字段: {list(data['baziChart'].keys() if isinstance(data['baziChart'], dict) else [])}")
+                
+                # 确保年月日时四柱都存在
+                pillars = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']
+                for pillar in pillars:
+                    if pillar not in data['baziChart'] or not data['baziChart'][pillar]:
+                        logger.warning(f"baziChart缺少必要字段: {pillar}，添加默认值")
+                        data['baziChart'][pillar] = {'heavenlyStem': '?', 'earthlyBranch': '?'}
+                
+                # 确保五行分布存在
+                if 'fiveElements' not in data['baziChart'] or not data['baziChart']['fiveElements']:
+                    logger.warning("baziChart缺少五行分布，添加默认值")
+                    data['baziChart']['fiveElements'] = {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0}
+            
+            # 检查JSON序列化
+            try:
+                json_str = json.dumps(data, default=str)
+                logger.debug(f"数据JSON序列化成功，长度: {len(json_str)}")
+            except Exception as json_err:
+                logger.error(f"数据JSON序列化失败: {str(json_err)}")
+                # 尝试找出问题字段
+                for key, value in data.items():
+                    try:
+                        json.dumps({key: value}, default=str)
+                    except:
+                        logger.error(f"问题字段: {key}, 类型: {type(value)}")
+                        if isinstance(value, dict):
+                            for sub_key, sub_value in value.items():
+                                try:
+                                    json.dumps({sub_key: sub_value}, default=str)
+                                except:
+                                    logger.error(f"问题子字段: {key}.{sub_key}, 类型: {type(sub_value)}")
+                                    # 尝试修复问题字段
+                                    data[key][sub_key] = str(sub_value)
+            
+            # 插入数据
+            result = results_collection.insert_one(data)
+            result_id = str(result.inserted_id)
+            logger.info(f"成功创建分析结果: {result_id}")
             return result_id
         except Exception as e:
-            logging.error(f"创建八字分析结果失败: {str(e)}")
-            # 如果有自定义ID，尝试upsert
-            if '_id' in result_data:
-                try:
-                    custom_id = result_data['_id']
-                    logging.info(f"尝试使用自定义ID进行upsert: {custom_id}")
-                    result = results_collection.update_one(
-                        {"_id": custom_id},
-                        {"$set": result_data},
-                        upsert=True
-                    )
-                    if result.modified_count > 0 or result.matched_count > 0 or result.upserted_id:
-                        logging.info(f"成功使用upsert创建/更新记录: {custom_id}")
-                        return custom_id
-                except Exception as e2:
-                    logging.error(f"使用自定义ID进行upsert失败: {str(e2)}")
-            
+            logger.error(f"创建分析结果失败: {str(e)}")
+            logger.error(traceback.format_exc())
             return None
     
     @staticmethod
     def find_by_id(result_id):
-        """通过ID查找结果"""
-        logging.info(f"尝试查找结果ID: {result_id}")
-        
-        # 如果ID是字符串"test"，返回测试数据
-        if result_id == "test" or result_id == "demo":
-            logging.info("返回测试/演示数据")
-            return {
-                "_id": result_id,
-                "userId": "test_user",
-                "orderId": "test_order",
-                "gender": "male",
-                "birthTime": "2000-01-01 子时 (23:00-01:00)",
-                "focusAreas": ["health", "wealth", "career", "relationship"],
-                # 添加基本信息结构
-                "basicInfo": {
-                    "solarYear": "2000",
-                    "solarMonth": "01",
-                    "solarDay": "01",
-                    "solarHour": "子时",
-                    "gender": "male",
-                    "birthPlace": "北京",
-                    "livingPlace": "北京"
-                },
-                "baziChart": {
-                    "yearPillar": {"heavenlyStem": "甲", "earthlyBranch": "子", "element": "水", "birthYear": "2000"},
-                    "monthPillar": {"heavenlyStem": "丙", "earthlyBranch": "寅", "element": "木"},
-                    "dayPillar": {"heavenlyStem": "戊", "earthlyBranch": "午", "element": "火"},
-                    "hourPillar": {"heavenlyStem": "庚", "earthlyBranch": "申", "element": "金"},
-                    "fiveElements": {"wood": 2, "fire": 2, "earth": 1, "metal": 2, "water": 1},
-                    "flowingYears": [
-                        {"year": 2025, "heavenlyStem": "乙", "earthlyBranch": "巳", "element": "火"},
-                        {"year": 2026, "heavenlyStem": "丙", "earthlyBranch": "午", "element": "火"},
-                        {"year": 2027, "heavenlyStem": "丁", "earthlyBranch": "未", "element": "土"},
-                        {"year": 2028, "heavenlyStem": "戊", "earthlyBranch": "申", "element": "金"},
-                        {"year": 2029, "heavenlyStem": "己", "earthlyBranch": "酉", "element": "金"}
-                    ]
-                },
-                "aiAnalysis": {
-                    "health": "您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。",
-                    "wealth": "您的财运在2025年有明显上升趋势，特别是在春夏季节。八字中金水相生，适合从事金融、贸易、水利相关行业。投资方面，稳健为主，可考虑分散投资组合。2027年有意外财运，但需谨慎对待，避免投机性强的项目。",
-                    "career": "您的事业宫位较为稳定，具有较强的组织能力和执行力。2025-2026年是事业发展的关键期，有升职或转行的机会。建议提升专业技能，扩展人脉关系。您适合在团队中担任协调或管理角色，发挥沟通才能。",
-                    "relationship": "您的八字中日柱为戊午，感情态度较为务实。2025年下半年至2026年上半年是感情发展的良好时期。已婚者需注意与伴侣的沟通，避免因工作忙碌而忽略家庭。单身者有机会通过社交活动或朋友介绍认识合适的对象。",
-                    "children": "您的子女宫位较为温和，与子女关系和谐。教育方面，建议采用引导式而非强制式的方法，尊重子女的兴趣发展。2026-2027年是子女发展的重要阶段，可能需要您更多的关注和支持。",
-                    "overall": "综合分析您的八字，2025-2027年是您人生的一个上升期，各方面都有良好发展。建议把握这段时间，在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。您的人生态度积极乐观，具有较强的适应能力和抗压能力，这将帮助您度过人生中的各种挑战。"
-                },
-                "createTime": datetime.now(),
-                "analyzed": True
-            }
-        
-        # 为RES前缀ID创建持久化临时数据
-        if result_id.startswith("RES"):
-            # 检查数据库中是否已经存在这个ID的记录
-            existing_result = None
+        """根据ID查找分析结果"""
+        try:
+            logging.info(f"尝试查找结果ID: {result_id}")
             
-            # 尝试使用字符串ID查询
-            try:
-                existing_result = results_collection.find_one({"_id": result_id})
-            except Exception as e:
-                logging.warning(f"字符串ID查询错误: {str(e)}")
-        
-                        # 尝试使用订单ID查询
-            if not existing_result:
+            # 首先尝试直接使用字符串ID查询
+            result = results_collection.find_one({"_id": result_id})
+            
+            # 如果找不到，尝试将字符串转换为ObjectId
+            if not result:
                 try:
-                    order_id = result_id.replace("RES", "")
-                    existing_result = results_collection.find_one({"orderId": order_id})
-                    if existing_result:
-                        logging.info("使用订单ID查询成功")
+                    logging.info(f"尝试使用ObjectId查询: {result_id}")
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.find_one({"_id": obj_id})
+                    
+                    if result:
+                        logging.info("使用ObjectId查询成功")
+                        # 将_id转换为字符串，方便后续处理
+                        result["_id"] = str(result["_id"])
                 except Exception as e:
-                    logging.warning(f"订单ID查询错误: {str(e)}")
-        
-            # 如果找到现有记录，直接返回
-            if existing_result:
-                logging.info(f"找到已存在的RES前缀记录: {result_id}")
-                existing_result['_id'] = str(existing_result['_id'])
-                return existing_result
+                    logging.error(f"ObjectId转换失败: {str(e)}")
             
-            # 如果没有找到，说明是旧记录或缓存问题，请求前端重新提交
-            logging.warning(f"未找到RES前缀记录: {result_id}，可能需要重新分析")
-            # 不再自动创建新记录，让前端重新提交请求
+            if result:
+                logging.info(f"已找到结果ID: {result_id}")
+                # 添加调试信息
+                if 'baziChart' in result:
+                    logging.info(f"结果包含baziChart: {bool(result['baziChart'])}")
+                    if result['baziChart'] and 'yearPillar' in result['baziChart']:
+                        logging.info(f"包含年柱: {result['baziChart']['yearPillar']}")
+                else:
+                    logging.warning(f"结果不包含baziChart")
+                    
+                if 'aiAnalysis' in result:
+                    logging.info(f"结果包含aiAnalysis: {bool(result['aiAnalysis'])}")
+                    if result['aiAnalysis'] and 'overall' in result['aiAnalysis']:
+                        logging.info(f"分析整体内容: {result['aiAnalysis']['overall'][:50]}...")
+                else:
+                    logging.warning(f"结果不包含aiAnalysis")
+            else:
+                logging.warning(f"未找到结果ID: {result_id}")
+                
+            return result
+        except Exception as e:
+            logging.error(f"查找分析结果失败: {str(e)}")
+            logging.error(traceback.format_exc())
             return None
-        
-        # 尝试标准查询方式
-        result = None
-        
-        # 尝试方法1：使用ObjectId (仅当ID符合ObjectId格式时)
-        if not result and len(result_id) == 24 and all(c in '0123456789abcdef' for c in result_id):
-            try:
-                logging.info(f"尝试使用ObjectId查询: {result_id}")
-                result = results_collection.find_one({"_id": ObjectId(result_id)})
-                if result:
-                    logging.info("使用ObjectId查询成功")
-            except Exception as e:
-                logging.warning(f"ObjectId查询错误: {str(e)}")
-        
-        # 尝试方法2：使用字符串ID
-        if not result:
-            try:
-                logging.info(f"尝试使用字符串ID查询: {result_id}")
-                result = results_collection.find_one({"_id": result_id})
-                if result:
-                    logging.info("使用字符串ID查询成功")
-            except Exception as e:
-                logging.warning(f"字符串ID查询错误: {str(e)}")
-        
-        if result:
-            logging.info(f"已找到结果ID: {result_id}")
-            result['_id'] = str(result['_id'])
-        else:
-            logging.warning(f"未能找到结果ID: {result_id}")
-        
-        return result
     
     @staticmethod
     def find_by_user(user_id):
@@ -267,169 +256,218 @@ class BaziResultModel:
     
     @staticmethod
     def update_analysis(result_id, bazi_chart, ai_analysis):
-        """同时更新八字图和AI分析结果"""
-        logging.info(f"更新分析结果: {result_id}")
-        success = False
+        """更新分析结果
         
-        # 尝试使用ObjectId（仅当ID符合ObjectId格式时）
-        if len(result_id) == 24 and all(c in '0123456789abcdef' for c in result_id):
-            try:
-                logging.info("尝试使用ObjectId更新")
-                result = results_collection.update_one(
-                    {"_id": ObjectId(result_id)},
-                    {"$set": {
-                        "baziChart": bazi_chart,
-                        "aiAnalysis": ai_analysis,
-                        "analyzed": True,
-                        "updateTime": datetime.now()
-                    }}
-                )
-                if result.modified_count > 0 or result.matched_count > 0:
-                    logging.info(f"成功使用ObjectId更新记录: {result_id}")
-                    success = True
-                else:
-                    logging.warning(f"没有匹配到ObjectId记录: {result_id}")
-            except Exception as e:
-                logging.warning(f"使用ObjectId更新失败: {str(e)}")
-        
-        # 如果ObjectId更新失败，尝试使用字符串ID
-        if not success:
-            try:
-                logging.info("尝试使用字符串ID更新")
-                result = results_collection.update_one(
-                    {"_id": result_id},
-                    {"$set": {
-                        "baziChart": bazi_chart,
-                        "aiAnalysis": ai_analysis,
-                        "analyzed": True,
-                        "updateTime": datetime.now()
-                    }}
-                )
-                if result.modified_count > 0 or result.matched_count > 0:
-                    logging.info(f"成功使用字符串ID更新记录: {result_id}")
-                    success = True
-                else:
-                    logging.warning(f"没有匹配到字符串ID记录: {result_id}")
-            except Exception as e:
-                logging.warning(f"使用字符串ID更新失败: {str(e)}")
-        
-        # 如果仍然失败但是是RES前缀ID，尝试插入新记录
-        if not success and result_id.startswith("RES"):
-            try:
-                logging.info(f"尝试为RES前缀ID创建新记录: {result_id}")
-                timestamp = result_id.replace("RES", "")
-                new_record = {
-                    "_id": result_id,
-                    "userId": "test_user",
-                    "orderId": timestamp,
-                    "gender": "male",
-                    "birthTime": datetime.now().strftime("%Y-%m-%d") + " 丑时 (01:00-03:00)",
-                    "focusAreas": ["health", "wealth", "career", "relationship"],
-                    "baziChart": bazi_chart,
-                    "aiAnalysis": ai_analysis,
-                    "analyzed": True,
-                    "createTime": datetime.now(),
-                    "updateTime": datetime.now()
-                }
+        Args:
+            result_id: 结果ID
+            bazi_chart: 八字命盘数据
+            ai_analysis: AI分析结果
+            
+        Returns:
+            bool: 是否更新成功
+        """
+        try:
+            # 记录更新内容
+            logger.info(f"更新分析结果: {result_id}")
+            
+            if bazi_chart:
+                logger.info(f"更新八字命盘数据: {list(bazi_chart.keys())}")
                 
-                try:
-                    # 先尝试插入
-                    results_collection.insert_one(new_record)
-                    logging.info(f"成功创建并插入新记录: {result_id}")
-                    success = True
-                except Exception as e:
-                    # 如果插入失败（可能是因为记录已存在），尝试更新
-                    logging.warning(f"插入新记录失败，尝试使用upsert更新: {str(e)}")
-                    result = results_collection.update_one(
-                        {"_id": result_id},
-                        {"$set": new_record},
-                        upsert=True
-                    )
-                    if result.modified_count > 0 or result.matched_count > 0 or result.upserted_id:
-                        logging.info(f"成功使用upsert更新记录: {result_id}")
-                        success = True
-            except Exception as e:
-                logging.error(f"创建或更新RES前缀记录失败: {str(e)}")
-        
-        # 最后检查更新是否成功
-        if not success:
-            logging.error(f"无法更新分析结果: {result_id}，所有方法都失败")
-        
-        # 返回更新后的结果
-        return BaziResultModel.find_by_id(result_id)
+                # 确保年月日时四柱都存在
+                pillars = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']
+                for pillar in pillars:
+                    if pillar not in bazi_chart or not bazi_chart[pillar]:
+                        logger.warning(f"baziChart缺少必要字段: {pillar}，添加默认值")
+                        bazi_chart[pillar] = {'heavenlyStem': '?', 'earthlyBranch': '?'}
+            
+            if ai_analysis:
+                logger.info(f"更新AI分析结果: {list(ai_analysis.keys())}")
+                
+                # 确保所有必要字段都存在
+                required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children']
+                for field in required_fields:
+                    if field not in ai_analysis or not ai_analysis[field]:
+                        logger.warning(f"aiAnalysis缺少必要字段: {field}，添加默认值")
+                        ai_analysis[field] = f"暂无{field}分析数据"
+            
+            # 准备更新数据
+            update_data = {
+                'analyzed': True,
+                'updateTime': datetime.now()
+            }
+            
+            if bazi_chart:
+                update_data['baziChart'] = bazi_chart
+            
+            if ai_analysis:
+                update_data['aiAnalysis'] = ai_analysis
+            
+            # 检查JSON序列化
+            try:
+                json_str = json.dumps(update_data, default=str)
+                logger.debug(f"更新数据JSON序列化成功，长度: {len(json_str)}")
+            except Exception as json_err:
+                logger.error(f"更新数据JSON序列化失败: {str(json_err)}")
+                # 尝试找出问题字段
+                for key, value in update_data.items():
+                    try:
+                        json.dumps({key: value}, default=str)
+                    except:
+                        logger.error(f"问题字段: {key}, 类型: {type(value)}")
+                        if isinstance(value, dict):
+                            for sub_key, sub_value in value.items():
+                                try:
+                                    json.dumps({sub_key: sub_value}, default=str)
+                                except:
+                                    logger.error(f"问题子字段: {key}.{sub_key}, 类型: {type(sub_value)}")
+                                    # 尝试修复问题字段
+                                    update_data[key][sub_key] = str(sub_value)
+            
+            # 更新数据
+            result = results_collection.update_one(
+                {'_id': result_id},
+                {'$set': update_data}
+            )
+            
+            if result.matched_count > 0:
+                logger.info(f"成功更新分析结果: {result_id}")
+                return True
+            else:
+                logger.warning(f"未找到要更新的分析结果: {result_id}")
+                return False
+        except Exception as e:
+            logger.error(f"更新分析结果失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False
     
     @staticmethod
     def update_pdf_url(result_id, pdf_url):
-        """更新PDF URL"""
+        """更新PDF URL
+        
+        Args:
+            result_id: 结果ID
+            pdf_url: PDF文件URL
+            
+        Returns:
+            bool: 是否更新成功
+        """
         try:
-            # 尝试使用ObjectId
-            results_collection.update_one(
-            {"_id": ObjectId(result_id)},
-            {"$set": {"pdfUrl": pdf_url}}
-        )
-        except:
-            # 尝试使用字符串ID
-            results_collection.update_one(
-                {"_id": result_id},
-                {"$set": {"pdfUrl": pdf_url}}
+            logger.info(f"更新PDF URL: {result_id} -> {pdf_url}")
+            
+            # 更新数据
+            result = results_collection.update_one(
+                {'_id': result_id},
+                {'$set': {'pdfUrl': pdf_url, 'pdfGenerated': True, 'pdfGenerateTime': datetime.now()}}
             )
-        return BaziResultModel.find_by_id(result_id)
+            
+            if result.matched_count > 0:
+                logger.info(f"成功更新PDF URL: {result_id}")
+                return True
+            else:
+                logger.warning(f"未找到要更新的分析结果: {result_id}")
+                return False
+        except Exception as e:
+            logger.error(f"更新PDF URL失败: {str(e)}")
+            return False
     
     @staticmethod
     def update_full_analysis(result_id, bazi_chart, ai_analysis):
-        """同时更新八字图、基本信息和AI分析结果"""
-        logging.info(f"全面更新分析结果: {result_id}")
-        success = False
+        """完整更新分析结果
         
-        # 获取当前结果，以保留未更新的字段
-        current_result = BaziResultModel.find_by_id(result_id)
-        if not current_result:
-            logging.error(f"找不到要更新的结果ID: {result_id}")
-            return None
-        
-        # 准备更新数据
-        update_data = {
-            "baziChart": bazi_chart,
-            "aiAnalysis": ai_analysis,
-            "analyzed": True,
-            "updateTime": datetime.now()
-        }
-        
-        # 尝试使用ObjectId（仅当ID符合ObjectId格式时）
-        if len(result_id) == 24 and all(c in '0123456789abcdef' for c in result_id):
+        Args:
+            result_id: 结果ID
+            bazi_chart: 八字命盘数据
+            ai_analysis: AI分析结果
+            
+        Returns:
+            bool: 是否更新成功
+        """
+        try:
+            # 记录更新内容
+            logger.info(f"完整更新分析结果: {result_id}")
+            
+            # 检查八字命盘数据
+            if not bazi_chart:
+                logger.warning(f"八字命盘数据为空: {result_id}")
+                bazi_chart = {}
+            
+            # 检查AI分析结果
+            if not ai_analysis:
+                logger.warning(f"AI分析结果为空: {result_id}")
+                ai_analysis = {}
+            
+            # 确保八字命盘数据包含必要字段
+            pillars = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']
+            for pillar in pillars:
+                if pillar not in bazi_chart or not bazi_chart[pillar]:
+                    logger.warning(f"baziChart缺少必要字段: {pillar}，添加默认值")
+                    bazi_chart[pillar] = {'heavenlyStem': '?', 'earthlyBranch': '?'}
+            
+            # 确保五行分布存在
+            if 'fiveElements' not in bazi_chart or not bazi_chart['fiveElements']:
+                logger.warning("baziChart缺少五行分布，添加默认值")
+                bazi_chart['fiveElements'] = {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0}
+            
+            # 确保AI分析结果包含必要字段
+            required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 'personality', 'education', 'parents', 'social', 'future']
+            for field in required_fields:
+                if field not in ai_analysis or not ai_analysis[field]:
+                    logger.warning(f"aiAnalysis缺少必要字段: {field}，添加默认值")
+                    ai_analysis[field] = f"暂无{field}分析数据"
+            
+            # 准备更新数据
+            update_data = {
+                'baziChart': bazi_chart,
+                'aiAnalysis': ai_analysis,
+                'analyzed': True,
+                'updateTime': datetime.now()
+            }
+            
+            # 检查JSON序列化
             try:
-                logging.info("尝试使用ObjectId全面更新")
-                result = results_collection.update_one(
-                    {"_id": ObjectId(result_id)},
-                    {"$set": update_data}
-                )
-                if result.modified_count > 0 or result.matched_count > 0:
-                    logging.info(f"成功使用ObjectId全面更新记录: {result_id}")
-                    success = True
-                else:
-                    logging.warning(f"没有匹配到ObjectId记录: {result_id}")
-            except Exception as e:
-                logging.warning(f"使用ObjectId全面更新失败: {str(e)}")
-        
-        # 如果ObjectId更新失败，尝试使用字符串ID
-        if not success:
-            try:
-                logging.info("尝试使用字符串ID全面更新")
-                result = results_collection.update_one(
-                    {"_id": result_id},
-                    {"$set": update_data}
-                )
-                if result.modified_count > 0 or result.matched_count > 0:
-                    logging.info(f"成功使用字符串ID全面更新记录: {result_id}")
-                    success = True
-                else:
-                    logging.warning(f"没有匹配到字符串ID记录: {result_id}")
-            except Exception as e:
-                logging.warning(f"使用字符串ID全面更新失败: {str(e)}")
-        
-        # 最后检查更新是否成功
-        if not success:
-            logging.error(f"无法全面更新分析结果: {result_id}，所有方法都失败")
-        
-        # 返回更新后的结果
-        return BaziResultModel.find_by_id(result_id) 
+                json_str = json.dumps(update_data, default=str)
+                logger.debug(f"更新数据JSON序列化成功，长度: {len(json_str)}")
+            except Exception as json_err:
+                logger.error(f"更新数据JSON序列化失败: {str(json_err)}")
+                # 尝试找出问题字段并修复
+                for key, value in update_data.items():
+                    try:
+                        json.dumps({key: value}, default=str)
+                    except:
+                        logger.error(f"问题字段: {key}, 类型: {type(value)}")
+                        if isinstance(value, dict):
+                            for sub_key, sub_value in value.items():
+                                try:
+                                    json.dumps({sub_key: sub_value}, default=str)
+                                except:
+                                    logger.error(f"问题子字段: {key}.{sub_key}, 类型: {type(sub_value)}")
+                                    # 尝试修复问题字段
+                                    update_data[key][sub_key] = str(sub_value)
+            
+            # 更新数据
+            result = results_collection.update_one(
+                {'_id': result_id},
+                {'$set': update_data}
+            )
+            
+            if result.matched_count > 0:
+                logger.info(f"成功完整更新分析结果: {result_id}")
+                return True
+            else:
+                # 尝试创建新记录
+                logger.warning(f"未找到要更新的分析结果，尝试创建新记录: {result_id}")
+                new_data = {
+                    '_id': result_id,
+                    'baziChart': bazi_chart,
+                    'aiAnalysis': ai_analysis,
+                    'analyzed': True,
+                    'createTime': datetime.now(),
+                    'updateTime': datetime.now()
+                }
+                results_collection.insert_one(new_data)
+                logger.info(f"成功创建新的分析结果: {result_id}")
+                return True
+        except Exception as e:
+            logger.error(f"完整更新分析结果失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False 

@@ -192,7 +192,51 @@
         </div>
     </div>
     
+    <div id="age-notice"></div>
+    
     <script>
+        // 计算年龄函数
+        function calculateAge(birthDate) {
+            const today = new Date();
+            const birthDateObj = new Date(birthDate);
+            let age = today.getFullYear() - birthDateObj.getFullYear();
+            const monthDiff = today.getMonth() - birthDateObj.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDateObj.getDate())) {
+                age--;
+            }
+            return age;
+        }
+
+        // 获取年龄类别
+        function getAgeCategory(age) {
+            if (age < 0) return "未出生";
+            if (age < 3) return "婴幼儿";
+            if (age < 12) return "儿童";
+            if (age < 18) return "青少年";
+            if (age < 30) return "青年";
+            if (age < 50) return "中年";
+            return "老年";
+        }
+
+        // 修复提示信息逻辑
+        function updateAgeNotice(birthDate) {
+            const age = calculateAge(birthDate);
+            const ageCategory = getAgeCategory(age);
+            const ageNoticeElement = document.getElementById('age-notice');
+            
+            if (ageNoticeElement) {
+                if (age < 0) {
+                    ageNoticeElement.innerHTML = `<div class="alert alert-info">此分析针对未出生的宝宝，重点关注性格特点、天赋才能和健康发展趋势。</div>`;
+                } else if (age < 6) {
+                    ageNoticeElement.innerHTML = `<div class="alert alert-info">此分析针对婴幼儿(${age}岁)，重点关注性格特点、天赋才能和健康发展趋势。</div>`;
+                } else if (age < 18) {
+                    ageNoticeElement.innerHTML = `<div class="alert alert-info">此分析针对未成年人(${age}岁)，重点关注性格特点、学业发展和健康状况。</div>`;
+                } else {
+                    ageNoticeElement.innerHTML = '';
+                }
+            }
+        }
+        
         document.addEventListener('DOMContentLoaded', function() {
             const calculateBtn = document.getElementById('calculateBtn');
             const loadingDiv = document.getElementById('loading');
@@ -208,6 +252,9 @@
                 loadingDiv.classList.remove('hidden');
                 resultContainer.classList.add('hidden');
                 errorContainer.classList.add('hidden');
+                
+                // 计算和设置年龄提示
+                updateAgeNotice(birthDate);
                 
                 // 发送API请求
                 fetch('/api/bazi/calculate', {
