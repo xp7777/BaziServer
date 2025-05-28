@@ -1078,7 +1078,7 @@ def get_pdf(result_id):
         
         # 检查PDF文件
         pdf_path = os.path.join(os.getcwd(), 'static', 'pdfs', f"bazi_analysis_{result_id}.html")
-        if os.path.exists(pdf_path):
+    if os.path.exists(pdf_path):
             # 微信环境中，优先返回JSON格式的URL
             if is_weixin:
                 # 生成一个临时的可访问URL

@@ -148,7 +148,7 @@ def wechat_notify():
                 bazi_result = BaziResultModel.find_by_order_id(order_id)
                 if bazi_result:
                     # 调用分析API
-                    from routes.bazi_routes_fixed import calculate_bazi, generate_ai_analysis
+                    from routes.bazi_routes_fixed_new import calculate_bazi, generate_ai_analysis
                     
                     # 计算八字
                     bazi_chart = calculate_bazi(
@@ -199,7 +199,7 @@ def alipay_notify():
                 bazi_result = BaziResultModel.find_by_order_id(order_id)
                 if bazi_result:
                     # 调用分析API
-                    from routes.bazi_routes_fixed import calculate_bazi, generate_ai_analysis
+                    from routes.bazi_routes_fixed_new import calculate_bazi, generate_ai_analysis
                     
                     # 计算八字
                     bazi_chart = calculate_bazi(
@@ -370,7 +370,7 @@ def mock_payment(order_id):
                 # 启动八字分析任务
                 try:
                     # 调用分析API
-                    from routes.bazi_routes_fixed import calculate_bazi, generate_ai_analysis
+                    from routes.bazi_routes_fixed_new import calculate_bazi, generate_ai_analysis
                     
                     # 计算八字
                     bazi_chart = calculate_bazi(
@@ -386,7 +386,9 @@ def mock_payment(order_id):
                     ai_analysis = generate_ai_analysis(
                         bazi_chart,
                         focus_areas,
-                        gender
+                        gender,
+                        birth_date,
+                        birth_time
                     )
                     
                     # 更新分析结果
@@ -440,7 +442,7 @@ def mock_payment(order_id):
             bazi_result = BaziResultModel.find_by_order_id(order_id)
             if bazi_result:
                 # 调用分析API (实际项目中应该使用异步任务)
-                from routes.bazi_routes_fixed import calculate_bazi, generate_ai_analysis
+                from routes.bazi_routes_fixed_new import calculate_bazi, generate_ai_analysis
                 
                 # 提取出生日期和时间
                 if 'birthDate' in bazi_result and bazi_result['birthDate']:
@@ -487,7 +489,9 @@ def mock_payment(order_id):
                 ai_analysis = generate_ai_analysis(
                     bazi_chart,
                     bazi_result['focusAreas'],
-                    bazi_result['gender']
+                    bazi_result['gender'],
+                    birth_date,
+                    birth_time
                 )
                 
                 # 更新分析结果
@@ -549,7 +553,9 @@ def mock_payment(order_id):
                     ai_analysis = generate_ai_analysis(
                         bazi_chart,
                         focus_areas,
-                        gender
+                        gender,
+                        birth_date,
+                        birth_time
                     )
                     
                     # 更新分析结果

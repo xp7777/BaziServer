@@ -128,7 +128,7 @@ class BaziResultModel:
             except Exception as e:
                 logging.warning(f"字符串ID查询错误: {str(e)}")
         
-            # 尝试使用订单ID查询
+                        # 尝试使用订单ID查询
             if not existing_result:
                 try:
                     order_id = result_id.replace("RES", "")

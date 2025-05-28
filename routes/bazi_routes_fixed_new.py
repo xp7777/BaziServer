@@ -325,7 +325,7 @@ def analyze_bazi():
         def perform_analysis():
             try:
                 # 获取AI分析结果
-                ai_analysis = generate_ai_analysis(bazi_result, focus_areas, gender)
+                ai_analysis = generate_ai_analysis(bazi_result, focus_areas, gender, birth_date, birth_time)
                 
                 # 更新分析结果
                 BaziResultModel.update_analysis(result_id, bazi_result, ai_analysis)
@@ -444,175 +444,12 @@ def get_bazi_result(result_id):
                     # 使用原始八字信息
                     new_bazi_chart = result.get('baziChart', {})
                 
-                # 构建性别信息
-                gender_text = "男性" if gender == "male" else "女性"
+                # 获取分析结果
+                new_analysis = generate_ai_analysis(new_bazi_chart, result.get('focusAreas', ["health", "wealth", "career", "relationship"]), gender, birth_date, birth_time)
                 
-                # 构建提示词
-                prompt = f"""
-                请你作为一位专业的命理师，为一位{gender_text}分析八字命盘。
+                # 更新数据库
+                BaziResultModel.update_full_analysis(result_id, new_bazi_chart, new_analysis)
                 
-                【基本信息】
-                性别: {gender_text}
-                出生日期: {birth_date}
-                出生时间: {birth_time}
-                年龄: {datetime.now().year - int(birth_date.split('-')[0])}岁
-                
-                【八字命盘信息】
-                年柱: {new_bazi_chart['yearPillar']['heavenlyStem']}{new_bazi_chart['yearPillar']['earthlyBranch']}
-                月柱: {new_bazi_chart['monthPillar']['heavenlyStem']}{new_bazi_chart['monthPillar']['earthlyBranch']}
-                日柱: {new_bazi_chart['dayPillar']['heavenlyStem']}{new_bazi_chart['dayPillar']['earthlyBranch']}
-                时柱: {new_bazi_chart['hourPillar']['heavenlyStem']}{new_bazi_chart['hourPillar']['earthlyBranch']}
-                
-                【五行分布】
-                金: {new_bazi_chart['fiveElements']['metal']}
-                木: {new_bazi_chart['fiveElements']['wood']}
-                水: {new_bazi_chart['fiveElements']['water']}
-                火: {new_bazi_chart['fiveElements']['fire']}
-                土: {new_bazi_chart['fiveElements']['earth']}
-                
-                【神煞信息】
-                日冲: {new_bazi_chart['shenSha'].get('dayChong', '无')}
-                值神: {new_bazi_chart['shenSha'].get('zhiShen', '无')}
-                彭祖百忌: {new_bazi_chart['shenSha'].get('pengZuGan', '无')}, {new_bazi_chart['shenSha'].get('pengZuZhi', '无')}
-                喜神方位: {new_bazi_chart['shenSha'].get('xiShen', '无')}
-                福神方位: {new_bazi_chart['shenSha'].get('fuShen', '无')}
-                财神方位: {new_bazi_chart['shenSha'].get('caiShen', '无')}
-                本命神煞: {', '.join(new_bazi_chart['shenSha'].get('benMing', ['无']))}
-                
-                【大运信息】
-                起运年龄: {new_bazi_chart['daYun'].get('startAge', '无')}岁
-                起运年份: {new_bazi_chart['daYun'].get('startYear', '无')}年
-                大运列表: {', '.join([f"{i['index']}运({i['startYear']}-{i['endYear']}): {i['ganZhi']}" for i in new_bazi_chart['daYun'].get('daYunList', [])[:5]])}
-                
-                【流年信息(2025-2029)】
-                {', '.join([f"{y['year']}年: {y['heavenlyStem']}{y['earthlyBranch']}" for y in new_bazi_chart['flowingYears']])}
-                
-                请按照以下格式提供分析:
-                
-                健康分析:
-                [详细的健康分析，包括体质特点、易发疾病、养生建议等]
-                
-                财运分析:
-                [详细的财运分析，包括财运特点、适合行业、理财建议等]
-                
-                事业发展:
-                [详细的事业分析，包括事业特点、职业方向、发展建议等]
-                
-                婚姻感情:
-                [详细的婚姻感情分析，包括感情特点、相处方式、注意事项等]
-                
-                子女缘分:
-                [详细的子女缘分分析，包括亲子关系、教育方式、注意事项等]
-                
-                综合建议:
-                [综合分析和建议，未来5年的整体运势趋势]
-                """
-                
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
-                }
-        
-                payload = {
-                    "model": "deepseek-chat",
-                    "messages": [
-                        {"role": "system", "content": "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 3000
-                }
-                
-                logging.info("准备调用DeepSeek API...")
-                response = requests.post(
-                    DEEPSEEK_API_URL,
-                    headers=headers,
-                    data=json.dumps(payload)
-                )
-                
-                logging.info(f"API响应状态码: {response.status_code}")
-                
-                if response.status_code == 200:
-                    result_data = response.json()
-                    ai_text = result_data['choices'][0]['message']['content']
-                    logging.info(f"成功获取DeepSeek API响应: {ai_text[:100]}...")
-                    
-                    # 解析AI回复，提取各部分分析
-                    new_analysis = {}
-                    
-                    # 提取健康分析
-                    if "健康分析" in ai_text:
-                        health_start = ai_text.find("健康分析")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("财运分析", health_start), 
-                                            ai_text.find("事业发展", health_start),
-                                            ai_text.find("婚姻感情", health_start),
-                                            ai_text.find("子女缘分", health_start),
-                                            ai_text.find("综合建议", health_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['health'] = ai_text[health_start:next_section].replace("健康分析:", "").replace("健康分析", "").strip()
-                    
-                    # 提取财运分析
-                    if "财运分析" in ai_text:
-                        wealth_start = ai_text.find("财运分析")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("事业发展", wealth_start), 
-                                            ai_text.find("婚姻感情", wealth_start),
-                                            ai_text.find("子女缘分", wealth_start),
-                                            ai_text.find("综合建议", wealth_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['wealth'] = ai_text[wealth_start:next_section].replace("财运分析:", "").replace("财运分析", "").strip()
-                    
-                    # 提取事业发展
-                    if "事业发展" in ai_text:
-                        career_start = ai_text.find("事业发展")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("婚姻感情", career_start), 
-                                            ai_text.find("子女缘分", career_start),
-                                            ai_text.find("综合建议", career_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['career'] = ai_text[career_start:next_section].replace("事业发展:", "").replace("事业发展", "").strip()
-                    
-                    # 提取婚姻感情
-                    if "婚姻感情" in ai_text:
-                        relationship_start = ai_text.find("婚姻感情")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("子女缘分", relationship_start), 
-                                            ai_text.find("综合建议", relationship_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['relationship'] = ai_text[relationship_start:next_section].replace("婚姻感情:", "").replace("婚姻感情", "").strip()
-                    
-                    # 提取子女缘分
-                    if "子女缘分" in ai_text:
-                        children_start = ai_text.find("子女缘分")
-                        next_section = min(
-                            [pos for pos in [ai_text.find("综合建议", children_start)] if pos > 0] or [len(ai_text)]
-                        )
-                        new_analysis['children'] = ai_text[children_start:next_section].replace("子女缘分:", "").replace("子女缘分", "").strip()
-                    
-                    # 提取综合建议
-                    if "综合建议" in ai_text:
-                        overall_start = ai_text.find("综合建议")
-                        new_analysis['overall'] = ai_text[overall_start:].replace("综合建议:", "").replace("综合建议", "").strip()
-                    
-                    logging.info("DeepSeek API调用成功，使用真实分析结果")
-                    
-                    # 同时更新八字命盘和AI分析结果
-                    BaziResultModel.update_full_analysis(
-                        result_id,
-                        new_bazi_chart,
-                        new_analysis
-                    )
-                else:
-                    logging.error(f"调用DeepSeek API失败: {response.status_code}, {response.text[:200]}")
-                    logging.info("使用默认分析数据更新")
-                    # 使用原始八字命盘和默认分析结果更新数据库
-                    BaziResultModel.update_full_analysis(
-                        result_id,
-                        new_bazi_chart,
-                        default_ai_analysis
-                    )
-            
             except Exception as e:
                 logging.error(f"调用DeepSeek API出错: {str(e)}")
                 logging.info("使用默认分析数据更新")
