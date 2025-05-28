@@ -891,34 +891,17 @@ def get_bazi_result(result_id):
                     if 'personality' not in new_analysis:
                         new_analysis['personality'] = "您具有较为稳定的性格特点，做事认真负责，有良好的判断力。在人际交往中展现出亲和力，善于与人沟通合作。"
                     
-                    if 'education' not in new_analysis and age < 18:
-                        new_analysis['education'] = "学习能力较强，具有较好的理解力和记忆力。建议在学习中保持专注，培养良好的学习习惯，注重基础知识的掌握，同时发展个人兴趣爱好。"
+                    if 'education' not in new_analysis:
+                        if age is not None and age < 18:
+                            new_analysis['education'] = "学习能力较强，具有较好的理解力和记忆力。建议在学习中保持专注，培养良好的学习习惯，注重基础知识的掌握，同时发展个人兴趣爱好。"
+                        else:
+                            new_analysis['education'] = "学习能力较强，具有较好的理解力和记忆力。建议持续学习，拓展知识面，提升专业技能，保持终身学习的态度。"
                     
                     # 完整更新数据库
                     logging.info(f"DeepSeek AI分析完成，更新完整分析结果: {result_id}")
                     BaziResultModel.update_full_analysis(result_id, new_bazi_chart, new_analysis)
                 else:
-                    # 如果没有获取到分析结果，使用默认值
-                    default_ai_analysis = {
-                        "health": "您的八字中五行分布较为平衡。从健康角度看，建议保持规律作息，避免过度劳累和情绪波动。定期体检，保持良好生活习惯。",
-                        "wealth": "您的财运有发展空间，适合稳健的理财方式。投资方面，建议分散投资组合，避免投机性强的项目。",
-                        "career": "您的事业发展有良好前景，具有一定的组织能力和执行力。建议持续提升专业技能，扩展人脉关系。",
-                        "relationship": "您的婚姻感情关系值得经营。已婚者需注意与伴侣的沟通，单身者有望遇到合适的对象。",
-                        "children": "您与子女关系和谐。教育方面，建议采用引导式的方法，尊重子女的兴趣发展。",
-                        "personality": "您具有较为稳定的性格特点，做事认真负责，有良好的判断力。在人际交往中展现出亲和力，善于与人沟通合作。",
-                        "education": "学习能力较强，具有较好的理解力和记忆力。建议在学习中保持专注，培养良好的学习习惯，注重基础知识的掌握。",
-                        "parents": "与父母关系和谐，相互理解与支持。建议加强沟通，增进情感交流，尊重彼此的生活方式和选择。",
-                        "social": "人际关系良好，善于与人相处。建议在社交中保持真诚态度，合理表达自我，同时尊重他人的不同观点。",
-                        "future": "未来五年运势平稳，有望在事业和个人发展方面取得进步。建议把握机会，持续学习成长，保持积极心态。",
-                        "overall": "您的八字展现出潜力，人生发展有诸多可能。建议在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。"
-                    }
-                    
-                    default_ai_analysis['personality'] = "您具有较为稳定的性格特点，做事认真负责，有良好的判断力。在人际交往中展现出亲和力，善于与人沟通合作。"
-                    
-                    if age < 18:
-                        default_ai_analysis['education'] = "学习能力较强，具有较好的理解力和记忆力。建议在学习中保持专注，培养良好的学习习惯，注重基础知识的掌握，同时发展个人兴趣爱好。"
-                    
-                    BaziResultModel.update_full_analysis(result_id, new_bazi_chart, default_ai_analysis)
+                    logging.info("DeepSeek API未返回有效分析结果")
             except Exception as e:
                 logging.error(f"调用DeepSeek API出错: {str(e)}")
                 logging.info("使用默认分析数据更新")

@@ -154,7 +154,7 @@
       
       <van-tab title="AI分析结果">
         <div class="ai-analysis">
-          <div v-if="userAge < 0" class="age-notice">
+          <div v-if="userAge !== null && userAge < 0" class="age-notice">
             <van-notice-bar
               color="#1989fa"
               background="#ecf9ff"
@@ -163,7 +163,7 @@
               此分析针对未来出生的宝宝，重点关注性格特点、天赋才能和健康发展趋势。
             </van-notice-bar>
           </div>
-          <div v-else-if="userAge < 6" class="age-notice">
+          <div v-else-if="userAge !== null && userAge < 6" class="age-notice">
             <van-notice-bar
               color="#1989fa"
               background="#ecf9ff"
@@ -172,7 +172,7 @@
               此分析针对婴幼儿({{userAge}}岁)，重点关注性格特点、天赋才能和健康发展趋势。
             </van-notice-bar>
           </div>
-          <div v-else-if="userAge < 18" class="age-notice">
+          <div v-else-if="userAge !== null && userAge < 18" class="age-notice">
             <van-notice-bar
               color="#1989fa"
               background="#ecf9ff"
@@ -212,25 +212,25 @@
           
           <!-- 财运分析（18岁以上显示，或者标注为未来发展） -->
           <div class="analysis-section">
-            <h3>{{ userAge >= 18 ? '财运分析' : '未来财运发展' }}</h3>
+            <h3>{{ userAge !== null && userAge >= 18 ? '财运分析' : '未来财运发展' }}</h3>
             <p>{{ aiAnalysis.wealth }}</p>
           </div>
           
           <!-- 事业发展（18岁以上显示，或者标注为未来发展） -->
           <div class="analysis-section">
-            <h3>{{ userAge >= 18 ? '事业发展' : '未来事业发展' }}</h3>
+            <h3>{{ userAge !== null && userAge >= 18 ? '事业发展' : '未来事业发展' }}</h3>
             <p>{{ aiAnalysis.career }}</p>
           </div>
           
           <!-- 婚姻感情（18岁以上显示，或者标注为未来发展） -->
           <div class="analysis-section">
-            <h3>{{ userAge >= 18 ? '婚姻感情' : '未来感情发展' }}</h3>
+            <h3>{{ userAge !== null && userAge >= 18 ? '婚姻感情' : '未来感情发展' }}</h3>
             <p>{{ aiAnalysis.relationship }}</p>
           </div>
           
           <!-- 子女情况（18岁以上显示，或者标注为未来发展） -->
           <div class="analysis-section">
-            <h3>{{ userAge >= 18 ? '子女情况' : '未来子女缘分' }}</h3>
+            <h3>{{ userAge !== null && userAge >= 18 ? '子女情况' : '未来子女缘分' }}</h3>
             <p>{{ aiAnalysis.children }}</p>
           </div>
           
@@ -290,7 +290,17 @@ const resultId = route.params.id || route.query.resultId;
 const activeTab = ref(0);
 
 // 用户年龄，从URL参数或localStorage获取
-const userAge = ref(parseInt(route.query.age) || parseInt(localStorage.getItem('userAge')) || null);
+const userAge = ref(null);
+// 尝试从URL参数获取年龄
+if (route.query.age && !isNaN(parseInt(route.query.age))) {
+  userAge.value = parseInt(route.query.age);
+} 
+// 如果URL参数中没有年龄，尝试从localStorage获取
+else if (localStorage.getItem('userAge') && !isNaN(parseInt(localStorage.getItem('userAge')))) {
+  userAge.value = parseInt(localStorage.getItem('userAge'));
+}
+// 记录用户年龄到控制台，便于调试
+console.log('用户年龄:', userAge.value);
 
 // 从分析文本中提取特定部分内容
 const getAnalysisContent = (sectionName) => {
