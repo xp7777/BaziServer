@@ -274,13 +274,69 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender, birth_date=None, birth
         }
         
         logging.info("准备调用DeepSeek API...")
-        response = requests.post(
-            DEEPSEEK_API_URL,
-            headers=headers,
-            data=json.dumps(payload)
-        )
+        # 打印请求内容（去除敏感信息）
+        safe_headers = headers.copy()
+        if 'Authorization' in safe_headers:
+            safe_headers['Authorization'] = safe_headers['Authorization'][:15] + "..." + safe_headers['Authorization'][-5:] if len(safe_headers['Authorization']) > 20 else "***"
         
-        logging.info(f"API响应状态码: {response.status_code}")
+        # 打印请求详情
+        logging.info(f"DeepSeek API请求URL: {DEEPSEEK_API_URL}")
+        logging.info(f"DeepSeek API请求头: {safe_headers}")
+        
+        # 打印请求体（仅包含关键信息）
+        safe_payload = {
+            "model": payload["model"],
+            "temperature": payload["temperature"],
+            "max_tokens": payload["max_tokens"],
+            "messages": [
+                {"role": msg["role"], "content": msg["content"][:100] + "..." if len(msg["content"]) > 100 else msg["content"]} 
+                for msg in payload["messages"]
+            ]
+        }
+        logging.info(f"DeepSeek API请求体: {json.dumps(safe_payload, ensure_ascii=False)}")
+        
+        # 打印完整提示词（便于调试）
+        logging.info(f"DeepSeek API完整提示词: {prompt}")
+        
+        # 记录API调用开始时间
+        api_start_time = time.time()
+        
+        try:
+            response = requests.post(
+                DEEPSEEK_API_URL,
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=120  # 设置120秒超时
+            )
+            
+            # 记录API调用结束时间和耗时
+            api_end_time = time.time()
+            api_duration = api_end_time - api_start_time
+            logging.info(f"DeepSeek API调用完成，耗时: {api_duration:.2f}秒")
+            
+            # 记录响应状态和头信息
+            logging.info(f"DeepSeek API响应状态码: {response.status_code}")
+            logging.info(f"DeepSeek API响应头: {dict(response.headers)}")
+            
+            # 记录响应内容摘要
+            if response.status_code == 200:
+                try:
+                    response_json = response.json()
+                    logging.info(f"DeepSeek API响应内容摘要: {str(response_json)[:200]}...")
+                    
+                    # 记录生成的文本长度
+                    if 'choices' in response_json and len(response_json['choices']) > 0:
+                        content = response_json['choices'][0].get('message', {}).get('content', '')
+                        logging.info(f"DeepSeek API生成文本长度: {len(content)} 字符")
+                        logging.info(f"DeepSeek API生成文本前200字符: {content[:200]}...")
+                except Exception as e:
+                    logging.error(f"解析DeepSeek API响应JSON出错: {str(e)}")
+            else:
+                logging.error(f"DeepSeek API响应内容: {response.text[:500]}")
+        except requests.exceptions.RequestException as e:
+            logging.error(f"DeepSeek API请求异常: {str(e)}")
+            # 重新抛出异常，让外层捕获处理
+            raise
         
         if response.status_code == 200:
             result_data = response.json()

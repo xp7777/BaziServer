@@ -833,8 +833,33 @@ def calculate_da_yun(year, month, day, hour, gender):
         
         logging.info(f"大运行进方向: {'顺行' if is_forward else '逆行'}")
         
-        # 初始化生肖查询表
-        SHENG_XIAO = LunarUtil.ANIMAL
+        # 初始化生肖查询表，确保包含所有索引(0-11)
+        SHENG_XIAO = {
+            0: "鼠",
+            1: "牛",
+            2: "虎",
+            3: "兔",
+            4: "龙",
+            5: "蛇",
+            6: "马",
+            7: "羊",
+            8: "猴",
+            9: "鸡",
+            10: "狗",
+            11: "猪"
+        }
+        # 如果LunarUtil.ANIMAL可用，则使用它
+        try:
+            if hasattr(LunarUtil, 'ANIMAL') and isinstance(LunarUtil.ANIMAL, dict):
+                # 检查LunarUtil.ANIMAL是否包含所有键
+                has_all_keys = all(str(i) in LunarUtil.ANIMAL or i in LunarUtil.ANIMAL for i in range(12))
+                if has_all_keys:
+                    SHENG_XIAO = LunarUtil.ANIMAL
+                    logging.info("使用LunarUtil.ANIMAL作为生肖查询表")
+                else:
+                    logging.warning("LunarUtil.ANIMAL不包含所有键，使用自定义生肖表")
+        except Exception as e:
+            logging.warning(f"获取LunarUtil.ANIMAL出错: {str(e)}，使用自定义生肖表")
         
         for i in range(da_yun_count):
             # 计算当前大运干支索引

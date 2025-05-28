@@ -224,35 +224,69 @@ class BaziResultModel:
     def update_bazi_data(result_id, bazi_data):
         """更新八字数据"""
         try:
-            # 尝试使用ObjectId
-            results_collection.update_one(
-            {"_id": ObjectId(result_id)},
-            {"$set": {"baziData": bazi_data}}
-        )
-        except:
-            # 尝试使用字符串ID
-            results_collection.update_one(
+            logger.info(f"更新八字数据: {result_id}")
+            
+            # 尝试直接使用字符串ID更新
+            result = results_collection.update_one(
                 {"_id": result_id},
                 {"$set": {"baziData": bazi_data}}
             )
-        return BaziResultModel.find_by_id(result_id)
+            
+            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
+            if result.matched_count == 0:
+                try:
+                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.update_one(
+                        {"_id": obj_id},
+                        {"$set": {"baziData": bazi_data}}
+                    )
+                except Exception as e:
+                    logger.error(f"ObjectId转换失败: {str(e)}")
+            
+            if result.matched_count > 0:
+                logger.info(f"成功更新八字数据: {result_id}")
+                return BaziResultModel.find_by_id(result_id)
+            else:
+                logger.warning(f"未找到要更新的记录: {result_id}")
+                return None
+        except Exception as e:
+            logger.error(f"更新八字数据失败: {str(e)}")
+            return None
     
     @staticmethod
     def update_ai_analysis(result_id, area, analysis):
         """更新AI分析结果"""
         try:
-            # 尝试使用ObjectId
-            results_collection.update_one(
-            {"_id": ObjectId(result_id)},
-            {"$set": {f"aiAnalysis.{area}": analysis}}
-        )
-        except:
-            # 尝试使用字符串ID
-            results_collection.update_one(
+            logger.info(f"更新AI分析结果: {result_id}, 区域: {area}")
+            
+            # 尝试直接使用字符串ID更新
+            result = results_collection.update_one(
                 {"_id": result_id},
                 {"$set": {f"aiAnalysis.{area}": analysis}}
             )
-        return BaziResultModel.find_by_id(result_id)
+            
+            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
+            if result.matched_count == 0:
+                try:
+                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.update_one(
+                        {"_id": obj_id},
+                        {"$set": {f"aiAnalysis.{area}": analysis}}
+                    )
+                except Exception as e:
+                    logger.error(f"ObjectId转换失败: {str(e)}")
+            
+            if result.matched_count > 0:
+                logger.info(f"成功更新AI分析结果: {result_id}, 区域: {area}")
+                return BaziResultModel.find_by_id(result_id)
+            else:
+                logger.warning(f"未找到要更新的记录: {result_id}")
+                return None
+        except Exception as e:
+            logger.error(f"更新AI分析结果失败: {str(e)}")
+            return None
     
     @staticmethod
     def update_analysis(result_id, bazi_chart, ai_analysis):
@@ -323,17 +357,45 @@ class BaziResultModel:
                                     # 尝试修复问题字段
                                     update_data[key][sub_key] = str(sub_value)
             
-            # 更新数据
+            # 尝试直接使用字符串ID更新
             result = results_collection.update_one(
                 {'_id': result_id},
                 {'$set': update_data}
             )
+            
+            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
+            if result.matched_count == 0:
+                try:
+                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.update_one(
+                        {'_id': obj_id},
+                        {'$set': update_data}
+                    )
+                except Exception as e:
+                    logger.error(f"ObjectId转换失败: {str(e)}")
             
             if result.matched_count > 0:
                 logger.info(f"成功更新分析结果: {result_id}")
                 return True
             else:
                 logger.warning(f"未找到要更新的分析结果: {result_id}")
+                # 尝试创建新记录
+                try:
+                    logger.warning(f"未找到要更新的分析结果，尝试创建新记录: {result_id}")
+                    new_data = {
+                        '_id': result_id,
+                        'baziChart': bazi_chart,
+                        'aiAnalysis': ai_analysis,
+                        'analyzed': True,
+                        'createTime': datetime.now(),
+                        'updateTime': datetime.now()
+                    }
+                    results_collection.insert_one(new_data)
+                    logger.info(f"成功创建新的分析结果: {result_id}")
+                    return True
+                except Exception as create_err:
+                    logger.error(f"创建新记录失败: {str(create_err)}")
                 return False
         except Exception as e:
             logger.error(f"更新分析结果失败: {str(e)}")
@@ -354,11 +416,23 @@ class BaziResultModel:
         try:
             logger.info(f"更新PDF URL: {result_id} -> {pdf_url}")
             
-            # 更新数据
+            # 尝试直接使用字符串ID更新
             result = results_collection.update_one(
                 {'_id': result_id},
                 {'$set': {'pdfUrl': pdf_url, 'pdfGenerated': True, 'pdfGenerateTime': datetime.now()}}
             )
+            
+            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
+            if result.matched_count == 0:
+                try:
+                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.update_one(
+                        {'_id': obj_id},
+                        {'$set': {'pdfUrl': pdf_url, 'pdfGenerated': True, 'pdfGenerateTime': datetime.now()}}
+                    )
+                except Exception as e:
+                    logger.error(f"ObjectId转换失败: {str(e)}")
             
             if result.matched_count > 0:
                 logger.info(f"成功更新PDF URL: {result_id}")
@@ -444,29 +518,46 @@ class BaziResultModel:
                                     # 尝试修复问题字段
                                     update_data[key][sub_key] = str(sub_value)
             
-            # 更新数据
+            # 尝试直接使用字符串ID更新
             result = results_collection.update_one(
                 {'_id': result_id},
                 {'$set': update_data}
             )
+            
+            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
+            if result.matched_count == 0:
+                try:
+                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.update_one(
+                        {'_id': obj_id},
+                        {'$set': update_data}
+                    )
+                except Exception as e:
+                    logger.error(f"ObjectId转换失败: {str(e)}")
             
             if result.matched_count > 0:
                 logger.info(f"成功完整更新分析结果: {result_id}")
                 return True
             else:
                 # 尝试创建新记录
-                logger.warning(f"未找到要更新的分析结果，尝试创建新记录: {result_id}")
-                new_data = {
-                    '_id': result_id,
-                    'baziChart': bazi_chart,
-                    'aiAnalysis': ai_analysis,
-                    'analyzed': True,
-                    'createTime': datetime.now(),
-                    'updateTime': datetime.now()
-                }
-                results_collection.insert_one(new_data)
-                logger.info(f"成功创建新的分析结果: {result_id}")
-                return True
+                try:
+                    logger.warning(f"未找到要更新的分析结果，尝试创建新记录: {result_id}")
+                    new_data = {
+                        '_id': result_id,
+                        'baziChart': bazi_chart,
+                        'aiAnalysis': ai_analysis,
+                        'analyzed': True,
+                        'createTime': datetime.now(),
+                        'updateTime': datetime.now()
+                    }
+                    results_collection.insert_one(new_data)
+                    logger.info(f"成功创建新的分析结果: {result_id}")
+                    return True
+                except Exception as create_err:
+                    logger.error(f"创建新记录失败: {str(create_err)}")
+                    
+                # 如果创建失败，返回原始错误
         except Exception as e:
             logger.error(f"完整更新分析结果失败: {str(e)}")
             logger.error(traceback.format_exc())
