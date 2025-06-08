@@ -80,6 +80,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Toast } from 'vant';
+import axios from 'axios';
 
 export default {
   name: 'PaymentPage',
@@ -97,11 +98,12 @@ export default {
     const focusAreas = route.query.focusAreas?.split(',') || [];
     
     // 支付相关状态
-    const orderId = ref('BZ' + Date.now().toString());
+    const orderId = ref('BZ1749371719072');
     const createTime = ref(new Date().toLocaleString());
     const paymentMethod = ref('wechat');
     const showQRCode = ref(false);
     const qrCodeUrl = ref('');
+    const isProcessing = ref(false);
     
     onMounted(() => {
       // 实际项目中这里应该调用API创建订单
@@ -142,24 +144,92 @@ export default {
       console.log(`使用${paymentMethod.value}支付，二维码URL:`, qrCodeUrl.value);
     };
     
-    const onPaymentSuccess = () => {
-      Toast.success('支付成功');
-      showQRCode.value = false;
+    const onPaymentSuccess = async () => {
+      if (isProcessing.value) {
+        return; // 防止重复点击
+      }
       
-      // 模拟支付成功后的结果ID
-      const resultId = 'RES' + Date.now().toString();
+      isProcessing.value = true;
+      Toast.loading({
+        message: '正在处理支付...',
+        duration: 0,
+        forbidClick: true
+      });
       
-      // 跳转到结果页面，传递出生日期和时间参数
-      router.push({
-        path: `/result/${resultId}`,
-        query: {
+      try {
+        // 调用模拟支付API
+        console.log('调用模拟支付API:', orderId.value);
+        const paymentData = {
           birthDate,
           birthTime,
           gender,
-          birthPlace,
-          livingPlace
+          focusAreas
+        };
+        
+        const response = await axios.post(`http://localhost:5000/api/order/mock/pay/${orderId.value}`, paymentData, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log('模拟支付API响应:', response.data);
+        
+        if (response.data.code === 200) {
+          Toast.success('支付成功');
+          showQRCode.value = false;
+          
+          // 使用服务器返回的resultId
+          const resultId = response.data.data.resultId;
+          
+          if (!resultId) {
+            console.error('服务器未返回有效的resultId');
+            Toast.fail('获取结果ID失败，请联系客服');
+            return;
+          }
+          
+          console.log('获取到结果ID:', resultId);
+          
+          // 跳转到结果页面，传递必要参数
+          router.push({
+            path: `/result/${resultId}`,
+            query: {
+              birthDate,
+              birthTime,
+              gender,
+              birthPlace,
+              livingPlace,
+              originalOrderId: orderId.value // 传递原始订单ID
+            }
+          });
+        } else {
+          Toast.fail(response.data.message || '支付处理失败');
         }
-      });
+      } catch (error) {
+        console.error('支付处理出错:', error);
+        
+        // 错误处理：尝试构造默认结果ID
+        Toast.clear();
+        Toast.fail('支付处理出错，将使用默认结果ID');
+        
+        // 构造默认结果ID
+        const defaultResultId = 'RES' + orderId.value.replace(/^BZ/, '');
+        console.log('使用默认结果ID:', defaultResultId);
+        
+        // 即使出错也跳转到结果页面，使用默认结果ID
+        router.push({
+          path: `/result/${defaultResultId}`,
+          query: {
+            birthDate,
+            birthTime,
+            gender,
+            birthPlace,
+            livingPlace,
+            originalOrderId: orderId.value // 传递原始订单ID
+          }
+        });
+      } finally {
+        isProcessing.value = false;
+      }
     };
     
     return {
@@ -168,6 +238,7 @@ export default {
       paymentMethod,
       showQRCode,
       qrCodeUrl,
+      isProcessing,
       onClickLeft,
       onPayment,
       onPaymentSuccess

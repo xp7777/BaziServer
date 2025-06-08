@@ -107,7 +107,7 @@ def serve_pdf(filename):
 def register_blueprints():
     from routes.user_routes import user_bp
     from routes.order_routes import order_bp
-    from routes.bazi_routes_fixed_new import bazi_bp
+    from routes.bazi_routes import bazi_bp
 
     # 注册蓝图
     app.register_blueprint(user_bp, url_prefix='/api/user')

@@ -23,6 +23,7 @@ xmltodict==0.14.2
 pycryptodome==3.22.0  # 用于RSA加密
 qrcode[pil]==8.2
 sxtwl==2.0.7
+lunar-python==1.4.4
 
 # PDF和字体相关库
 future==0.18.3     # ReportLab依赖

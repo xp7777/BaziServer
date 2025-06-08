@@ -93,6 +93,10 @@
               <van-cell title="福神方位" :value="baziData.shenSha.fuShen || '无'" />
               <van-cell title="财神方位" :value="baziData.shenSha.caiShen || '无'" />
               <van-cell title="本命神煞" :value="baziData.shenSha.benMing ? baziData.shenSha.benMing.join('、') : '无'" />
+              <van-cell title="年干神煞" :value="baziData.shenSha.yearGan && baziData.shenSha.yearGan.length ? baziData.shenSha.yearGan.join('、') : '无'" />
+              <van-cell title="年支神煞" :value="baziData.shenSha.yearZhi && baziData.shenSha.yearZhi.length ? baziData.shenSha.yearZhi.join('、') : '无'" />
+              <van-cell title="日干神煞" :value="baziData.shenSha.dayGan && baziData.shenSha.dayGan.length ? baziData.shenSha.dayGan.join('、') : '无'" />
+              <van-cell title="日支神煞" :value="baziData.shenSha.dayZhi && baziData.shenSha.dayZhi.length ? baziData.shenSha.dayZhi.join('、') : '无'" />
             </van-cell-group>
           </div>
           <div class="shen-sha-info" v-else>
@@ -135,14 +139,14 @@
             </van-cell-group>
           </div>
           
-          <h3>大运流年</h3>
+          <h3>流年信息</h3>
           <div class="flowing-years" v-if="baziData && baziData.flowingYears && baziData.flowingYears.length">
-            <van-steps direction="horizontal" :active="2">
-              <van-step v-for="(year, index) in baziData.flowingYears.slice(0, 5)" :key="index">
-                {{ year.year || '--' }}年<br>
-                {{ year.heavenlyStem || '--' }}{{ year.earthlyBranch || '--' }}
-              </van-step>
-            </van-steps>
+            <van-cell-group inset>
+              <van-cell v-for="(year, index) in baziData.flowingYears" :key="index"
+                :title="`${year.year || '--'}年: ${year.heavenlyStem || '--'}${year.earthlyBranch || '--'} (${year.element || '--'})`"
+                :value="year.shenSha && year.shenSha.length ? year.shenSha.join('、') : '无神煞'"
+              />
+            </van-cell-group>
           </div>
           <div class="flowing-years" v-else>
             <van-cell-group inset>
@@ -272,6 +276,50 @@
         重新加载分析数据
       </van-button>
     </div>
+    
+    <!-- 添加追问部分 -->
+    <div class="followup-section" v-if="baziData && !loading">
+      <h2 class="section-title">深度分析</h2>
+      <p class="section-desc">选择您感兴趣的领域，进行深度分析</p>
+      
+      <div class="followup-options">
+        <div 
+          v-for="option in followupOptions" 
+          :key="option.id" 
+          class="followup-option" 
+          :class="{ 'paid': option.paid }"
+          @click="selectFollowupOption(option)"
+        >
+          <div class="option-content">
+            <span class="option-name">{{ option.name }}</span>
+            <span class="option-status" v-if="option.paid">已解锁</span>
+            <span class="option-status" v-else>￥9.9</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 已支付的追问分析结果展示 -->
+      <div v-if="currentFollowup && currentFollowup.paid" class="followup-result">
+        <h3>{{ currentFollowup.name }}分析</h3>
+        <div class="analysis-content">
+          {{ followupAnalysis[currentFollowup.id] || '暂无分析结果' }}
+        </div>
+      </div>
+    </div>
+    
+    <!-- 追问支付对话框 -->
+    <van-dialog
+      v-model:show="showFollowupDialog"
+      title="深度分析"
+      confirm-button-text="支付 ￥9.9"
+      @confirm="payForFollowup"
+      :before-close="() => !isLoadingFollowup"
+    >
+      <div class="followup-dialog-content">
+        <p>您选择了「{{ currentFollowup?.name }}」深度分析</p>
+        <p>支付后，AI将根据您的八字和流年运势，为您提供专业的命理分析</p>
+      </div>
+    </van-dialog>
   </div>
 </template>
 
@@ -282,12 +330,12 @@ import { Toast, Dialog } from 'vant';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import axios from 'axios';
-import http from './api/http'; // 导入配置好的http实例
 
 const route = useRoute();
 const router = useRouter();
 const resultId = route.params.id || route.query.resultId;
 const activeTab = ref(0);
+const loading = ref(false);
 
 // 用户年龄，从URL参数或localStorage获取
 const userAge = ref(null);
@@ -421,7 +469,7 @@ const testApiConnection = async () => {
   try {
     Toast.loading('正在测试API连接...');
     // 使用配置好的http实例
-    const response = await http.get('/');
+    const response = await axios.get('/');
     console.log('API根路径响应:', response.data);
     Toast.success('API连接成功');
     return true;
@@ -437,6 +485,7 @@ onMounted(async () => {
   const isApiConnected = await testApiConnection();
   if (!isApiConnected) {
     console.warn('API连接失败，将使用模拟数据');
+    loading.value = false;
     return;
   }
   
@@ -453,316 +502,12 @@ onMounted(async () => {
   if (!finalResultId) {
     console.error('缺少结果ID，无法获取分析结果');
     Toast.fail('缺少结果ID，无法获取分析结果');
+    loading.value = false;
     return;
   }
   
-  try {
-    console.log('调用API获取结果:', `/api/bazi/result/${finalResultId}`);
-    
-    // 显示加载提示，提醒用户需要等待
-    Toast.loading({
-      message: '正在调用AI进行八字分析，请耐心等待30-60秒...',
-      duration: 10000,
-      position: 'middle'
-    });
-    
-    // 使用配置好的http实例
-    const response = await http.get(`/api/bazi/result/${finalResultId}`);
-    
-    console.log('API响应:', response.status, response.data);
-    
-    if (response.data.code === 200) {
-      console.log('获取成功，更新数据');
-      // 确保从API获取数据并更新视图
-      if (response.data.data.baziChart) {
-        baziData.value = response.data.data.baziChart;
-      } else {
-        console.warn('返回数据中没有baziChart字段，使用默认值');
-      }
-      
-      if (response.data.data.aiAnalysis) {
-        aiAnalysis.value = response.data.data.aiAnalysis;
-      } else {
-        console.warn('返回数据中没有aiAnalysis字段，使用默认值');
-      }
-      
-      if (response.data.data.focusAreas) {
-        focusAreas.value = response.data.data.focusAreas;
-      }
-      
-      Toast.success('分析结果加载成功');
-    } else if (response.data.code === 202) {
-      // 服务器接受了请求但还在处理中（异步分析）
-      console.log('分析正在进行中，等待时间:', response.data.data.waitTime || '未知');
-      
-      // 显示清晰的等待提示，告知用户确切的等待情况
-      Toast.loading({
-        message: `AI正在专注分析您的八字命盘，已经分析了${response.data.data.waitTime || 0}秒，完整分析需要30-60秒，请稍候...`,
-        duration: 8000,
-        position: 'middle'
-      });
-      
-      // 预先显示部分数据
-      if (response.data.data.baziChart) {
-        baziData.value = response.data.data.baziChart;
-      }
-      if (response.data.data.aiAnalysis) {
-        aiAnalysis.value = response.data.data.aiAnalysis;
-      }
-      if (response.data.data.focusAreas) {
-        focusAreas.value = response.data.data.focusAreas;
-      }
-      
-      // 创建轮询定时器引用
-      const pollInterval = ref(null);
-      const maxPollTimeout = ref(null);
-      
-      // 启动轮询，每15秒查询一次直到分析完成
-      pollInterval.value = setInterval(async () => {
-        try {
-          console.log('轮询查询分析结果...');
-          const pollResponse = await http.get(`/api/bazi/result/${finalResultId}`);
-          
-          // 添加更详细的日志
-          console.log(`轮询响应状态码: ${pollResponse.status}, 响应code: ${pollResponse.data.code}`);
-          
-          // 首先检查是否有分析结果
-          const hasAnalysis = pollResponse.data.data && 
-                              pollResponse.data.data.aiAnalysis && 
-                              Object.values(pollResponse.data.data.aiAnalysis).some(v => v);
-          
-          if (pollResponse.data.code === 200 || hasAnalysis) {
-            // 分析完成，更新数据
-            console.log('分析已完成，更新数据');
-            baziData.value = pollResponse.data.data.baziChart;
-            aiAnalysis.value = pollResponse.data.data.aiAnalysis;
-            focusAreas.value = pollResponse.data.data.focusAreas;
-            Toast.success('分析结果加载成功！您的八字命盘解析已完成');
-            
-            // 清除所有定时器
-            if (pollInterval.value) {
-              clearInterval(pollInterval.value);
-              pollInterval.value = null;
-            }
-            if (maxPollTimeout.value) {
-              clearTimeout(maxPollTimeout.value);
-              maxPollTimeout.value = null;
-            }
-            
-            // 自动切换到AI分析结果标签
-            activeTab.value = 1;
-          } else if (pollResponse.data.code !== 202) {
-            // 如果返回其他错误码，停止轮询
-            console.error('轮询时发生错误:', pollResponse.data.message);
-            Toast.fail(`查询错误: ${pollResponse.data.message}`);
-            
-            // 清除所有定时器
-            if (pollInterval.value) {
-              clearInterval(pollInterval.value);
-              pollInterval.value = null;
-            }
-            if (maxPollTimeout.value) {
-              clearTimeout(maxPollTimeout.value);
-              maxPollTimeout.value = null;
-            }
-          } else {
-            // 仍在分析中，更新等待时间
-            const waitTime = pollResponse.data.data.waitTime || 0;
-            const remainingTime = Math.max(0, 60 - waitTime);  // 假设总时间为60秒
-            
-            Toast.loading({
-              message: `AI正在专注分析中(${Math.round(waitTime/60*100)}%)，预计还需${remainingTime}秒完成...`,
-              duration: 5000,
-              position: 'middle'
-            });
-            console.log('仍在分析中，已等待:', waitTime, '秒');
-          }
-        } catch (err) {
-          console.error('轮询时出错:', err);
-          // 出错也停止轮询并清除定时器
-          if (pollInterval.value) {
-            clearInterval(pollInterval.value);
-            pollInterval.value = null;
-          }
-        }
-      }, 15000); // 每15秒查询一次，减少服务器压力
-      
-      // 设置最大轮询时间，防止无限轮询
-      maxPollTimeout.value = setTimeout(() => {
-        if (pollInterval.value) {
-          clearInterval(pollInterval.value);
-          pollInterval.value = null;
-          console.log('超过最大轮询时间，停止轮询');
-          
-          // 显示一个友好的提示，询问用户是否要继续等待
-          Dialog.confirm({
-            title: '分析耗时较长',
-            message: '您的八字命理分析正在进行中，但耗时较长。您可以选择继续等待或稍后再查看结果。',
-            confirmButtonText: '继续等待',
-            cancelButtonText: '稍后查看',
-          }).then(() => {
-            // 用户选择继续等待，重新启动轮询
-            window.location.reload();
-          }).catch(() => {
-            // 用户选择稍后查看，可以先返回首页
-            router.push('/');
-          });
-        }
-      }, 180000); // 最多轮询3分钟
-    } else {
-      console.error('API返回错误:', response.data.message);
-      Toast.fail(response.data.message || '获取分析结果失败');
-    }
-  } catch (error) {
-    console.error('获取分析结果出错:', error);
-    console.error('错误详情:', error.response ? error.response.data : '无响应数据');
-    Toast.fail('获取分析结果失败，请稍后重试');
-    
-    // 备选方案：如果ID以"RES"开头，尝试模拟支付再获取结果
-    if (finalResultId.startsWith('RES')) {
-      try {
-        console.log('尝试使用模拟支付接口...');
-        
-        // 显示加载提示
-        Toast.loading({
-          message: '正在模拟支付并进行八字分析，请耐心等待30-60秒...',
-          duration: 20000,  // 增加等待时间
-          position: 'middle'
-        });
-        
-        const orderId = finalResultId.replace('RES', '');
-        
-        // 从URL查询参数中获取出生日期和时间
-        const urlParams = new URLSearchParams(window.location.search);
-        const birthDate = urlParams.get('birthDate') || '2023-06-06'; // 使用默认值
-        const birthTime = urlParams.get('birthTime') || '辰时 (07:00-09:00)'; // 使用默认值
-        const gender = urlParams.get('gender') || 'male'; // 使用默认值
-        
-        // 验证日期格式
-        let validBirthDate = birthDate;
-        try {
-          // 检查日期格式是否正确
-          const dateParts = birthDate.split('-');
-          if (dateParts.length === 3) {
-            const year = parseInt(dateParts[0]);
-            const month = parseInt(dateParts[1]);
-            const day = parseInt(dateParts[2]);
-            
-            // 验证年份在合理范围内
-            if (year < 1900 || year > 2100) {
-              console.warn(`出生年份 ${year} 超出推荐范围(1900-2100)，使用默认值`);
-              validBirthDate = '2000-01-01';
-            }
-          } else {
-            console.warn(`日期格式错误: ${birthDate}，使用默认值`);
-            validBirthDate = '2000-01-01';
-          }
-        } catch (e) {
-          console.error('日期验证错误:', e);
-          validBirthDate = '2000-01-01';
-        }
-        
-        console.log('模拟支付使用参数:', { birthDate: validBirthDate, birthTime, gender });
-        
-        // 添加参数到URL
-        const mockPaymentUrl = `/api/order/mock/pay/${orderId}?birthDate=${encodeURIComponent(validBirthDate)}&birthTime=${encodeURIComponent(birthTime)}&gender=${encodeURIComponent(gender)}`;
-        
-        // 准备请求数据
-        const requestData = {
-          birthDate: validBirthDate,
-          birthTime: birthTime,
-          gender: gender
-        };
-        
-        console.log('模拟支付请求数据:', requestData);
-        
-        // 尝试最多3次请求
-        let retryCount = 0;
-        let mockPaymentResponse = null;
-        
-        while (retryCount < 3) {
-          try {
-            console.log(`尝试请求模拟支付 (${retryCount + 1}/3)...`);
-            // 发送POST请求，确保设置正确的Content-Type
-            mockPaymentResponse = await http.post(mockPaymentUrl, requestData, {
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            // 如果成功，跳出循环
-            if (mockPaymentResponse && mockPaymentResponse.data && mockPaymentResponse.data.code === 200) {
-              break;
-            }
-            
-            // 如果失败但有响应，记录错误
-            console.error('模拟支付请求失败:', mockPaymentResponse?.data);
-            
-            // 等待一秒后重试
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            retryCount++;
-          } catch (retryError) {
-            console.error(`模拟支付请求出错 (尝试 ${retryCount + 1}/3):`, retryError);
-            
-            // 等待一秒后重试
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            retryCount++;
-          }
-        }
-        
-        // 检查是否成功获取响应
-        if (mockPaymentResponse && mockPaymentResponse.data && mockPaymentResponse.data.code === 200 && mockPaymentResponse.data.data && mockPaymentResponse.data.data.resultId) {
-          const newResultId = mockPaymentResponse.data.data.resultId;
-          console.log('获取到新的resultId:', newResultId);
-          
-          // 等待2秒，让服务器有时间处理结果
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // 尝试最多3次获取结果
-          let resultRetryCount = 0;
-          let resultSuccess = false;
-          
-          while (resultRetryCount < 3 && !resultSuccess) {
-            try {
-              console.log(`尝试获取结果 (${resultRetryCount + 1}/3)...`);
-              const retryResponse = await http.get(`/api/bazi/result/${newResultId}`);
-              
-              if (retryResponse.data.code === 200) {
-                baziData.value = retryResponse.data.data.baziChart;
-                aiAnalysis.value = retryResponse.data.data.aiAnalysis;
-                focusAreas.value = retryResponse.data.data.focusAreas;
-                Toast.success('分析结果加载成功');
-                resultSuccess = true;
-                break;
-              } else if (retryResponse.data.code === 202) {
-                // 结果正在处理中，等待更长时间再重试
-                console.log('结果正在处理中，等待...');
-                await new Promise(resolve => setTimeout(resolve, 3000));
-              } else {
-                console.error('获取结果失败:', retryResponse.data);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
-            } catch (resultError) {
-              console.error(`获取结果出错 (尝试 ${resultRetryCount + 1}/3):`, resultError);
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-            
-            resultRetryCount++;
-          }
-          
-          if (resultSuccess) {
-            return; // 成功获取结果，退出函数
-          }
-        }
-        
-        // 如果所有尝试都失败，显示错误提示
-        Toast.fail('无法获取分析结果，请稍后刷新页面重试');
-      } catch (mockError) {
-        console.error('模拟支付失败:', mockError);
-        Toast.fail('模拟支付失败，请稍后重试');
-      }
-    }
-  }
+  // 调用getBaziResult函数获取结果
+  await getBaziResult();
 });
 
 const getElementName = (element) => {
@@ -1110,7 +855,16 @@ const reloadBaziData = async () => {
         position: 'middle'
       });
       
-      const mockPaymentResponse = await http.post(`/api/order/mock/pay/${resultId.replace('RES', '')}`);
+      // 直接使用完整的resultId，不要去掉RES前缀
+      const mockPaymentResponse = await axios.post(`/api/order/mock/pay/${resultId}`, {
+        birthDate: urlParams.get('birthDate') || '2023-06-06',
+        birthTime: urlParams.get('birthTime') || '辰时 (07:00-09:00)',
+        gender: urlParams.get('gender') || 'male'
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       console.log('模拟支付响应:', mockPaymentResponse.data);
       
       if (mockPaymentResponse.data.code === 200 && mockPaymentResponse.data.data.resultId) {
@@ -1118,7 +872,7 @@ const reloadBaziData = async () => {
         const newResultId = mockPaymentResponse.data.data.resultId;
         console.log('获取到新的resultId:', newResultId);
         
-        const response = await http.get(`/api/bazi/result/${newResultId}`);
+        const response = await axios.get(`/api/bazi/result/${newResultId}`);
         if (response.data.code === 200) {
           baziData.value = response.data.data.baziChart;
           aiAnalysis.value = response.data.data.aiAnalysis;
@@ -1132,7 +886,7 @@ const reloadBaziData = async () => {
     }
     
     // 如果模拟支付失败，尝试直接获取结果
-    const response = await http.get(`/api/bazi/result/${resultId}`);
+    const response = await axios.get(`/api/bazi/result/${resultId}`);
     
     if (response.data.code === 200) {
       baziData.value = response.data.data.baziChart;
@@ -1145,6 +899,323 @@ const reloadBaziData = async () => {
   } catch (error) {
     console.error('重新加载失败:', error);
     Toast.fail('加载失败: ' + (error.message || '未知错误'));
+  }
+};
+
+// 追问相关状态
+const followupOptions = ref([
+  { id: 'marriage', name: '婚姻感情', selected: false, paid: false },
+  { id: 'career', name: '事业财运', selected: false, paid: false },
+  { id: 'children', name: '子女情况', selected: false, paid: false },
+  { id: 'parents', name: '父母情况', selected: false, paid: false },
+  { id: 'health', name: '身体健康', selected: false, paid: false },
+  { id: 'education', name: '学业', selected: false, paid: false },
+  { id: 'relationship', name: '人际关系', selected: false, paid: false },
+  { id: 'fiveYears', name: '近五年运势', selected: false, paid: false }
+]);
+
+const currentFollowup = ref(null);
+const showFollowupDialog = ref(false);
+const followupAnalysis = ref({});
+const isLoadingFollowup = ref(false);
+
+// 选择追问选项
+const selectFollowupOption = (option) => {
+  // 如果已经支付过，直接显示结果
+  if (option.paid) {
+    // 显示已支付的分析结果
+    currentFollowup.value = option;
+    return;
+  }
+  
+  // 否则设置当前选择的追问选项
+  currentFollowup.value = option;
+  showFollowupDialog.value = true;
+};
+
+// 支付追问费用
+const payForFollowup = async () => {
+  if (!currentFollowup.value) return;
+  
+  try {
+    isLoadingFollowup.value = true;
+    Toast.loading({
+      message: '处理中...',
+      forbidClick: true,
+      duration: 0
+    });
+    
+    // 创建追问订单
+    const orderResponse = await axios.post('/api/order/create/followup', {
+      resultId: resultId,
+      area: currentFollowup.value.id
+    });
+    
+    if (orderResponse.data.code === 200) {
+      const followupOrderId = orderResponse.data.data.orderId;
+      console.log('追问订单创建成功:', followupOrderId);
+      
+      // 模拟支付
+      const paymentResponse = await axios.post(`/api/order/mock/pay/${followupOrderId}`, {
+        birthDate: baziData.value?.birthDate || urlParams.get('birthDate'),
+        birthTime: baziData.value?.birthTime || urlParams.get('birthTime'),
+        gender: baziData.value?.gender || urlParams.get('gender'),
+        area: currentFollowup.value.id,
+        resultId: resultId
+      });
+      
+      if (paymentResponse.data.code === 200) {
+        console.log('追问支付成功:', paymentResponse.data);
+        
+        // 获取追问分析结果
+        await getFollowupAnalysis(currentFollowup.value.id);
+        
+        // 标记为已支付
+        const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
+        if (index !== -1) {
+          followupOptions.value[index].paid = true;
+        }
+        
+        showFollowupDialog.value = false;
+        Toast.success('分析完成');
+      } else {
+        Toast.fail('支付失败');
+      }
+    } else {
+      Toast.fail('创建订单失败');
+    }
+  } catch (error) {
+    console.error('追问支付过程出错:', error);
+    Toast.fail('处理失败，请重试');
+  } finally {
+    isLoadingFollowup.value = false;
+    Toast.clear();
+  }
+};
+
+// 获取追问分析结果
+const getFollowupAnalysis = async (area) => {
+  loading.value = true;
+  try {
+    const response = await axios.get(`/api/bazi/followup/${resultId}/${area}`);
+    
+    if (response.data.code === 200) {
+      console.log('获取追问分析成功:', response.data);
+      followupAnalysis.value[area] = response.data.data.analysis;
+      return response.data.data.analysis;
+    } else {
+      console.error('获取追问分析失败:', response.data);
+      return null;
+    }
+  } catch (error) {
+    console.error('获取追问分析出错:', error);
+    return null;
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 检查已支付的追问
+const checkPaidFollowups = async () => {
+  try {
+    const response = await axios.get(`/api/bazi/followup/list/${resultId}`);
+    
+    if (response.data.code === 200 && response.data.data.followups) {
+      const paidFollowups = response.data.data.followups;
+      
+      // 更新已支付的追问选项
+      followupOptions.value = followupOptions.value.map(option => {
+        const isPaid = paidFollowups.some(f => f.area === option.id);
+        if (isPaid) {
+          // 如果已支付，获取分析结果
+          getFollowupAnalysis(option.id);
+        }
+        return { ...option, paid: isPaid };
+      });
+    }
+  } catch (error) {
+    console.error('检查已支付追问出错:', error);
+  }
+};
+
+// 修改getBaziResult函数，确保正确更新命盘信息
+const getBaziResult = async () => {
+  loading.value = true;
+  try {
+    console.log('获取八字分析结果，ID:', resultId);
+    const response = await axios.get(`/api/bazi/result/${resultId}`);
+    console.log('八字分析结果:', response.data);
+    
+    if (response.data.code === 200 && response.data.data) {
+      // 更新八字数据
+      baziData.value = response.data.data.baziChart || {};
+      
+      // 检查出生日期与大运信息是否匹配
+      const birthDate = baziData.value.birthDate;
+      if (birthDate) {
+        // 提取出生年份
+        const birthYear = parseInt(birthDate.split('-')[0]);
+        const currentYear = new Date().getFullYear();
+        
+        // 记录出生年份和当前年份，用于调试
+        console.log(`出生年份: ${birthYear}, 当前年份: ${currentYear}`);
+        
+        // 检查大运信息
+        if (baziData.value.daYun) {
+          const startYear = baziData.value.daYun.startYear;
+          const startAge = baziData.value.daYun.startAge;
+          
+          // 检查起运年份是否合理
+          if (startYear && birthYear && (startYear - birthYear) !== startAge) {
+            console.warn(`大运信息可能不匹配: 起运年龄=${startAge}, 起运年份=${startYear}, 出生年份=${birthYear}`);
+            console.warn('大运信息可能是基于测试数据而非实际出生日期计算的');
+            
+            // 如果不匹配，尝试修正大运信息
+            if (baziData.value.daYun.daYun) {
+              const correctedDaYun = [];
+              const gender = baziData.value.gender || 'male';
+              const startAge = gender === 'male' ? 8 : 7; // 男命8岁起运，女命7岁起运
+              const startYear = birthYear + startAge;
+              
+              // 修正每个大运的起止年份
+              baziData.value.daYun.daYun.forEach((yun, index) => {
+                const yunStartYear = startYear + (index * 10);
+                const yunEndYear = yunStartYear + 9;
+                
+                correctedDaYun.push({
+                  ...yun,
+                  startYear: yunStartYear,
+                  endYear: yunEndYear
+                });
+              });
+              
+              // 更新大运信息
+              baziData.value.daYun.startAge = startAge;
+              baziData.value.daYun.startYear = startYear;
+              baziData.value.daYun.daYun = correctedDaYun;
+              
+              console.log('已修正大运信息:', baziData.value.daYun);
+            }
+          }
+        }
+        
+        // 检查流年信息是否从当前年份开始
+        if (baziData.value.flowingYears && baziData.value.flowingYears.length > 0) {
+          const firstFlowingYear = baziData.value.flowingYears[0].year;
+          if (firstFlowingYear !== currentYear) {
+            console.warn(`流年信息起始年份不是当前年份: ${firstFlowingYear} vs ${currentYear}`);
+            
+            // 如果不是从当前年份开始，尝试修正流年信息
+            // 这里只是简单调整年份，实际应用中可能需要重新计算天干地支
+            const yearDiff = currentYear - firstFlowingYear;
+            if (Math.abs(yearDiff) < 10) { // 只在差距不大时尝试修正
+              baziData.value.flowingYears.forEach(year => {
+                year.year += yearDiff;
+              });
+              console.log('已修正流年信息:', baziData.value.flowingYears);
+            }
+          }
+        }
+      }
+      
+      // 确保daYun数据结构正确
+      if (baziData.value.daYun && !baziData.value.daYun.daYunList) {
+        // 如果daYun下有daYun数组，保持原有结构
+        console.log('使用原始大运数据结构');
+      } else if (baziData.value.daYun) {
+        // 确保daYun下有daYunList属性
+        console.log('标准化大运数据结构');
+        baziData.value.daYun.daYunList = baziData.value.daYun.daYun || [];
+      }
+      
+      // 更新AI分析结果
+      aiAnalysis.value = response.data.data.aiAnalysis || {};
+      
+      // 更新关注领域
+      if (response.data.data.focusAreas) {
+        focusAreas.value = response.data.data.focusAreas;
+      }
+      
+      // 记录到控制台以便调试
+      console.log('八字数据:', baziData.value);
+      console.log('AI分析结果:', aiAnalysis.value);
+      console.log('关注领域:', focusAreas.value);
+      
+      // 检查是否有神煞、大运和流年信息
+      console.log('神煞信息:', baziData.value.shenSha ? '存在' : '不存在');
+      console.log('大运信息:', baziData.value.daYun ? '存在' : '不存在');
+      console.log('流年信息:', baziData.value.flowingYears ? `存在 (${baziData.value.flowingYears.length}条)` : '不存在');
+      
+      // 初始化追问选项
+      initFollowupOptions();
+      
+      // 加载已支付的追问分析结果
+      await loadFollowupResults();
+      
+      Toast.success('分析结果加载成功');
+    } else {
+      console.error('获取八字分析结果失败:', response.data.message);
+      Toast.fail(response.data.message || '获取分析结果失败');
+    }
+  } catch (error) {
+    console.error('获取八字分析结果出错:', error);
+    Toast.fail('获取分析结果失败，请稍后再试');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 添加缺失的函数
+// 初始化追问选项
+const initFollowupOptions = () => {
+  // 根据用户年龄调整追问选项
+  if (userAge.value !== null) {
+    if (userAge.value < 6) {
+      // 为婴幼儿调整选项
+      followupOptions.value = followupOptions.value.filter(option => 
+        ['health', 'personality', 'education', 'parents'].includes(option.id)
+      );
+    } else if (userAge.value < 18) {
+      // 为未成年人调整选项
+      followupOptions.value = followupOptions.value.filter(option => 
+        !['marriage', 'career'].includes(option.id)
+      );
+    }
+  }
+  
+  console.log('初始化追问选项完成:', followupOptions.value);
+};
+
+// 加载已支付的追问分析结果
+const loadFollowupResults = async () => {
+  try {
+    // 检查是否有结果ID
+    if (!resultId) {
+      console.warn('缺少结果ID，无法加载追问分析');
+      return;
+    }
+    
+    // 调用API获取已支付的追问列表
+    const response = await axios.get(`/api/bazi/followup/list/${resultId}`);
+    
+    if (response.data.code === 200 && response.data.data.followups) {
+      const paidFollowups = response.data.data.followups;
+      
+      // 更新已支付的追问选项
+      followupOptions.value = followupOptions.value.map(option => {
+        const isPaid = paidFollowups.some(f => f.area === option.id);
+        if (isPaid) {
+          // 如果已支付，获取分析结果
+          getFollowupAnalysis(option.id);
+        }
+        return { ...option, paid: isPaid };
+      });
+      
+      console.log('已加载追问分析结果:', paidFollowups);
+    }
+  } catch (error) {
+    console.error('加载追问分析结果出错:', error);
+    // 出错时不显示错误提示，静默失败
   }
 };
 </script>
@@ -1290,5 +1361,95 @@ const reloadBaziData = async () => {
 .placeholder {
   background-color: #f2f3f5;
   color: #969799;
+}
+
+/* 追问部分样式 */
+.followup-section {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 8px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.section-desc {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.followup-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.followup-option {
+  background-color: #f5f7fa;
+  border-radius: 8px;
+  padding: 15px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.followup-option:hover {
+  background-color: #e8f0fe;
+}
+
+.followup-option.paid {
+  background-color: #e6f7ff;
+  border: 1px solid #91d5ff;
+}
+
+.option-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.option-name {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.option-status {
+  font-size: 13px;
+  color: #ff6b00;
+}
+
+.followup-option.paid .option-status {
+  color: #52c41a;
+}
+
+.followup-result {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border-left: 4px solid #1989fa;
+}
+
+.followup-result h3 {
+  font-size: 16px;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.analysis-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+  white-space: pre-wrap;
+}
+
+.followup-dialog-content {
+  padding: 15px;
+  text-align: center;
 }
 </style>

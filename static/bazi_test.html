@@ -96,6 +96,50 @@
         .pdf-link:hover {
             background-color: #3276b1;
         }
+        .followup-section {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f0f7ff;
+            border-radius: 5px;
+            border: 1px solid #d0e3ff;
+        }
+        .followup-section h3 {
+            margin-top: 0;
+            color: #2c5aa0;
+        }
+        .followup-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .followup-option {
+            background-color: #e1ecf4;
+            color: #2c5aa0;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid #a8c6df;
+            transition: all 0.3s;
+        }
+        .followup-option:hover {
+            background-color: #d0e3ff;
+        }
+        .followup-option.selected {
+            background-color: #2c5aa0;
+            color: white;
+        }
+        .followup-result {
+            margin-top: 20px;
+            display: none;
+        }
+        .followup-content {
+            white-space: pre-line;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
     </style>
 </head>
 <body>
@@ -185,6 +229,33 @@
                 <div id="overallAnalysis" class="analysis-content"></div>
             </div>
             
+            <div class="followup-section">
+                <h3>想了解更多详细分析？</h3>
+                <p>选择以下任一领域进行深入追问分析（每个领域9.9元）：</p>
+                
+                <div class="followup-options">
+                    <div class="followup-option" data-area="relationship">婚姻感情</div>
+                    <div class="followup-option" data-area="career">事业发展</div>
+                    <div class="followup-option" data-area="wealth">财运分析</div>
+                    <div class="followup-option" data-area="health">身体健康</div>
+                    <div class="followup-option" data-area="children">子女情况</div>
+                    <div class="followup-option" data-area="parents">父母情况</div>
+                    <div class="followup-option" data-area="education">学业分析</div>
+                    <div class="followup-option" data-area="social">人际关系</div>
+                    <div class="followup-option" data-area="future">近五年运势</div>
+                    <div class="followup-option" data-area="personality">性格特点</div>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <button id="followupBtn" disabled>支付并获取详细分析</button>
+                </div>
+                
+                <div class="followup-result" id="followupResult">
+                    <h4 id="followupTitle">详细分析结果</h4>
+                    <div id="followupContent" class="followup-content"></div>
+                </div>
+            </div>
+            
             <div>
                 <a href="#" id="pdfLink" class="pdf-link" target="_blank">下载PDF报告</a>
                 <button id="downloadPdfBtn" class="btn" style="margin-left: 10px;">直接下载PDF</button>
@@ -195,6 +266,36 @@
     <script>
         let analysisId = '';
         let pollInterval = null;
+        let selectedArea = null;
+        
+        // 追问选项点击事件
+        document.addEventListener('DOMContentLoaded', function() {
+            const followupOptions = document.querySelectorAll('.followup-option');
+            const followupBtn = document.getElementById('followupBtn');
+            
+            followupOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    // 移除其他选项的选中状态
+                    followupOptions.forEach(opt => opt.classList.remove('selected'));
+                    
+                    // 添加当前选项的选中状态
+                    this.classList.add('selected');
+                    
+                    // 保存选中的领域
+                    selectedArea = this.getAttribute('data-area');
+                    
+                    // 启用按钮
+                    followupBtn.disabled = false;
+                });
+            });
+            
+            // 追问按钮点击事件
+            followupBtn.addEventListener('click', function() {
+                if (selectedArea && analysisId) {
+                    createFollowupOrder(analysisId, selectedArea);
+                }
+            });
+        });
         
         async function analyzeBazi() {
             // 获取表单数据
@@ -377,6 +478,141 @@
                 console.error('PDF下载错误:', error);
                 alert('PDF下载失败: ' + error.message);
             }
+        }
+
+        // 创建追问订单
+        async function createFollowupOrder(resultId, area) {
+            try {
+                // 显示加载状态
+                document.getElementById('followupBtn').disabled = true;
+                document.getElementById('followupBtn').textContent = '处理中...';
+                
+                // 发送创建订单请求
+                const response = await fetch('/api/order/create/followup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer your-test-token' // 实际项目中应该提供有效的令牌
+                    },
+                    body: JSON.stringify({
+                        resultId: resultId,
+                        area: area
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    // 如果订单创建成功，模拟支付
+                    const orderId = result.data.orderId;
+                    await mockPayFollowup(orderId, area);
+                } else {
+                    // 如果已经分析过该领域，直接显示结果
+                    if (result.code === 400 && result.data && result.data.analysis) {
+                        showFollowupResult(area, result.data.analysis);
+                    } else {
+                        alert('创建追问订单失败: ' + result.message);
+                        document.getElementById('followupBtn').disabled = false;
+                        document.getElementById('followupBtn').textContent = '支付并获取详细分析';
+                    }
+                }
+            } catch (error) {
+                alert('发生错误: ' + error.message);
+                document.getElementById('followupBtn').disabled = false;
+                document.getElementById('followupBtn').textContent = '支付并获取详细分析';
+            }
+        }
+        
+        // 模拟支付追问订单
+        async function mockPayFollowup(orderId, area) {
+            try {
+                // 发送模拟支付请求
+                const response = await fetch(`/api/order/mock/pay/${orderId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        area: area,
+                        resultId: analysisId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    // 如果支付成功，获取追问分析结果
+                    getFollowupResult(analysisId, area);
+                } else {
+                    alert('模拟支付失败: ' + result.message);
+                    document.getElementById('followupBtn').disabled = false;
+                    document.getElementById('followupBtn').textContent = '支付并获取详细分析';
+                }
+            } catch (error) {
+                alert('发生错误: ' + error.message);
+                document.getElementById('followupBtn').disabled = false;
+                document.getElementById('followupBtn').textContent = '支付并获取详细分析';
+            }
+        }
+        
+        // 获取追问分析结果
+        async function getFollowupResult(resultId, area) {
+            try {
+                // 发送追问分析请求
+                const response = await fetch(`/api/bazi/followup/${resultId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer your-test-token' // 实际项目中应该提供有效的令牌
+                    },
+                    body: JSON.stringify({
+                        area: area
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    // 显示追问结果
+                    showFollowupResult(area, result.data.analysis);
+                } else {
+                    alert('获取追问分析失败: ' + result.message);
+                    document.getElementById('followupBtn').disabled = false;
+                    document.getElementById('followupBtn').textContent = '支付并获取详细分析';
+                }
+            } catch (error) {
+                alert('发生错误: ' + error.message);
+                document.getElementById('followupBtn').disabled = false;
+                document.getElementById('followupBtn').textContent = '支付并获取详细分析';
+            }
+        }
+        
+        // 显示追问结果
+        function showFollowupResult(area, content) {
+            // 设置标题
+            const areaNames = {
+                "relationship": "婚姻感情",
+                "career": "事业发展",
+                "wealth": "财运分析",
+                "health": "身体健康",
+                "children": "子女情况",
+                "parents": "父母情况",
+                "education": "学业分析",
+                "social": "人际关系",
+                "future": "近五年运势",
+                "personality": "性格特点"
+            };
+            
+            document.getElementById('followupTitle').textContent = `${areaNames[area] || area}详细分析`;
+            document.getElementById('followupContent').textContent = content;
+            document.getElementById('followupResult').style.display = 'block';
+            
+            // 恢复按钮状态
+            document.getElementById('followupBtn').disabled = false;
+            document.getElementById('followupBtn').textContent = '支付并获取详细分析';
+            
+            // 滚动到结果区域
+            document.getElementById('followupResult').scrollIntoView({ behavior: 'smooth' });
         }
     </script>
 </body>

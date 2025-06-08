@@ -495,37 +495,267 @@ def generate_bazi_analysis(bazi_data, gender, birth_time, focus_area):
     Returns:
         str: 分析结果
     """
-    # 格式化提示词
-    prompt = format_prompt(bazi_data, gender, birth_time, focus_area)
-    
-    # 首先尝试使用DeepSeek API
-    if DEEPSEEK_API_KEY:
-        logger.info(f"使用DeepSeek API生成分析，领域: {focus_area}")
-        response = call_deepseek_api(prompt)
-        if response:
-            return response
+    try:
+        # 格式化提示词
+        prompt = format_prompt(bazi_data, gender, birth_time, focus_area)
         
-        # 如果DeepSeek API失败，等待一段时间后重试
-        logger.warning("DeepSeek API调用失败，等待5秒后重试")
-        time.sleep(5)
-        response = call_deepseek_api(prompt)
-        if response:
-            return response
+        # 调用API
+        if DEEPSEEK_API_KEY:
+            logger.info("使用DeepSeek API生成分析")
+            analysis = call_deepseek_api(prompt)
+        else:
+            logger.info("使用OpenAI API生成分析")
+            analysis = call_openai_api(prompt)
+            
+        return analysis
+    except Exception as e:
+        logger.error(f"生成八字分析失败: {str(e)}")
+        return "分析生成失败，请稍后再试。"
+
+def analyze_bazi_with_ai(bazi_data):
+    """
+    使用AI分析八字命盘
     
-    # 如果DeepSeek API不可用或失败，使用OpenAI API
-    if openai.api_key:
-        logger.info(f"使用OpenAI API生成分析，领域: {focus_area}")
-        response = call_openai_api(prompt)
-        if response:
-            return response
+    Args:
+        bazi_data: 八字数据，包含出生信息和命盘数据
         
-        # 如果OpenAI API失败，等待一段时间后重试
-        logger.warning("OpenAI API调用失败，等待5秒后重试")
-        time.sleep(5)
-        response = call_openai_api(prompt)
-        if response:
-            return response
+    Returns:
+        str: 分析结果文本
+    """
+    try:
+        logger.info("开始使用AI分析八字命盘")
+        
+        # 提取必要信息
+        gender = bazi_data.get('gender', 'male')
+        birth_date = bazi_data.get('birthDate', '')
+        birth_time = bazi_data.get('birthTime', '')
+        
+        # 记录分析的基本信息
+        logger.info(f"分析信息: 性别={gender}, 出生日期={birth_date}, 出生时间={birth_time}")
+        
+        # 构建性别信息
+        gender_text = "男性" if gender == "male" else "女性"
+        
+        # 构建提示词
+        prompt = f"""
+        请你作为一位专业的命理师，为一位{gender_text}分析八字命盘。
+        
+        八字命盘信息:
+        年柱: {bazi_data['yearPillar']['heavenlyStem']}{bazi_data['yearPillar']['earthlyBranch']}
+        月柱: {bazi_data['monthPillar']['heavenlyStem']}{bazi_data['monthPillar']['earthlyBranch']}
+        日柱: {bazi_data['dayPillar']['heavenlyStem']}{bazi_data['dayPillar']['earthlyBranch']}
+        时柱: {bazi_data['hourPillar']['heavenlyStem']}{bazi_data['hourPillar']['earthlyBranch']}
+        
+        五行分布:
+        金: {bazi_data['fiveElements']['metal']}
+        木: {bazi_data['fiveElements']['wood']}
+        水: {bazi_data['fiveElements']['water']}
+        火: {bazi_data['fiveElements']['fire']}
+        土: {bazi_data['fiveElements']['earth']}
+        
+        流年信息:
+        {', '.join([f"{y['year']}年: {y['heavenlyStem']}{y['earthlyBranch']}" for y in bazi_data.get('flowingYears', [])])}
+        
+        请按照以下格式提供分析:
+        
+        健康分析:
+        [详细的健康分析，包括体质特点、易发疾病、养生建议等]
+        
+        财运分析:
+        [详细的财运分析，包括财运特点、适合行业、理财建议等]
+        
+        事业发展:
+        [详细的事业分析，包括事业特点、职业方向、发展建议等]
+        
+        婚姻感情:
+        [详细的婚姻感情分析，包括感情特点、相处方式、注意事项等]
+        
+        子女缘分:
+        [详细的子女缘分分析，包括亲子关系、教育方式、注意事项等]
+        
+        综合建议:
+        [综合分析和建议，未来5年的整体运势趋势]
+        
+        性格特点:
+        [详细的性格特点分析，包括先天性格、后天影响等]
+        
+        学业分析:
+        [详细的学业分析，包括学习能力、适合学科、学习建议等]
+        
+        父母情况:
+        [详细的父母情况分析，包括与父母关系、孝道建议等]
+        
+        人际关系:
+        [详细的人际关系分析，包括社交特点、人缘情况、交友建议等]
+        
+        近五年运势:
+        [详细的近五年运势分析，包括每年的重点关注事项等]
+        """
+        
+        # 调用API
+        if DEEPSEEK_API_KEY:
+            logger.info("使用DeepSeek API生成分析")
+            analysis = call_deepseek_api(prompt)
+        else:
+            logger.info("使用OpenAI API生成分析")
+            analysis = call_openai_api(prompt)
+            
+        logger.info(f"AI分析完成，结果长度: {len(analysis) if analysis else 0}")
+        return analysis
+    except Exception as e:
+        logger.error(f"AI分析八字命盘失败: {str(e)}")
+        return "分析生成失败，请稍后再试。"
+
+def extract_analysis_from_text(ai_text):
+    """
+    从AI分析文本中提取各部分分析
     
-    # 如果所有API都失败，返回错误信息
-    logger.error("所有AI API调用均失败")
-    return "很抱歉，暂时无法生成分析结果，请稍后再试。" 
+    Args:
+        ai_text: AI生成的分析文本
+        
+    Returns:
+        dict: 各部分分析结果
+    """
+    try:
+        logger.info("开始从AI文本中提取分析结果")
+        
+        # 初始化分析结果字典
+        analysis = {
+            "health": "暂无健康分析数据",
+            "wealth": "暂无财运分析数据",
+            "career": "暂无事业分析数据",
+            "relationship": "暂无婚姻感情分析数据",
+            "children": "暂无子女分析数据",
+            "overall": "暂无综合分析数据",
+            "personality": "暂无性格分析数据",
+            "education": "暂无学业分析数据",
+            "parents": "暂无父母分析数据",
+            "social": "暂无人际关系分析数据",
+            "future": "暂无未来分析数据"
+        }
+        
+        if not ai_text:
+            logger.warning("AI文本为空，返回默认分析结果")
+            return analysis
+            
+        # 提取健康分析
+        if "健康分析" in ai_text:
+            health_start = ai_text.find("健康分析")
+            next_section = min(
+                [pos for pos in [ai_text.find("财运分析", health_start), 
+                                ai_text.find("事业发展", health_start),
+                                ai_text.find("婚姻感情", health_start),
+                                ai_text.find("子女缘分", health_start),
+                                ai_text.find("综合建议", health_start),
+                                ai_text.find("性格特点", health_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['health'] = ai_text[health_start:next_section].replace("健康分析:", "").replace("健康分析", "").strip()
+        
+        # 提取财运分析
+        if "财运分析" in ai_text:
+            wealth_start = ai_text.find("财运分析")
+            next_section = min(
+                [pos for pos in [ai_text.find("事业发展", wealth_start), 
+                                ai_text.find("婚姻感情", wealth_start),
+                                ai_text.find("子女缘分", wealth_start),
+                                ai_text.find("综合建议", wealth_start),
+                                ai_text.find("性格特点", wealth_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['wealth'] = ai_text[wealth_start:next_section].replace("财运分析:", "").replace("财运分析", "").strip()
+        
+        # 提取事业发展
+        if "事业发展" in ai_text:
+            career_start = ai_text.find("事业发展")
+            next_section = min(
+                [pos for pos in [ai_text.find("婚姻感情", career_start), 
+                                ai_text.find("子女缘分", career_start),
+                                ai_text.find("综合建议", career_start),
+                                ai_text.find("性格特点", career_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['career'] = ai_text[career_start:next_section].replace("事业发展:", "").replace("事业发展", "").strip()
+        
+        # 提取婚姻感情
+        if "婚姻感情" in ai_text:
+            relationship_start = ai_text.find("婚姻感情")
+            next_section = min(
+                [pos for pos in [ai_text.find("子女缘分", relationship_start), 
+                                ai_text.find("综合建议", relationship_start),
+                                ai_text.find("性格特点", relationship_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['relationship'] = ai_text[relationship_start:next_section].replace("婚姻感情:", "").replace("婚姻感情", "").strip()
+        
+        # 提取子女缘分
+        if "子女缘分" in ai_text:
+            children_start = ai_text.find("子女缘分")
+            next_section = min(
+                [pos for pos in [ai_text.find("综合建议", children_start),
+                                ai_text.find("性格特点", children_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['children'] = ai_text[children_start:next_section].replace("子女缘分:", "").replace("子女缘分", "").strip()
+        
+        # 提取综合建议
+        if "综合建议" in ai_text:
+            overall_start = ai_text.find("综合建议")
+            next_section = min(
+                [pos for pos in [ai_text.find("性格特点", overall_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['overall'] = ai_text[overall_start:next_section].replace("综合建议:", "").replace("综合建议", "").strip()
+        
+        # 提取性格特点
+        if "性格特点" in ai_text:
+            personality_start = ai_text.find("性格特点")
+            next_section = min(
+                [pos for pos in [ai_text.find("学业分析", personality_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['personality'] = ai_text[personality_start:next_section].replace("性格特点:", "").replace("性格特点", "").strip()
+        
+        # 提取学业分析
+        if "学业分析" in ai_text:
+            education_start = ai_text.find("学业分析")
+            next_section = min(
+                [pos for pos in [ai_text.find("父母情况", education_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['education'] = ai_text[education_start:next_section].replace("学业分析:", "").replace("学业分析", "").strip()
+        
+        # 提取父母情况
+        if "父母情况" in ai_text:
+            parents_start = ai_text.find("父母情况")
+            next_section = min(
+                [pos for pos in [ai_text.find("人际关系", parents_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['parents'] = ai_text[parents_start:next_section].replace("父母情况:", "").replace("父母情况", "").strip()
+        
+        # 提取人际关系
+        if "人际关系" in ai_text:
+            social_start = ai_text.find("人际关系")
+            next_section = min(
+                [pos for pos in [ai_text.find("近五年运势", social_start)] if pos > 0] or [len(ai_text)]
+            )
+            analysis['social'] = ai_text[social_start:next_section].replace("人际关系:", "").replace("人际关系", "").strip()
+        
+        # 提取近五年运势
+        if "近五年运势" in ai_text:
+            future_start = ai_text.find("近五年运势")
+            analysis['future'] = ai_text[future_start:].replace("近五年运势:", "").replace("近五年运势", "").strip()
+        
+        # 如果没有提取到任何内容，将整个分析文本作为overall
+        if all(value.startswith("暂无") for value in analysis.values()):
+            analysis['overall'] = ai_text.strip()
+        
+        logger.info("成功从AI文本中提取分析结果")
+        return analysis
+    except Exception as e:
+        logger.error(f"从AI文本中提取分析结果失败: {str(e)}")
+        return {
+            "health": "暂无健康分析数据",
+            "wealth": "暂无财运分析数据",
+            "career": "暂无事业分析数据",
+            "relationship": "暂无婚姻感情分析数据",
+            "children": "暂无子女分析数据",
+            "overall": "分析提取失败，请稍后再试。",
+            "personality": "暂无性格分析数据",
+            "education": "暂无学业分析数据",
+            "parents": "暂无父母分析数据",
+            "social": "暂无人际关系分析数据",
+            "future": "暂无未来分析数据"
+        } 

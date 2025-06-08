@@ -26,9 +26,12 @@ class DateTimeEncoder(json.JSONEncoder):
 
 class BaziResultModel:
     @staticmethod
-    def create_result(user_id, order_id, gender, birth_time, focus_areas):
+    def create_result(user_id, order_id, gender, birth_time, focus_areas, birth_date=None):
         """创建新的八字分析结果"""
+        result_id = "RES" + order_id if not order_id.startswith("RES") else order_id
+        
         result = {
+            "_id": result_id,
             "userId": user_id,
             "orderId": order_id,
             "gender": gender,
@@ -39,6 +42,9 @@ class BaziResultModel:
             "pdfUrl": None,
             "createTime": datetime.now()
         }
+        
+        if birth_date:
+            result["birthDate"] = birth_date
         
         inserted = results_collection.insert_one(result)
         result['_id'] = str(inserted.inserted_id)
@@ -143,6 +149,32 @@ class BaziResultModel:
                         result["_id"] = str(result["_id"])
                 except Exception as e:
                     logging.error(f"ObjectId转换失败: {str(e)}")
+            
+            # 如果仍然找不到，且ID以RES开头，尝试去掉RES前缀后查询
+            if not result and result_id.startswith('RES'):
+                try:
+                    # 去掉RES前缀
+                    stripped_id = result_id[3:]
+                    logging.info(f"尝试去掉RES前缀后查询: {stripped_id}")
+                    
+                    # 尝试使用去掉前缀的ID查询
+                    result = results_collection.find_one({"_id": stripped_id})
+                    
+                    # 如果找不到，尝试将去掉前缀的ID转换为ObjectId
+                    if not result:
+                        try:
+                            logging.info(f"尝试使用去掉前缀后的ObjectId查询: {stripped_id}")
+                            obj_id = ObjectId(stripped_id)
+                            result = results_collection.find_one({"_id": obj_id})
+                            
+                            if result:
+                                logging.info("使用去掉前缀后的ObjectId查询成功")
+                                # 将_id转换为字符串，方便后续处理
+                                result["_id"] = str(result["_id"])
+                        except Exception as e:
+                            logging.error(f"去掉前缀后的ObjectId转换失败: {str(e)}")
+                except Exception as e:
+                    logging.error(f"去掉RES前缀后查询失败: {str(e)}")
             
             if result:
                 logging.info(f"已找到结果ID: {result_id}")
@@ -256,36 +288,116 @@ class BaziResultModel:
     
     @staticmethod
     def update_ai_analysis(result_id, area, analysis):
-        """更新AI分析结果"""
+        """更新特定领域的AI分析结果
+        
+        Args:
+            result_id: 结果ID
+            area: 分析领域，如'health', 'wealth'等
+            analysis: 分析内容
+            
+        Returns:
+            更新后的结果对象
+        """
         try:
-            logger.info(f"更新AI分析结果: {result_id}, 区域: {area}")
+            logger.info(f"更新AI分析结果: {result_id}, 领域: {area}")
+            
+            # 构建更新字段
+            update_field = f"aiAnalysis.{area}"
             
             # 尝试直接使用字符串ID更新
-            result = results_collection.update_one(
+            result = results_collection.find_one_and_update(
                 {"_id": result_id},
-                {"$set": {f"aiAnalysis.{area}": analysis}}
+                {"$set": {update_field: analysis}},
+                return_document=ReturnDocument.AFTER
             )
             
             # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
-            if result.matched_count == 0:
+            if not result:
                 try:
                     logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
                     obj_id = ObjectId(result_id)
-                    result = results_collection.update_one(
+                    result = results_collection.find_one_and_update(
                         {"_id": obj_id},
-                        {"$set": {f"aiAnalysis.{area}": analysis}}
+                        {"$set": {update_field: analysis}},
+                        return_document=ReturnDocument.AFTER
                     )
                 except Exception as e:
                     logger.error(f"ObjectId转换失败: {str(e)}")
             
-            if result.matched_count > 0:
-                logger.info(f"成功更新AI分析结果: {result_id}, 区域: {area}")
-                return BaziResultModel.find_by_id(result_id)
+            if result:
+                logger.info(f"成功更新AI分析结果: {result_id}, 领域: {area}")
+                result['_id'] = str(result['_id'])
+                return result
             else:
-                logger.warning(f"未找到要更新的记录: {result_id}")
+                logger.warning(f"未找到要更新的结果: {result_id}")
                 return None
+                
         except Exception as e:
             logger.error(f"更新AI分析结果失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return None
+            
+    @staticmethod
+    def update_single_area_analysis(result_id, area, analysis_content):
+        """更新单个领域的分析结果，用于按需付费的追问功能
+        
+        Args:
+            result_id: 结果ID
+            area: 分析领域，如'relationship', 'career', 'health'等
+            analysis_content: 该领域的详细分析内容
+            
+        Returns:
+            更新后的结果对象
+        """
+        try:
+            logger.info(f"更新单个领域分析: {result_id}, 领域: {area}")
+            
+            # 构建更新字段
+            update_field = f"aiAnalysis.{area}"
+            
+            # 记录分析内容长度
+            content_length = len(analysis_content) if analysis_content else 0
+            logger.info(f"分析内容长度: {content_length} 字符")
+            
+            # 尝试直接使用字符串ID更新
+            result = results_collection.find_one_and_update(
+                {"_id": result_id},
+                {"$set": {
+                    update_field: analysis_content,
+                    f"paidAreas.{area}": True,  # 标记该领域已付费分析
+                    f"analysisTime.{area}": datetime.now()  # 记录分析时间
+                }},
+                return_document=ReturnDocument.AFTER
+            )
+            
+            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
+            if not result:
+                try:
+                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.find_one_and_update(
+                        {"_id": obj_id},
+                        {"$set": {
+                            update_field: analysis_content,
+                            f"paidAreas.{area}": True,  # 标记该领域已付费分析
+                            f"analysisTime.{area}": datetime.now()  # 记录分析时间
+                        }},
+                        return_document=ReturnDocument.AFTER
+                    )
+                except Exception as e:
+                    logger.error(f"ObjectId转换失败: {str(e)}")
+            
+            if result:
+                logger.info(f"成功更新单个领域分析: {result_id}, 领域: {area}")
+                result['_id'] = str(result['_id'])
+                return result
+            else:
+                logger.warning(f"未找到要更新的结果: {result_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"更新单个领域分析失败: {str(e)}")
+            logger.error(traceback.format_exc())
             return None
     
     @staticmethod
@@ -404,45 +516,107 @@ class BaziResultModel:
     
     @staticmethod
     def update_pdf_url(result_id, pdf_url):
-        """更新PDF URL
+        """更新PDF URL"""
+        try:
+            result = results_collection.find_one_and_update(
+                {"_id": result_id},
+                {"$set": {"pdfUrl": pdf_url}},
+                return_document=ReturnDocument.AFTER
+            )
+            
+            if not result:
+                # 尝试使用ObjectId
+                try:
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.find_one_and_update(
+                        {"_id": obj_id},
+                        {"$set": {"pdfUrl": pdf_url}},
+                        return_document=ReturnDocument.AFTER
+                    )
+                except:
+                    pass
+            
+            return result
+        except Exception as e:
+            logging.error(f"更新PDF URL失败: {str(e)}")
+            return None
+    
+    @staticmethod
+    def update_birth_info(result_id, birth_date, birth_time, gender):
+        """更新出生信息
         
         Args:
             result_id: 结果ID
-            pdf_url: PDF文件URL
+            birth_date: 出生日期
+            birth_time: 出生时间
+            gender: 性别
             
         Returns:
-            bool: 是否更新成功
+            dict: 更新后的结果
         """
         try:
-            logger.info(f"更新PDF URL: {result_id} -> {pdf_url}")
+            logging.info(f"更新出生信息: result_id={result_id}, birth_date={birth_date}, birth_time={birth_time}, gender={gender}")
             
-            # 尝试直接使用字符串ID更新
-            result = results_collection.update_one(
-                {'_id': result_id},
-                {'$set': {'pdfUrl': pdf_url, 'pdfGenerated': True, 'pdfGenerateTime': datetime.now()}}
+            # 准备更新数据
+            update_data = {}
+            if birth_date:
+                update_data["birthDate"] = birth_date
+            if birth_time:
+                update_data["birthTime"] = birth_time
+            if gender:
+                update_data["gender"] = gender
+                
+            # 如果没有需要更新的数据，直接返回
+            if not update_data:
+                logging.warning("没有需要更新的出生信息")
+                return None
+                
+            # 更新数据
+            result = results_collection.find_one_and_update(
+                {"_id": result_id},
+                {"$set": update_data},
+                return_document=ReturnDocument.AFTER
             )
             
-            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
-            if result.matched_count == 0:
+            if not result:
+                # 尝试使用ObjectId
                 try:
-                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
                     obj_id = ObjectId(result_id)
-                    result = results_collection.update_one(
-                        {'_id': obj_id},
-                        {'$set': {'pdfUrl': pdf_url, 'pdfGenerated': True, 'pdfGenerateTime': datetime.now()}}
+                    result = results_collection.find_one_and_update(
+                        {"_id": obj_id},
+                        {"$set": update_data},
+                        return_document=ReturnDocument.AFTER
                     )
                 except Exception as e:
-                    logger.error(f"ObjectId转换失败: {str(e)}")
+                    logging.error(f"使用ObjectId更新出生信息失败: {str(e)}")
             
-            if result.matched_count > 0:
-                logger.info(f"成功更新PDF URL: {result_id}")
-                return True
+            if result:
+                logging.info(f"出生信息更新成功: {result_id}")
+                
+                # 如果有baziChart字段，也更新其中的出生信息
+                if 'baziChart' in result and result['baziChart']:
+                    bazi_chart_update = {}
+                    if birth_date:
+                        bazi_chart_update["baziChart.birthDate"] = birth_date
+                    if birth_time:
+                        bazi_chart_update["baziChart.birthTime"] = birth_time
+                    if gender:
+                        bazi_chart_update["baziChart.gender"] = gender
+                        
+                    if bazi_chart_update:
+                        logging.info(f"更新baziChart中的出生信息: {result_id}")
+                        results_collection.update_one(
+                            {"_id": result_id},
+                            {"$set": bazi_chart_update}
+                        )
             else:
-                logger.warning(f"未找到要更新的分析结果: {result_id}")
-                return False
+                logging.warning(f"出生信息更新失败，未找到记录: {result_id}")
+                
+            return result
         except Exception as e:
-            logger.error(f"更新PDF URL失败: {str(e)}")
-            return False
+            logging.error(f"更新出生信息失败: {str(e)}")
+            logging.error(traceback.format_exc())
+            return None
     
     @staticmethod
     def update_full_analysis(result_id, bazi_chart, ai_analysis):
@@ -561,4 +735,20 @@ class BaziResultModel:
         except Exception as e:
             logger.error(f"完整更新分析结果失败: {str(e)}")
             logger.error(traceback.format_exc())
-            return False 
+            return False
+    
+    @staticmethod
+    def update_followup(result_id, area, analysis):
+        """更新追问分析结果"""
+        # 创建更新字段
+        update_field = f"followups.{area}"
+        
+        # 更新结果记录
+        results_collection.update_one(
+            {"_id": result_id},
+            {"$set": {
+                update_field: analysis,
+                "updateTime": datetime.now()
+            }}
+        )
+        return True 

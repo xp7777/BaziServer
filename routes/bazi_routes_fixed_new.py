@@ -222,40 +222,40 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender, birth_date=None, birth
         - 中年(30-49岁)：全面分析事业、健康、财运、家庭关系、子女关系等各方面。
         - 老年(50岁以上)：重点关注健康、家庭关系、晚年生活质量、养生之道等。
         
-        请按照以下格式提供分析，确保所有部分内容完整：
+        请按照以下格式提供分析，确保所有部分内容完整且详尽。每个部分的分析必须至少200字，内容要具体、专业、有针对性：
         
         身体健康:
-        [详细的健康分析，包括体质特点、易发疾病、养生建议等，根据年龄段调整内容]
+        [详细的健康分析，至少200字，包括体质特点、五行与健康的关系、易发疾病、养生建议、饮食调理、作息建议等，根据年龄段调整内容，分析要具体深入]
         
         性格特点:
-        [详细的性格分析，包括性格优势、劣势、人际交往特点等]
+        [详细的性格分析，至少200字，包括性格优势、劣势、人际交往特点、情绪特点、思维方式、行为模式等，分析要具体深入]
         
         财运分析:
-        [详细的财运分析，包括财运特点、适合行业、理财建议等，根据年龄段调整内容]
+        [详细的财运分析，至少200字，包括财运特点、财富来源、适合行业、理财建议、投资方向、财运高低期等，根据年龄段调整内容，分析要具体深入]
         
         事业发展:
-        [详细的事业分析，包括事业特点、职业方向、发展建议等，对于未成年人则分析职业潜能和未来方向]
+        [详细的事业分析，至少200字，包括事业特点、职业方向、发展建议、职场人际关系、晋升机会、创业可能性等，对于未成年人则分析职业潜能和未来方向，分析要具体深入]
         
         学业分析:
-        [学习能力、适合的学习方式、学业发展建议等，对于成年人可分析终身学习和知识更新方面]
+        [详细的学业分析，至少200字，包括学习能力、适合的学习方式、学科优势、学业发展建议、考试应对等，对于成年人可分析终身学习和知识更新方面，分析要具体深入]
         
         婚姻感情:
-        [详细的婚姻感情分析，包括感情特点、相处方式、注意事项等，对于未成年人则分析未来的感情倾向]
+        [详细的婚姻感情分析，至少200字，包括感情特点、相处方式、伴侣选择、婚姻质量、情感挑战及应对、注意事项等，对于未成年人则分析未来的感情倾向，分析要具体深入]
         
         子女情况:
-        [子女缘分分析，包括亲子关系、教育方式、注意事项等，对于未成年人则可分析未来子女缘分]
+        [详细的子女缘分分析，至少200字，包括子女数量、性别倾向、亲子关系、教育方式、子女发展方向、注意事项等，对于未成年人则可分析未来子女缘分，分析要具体深入]
         
         父母情况:
-        [与父母的关系分析，包括相处模式、沟通方式等]
+        [详细的父母关系分析，至少200字，包括与父母的关系特点、相处模式、沟通方式、孝道表现、潜在冲突及化解方法等，分析要具体深入]
         
         人际关系:
-        [人际交往特点、社交能力、人脉发展等分析]
+        [详细的人际关系分析，至少200字，包括人际交往特点、社交能力、朋友圈特征、人脉发展、团队合作能力、社交策略等，分析要具体深入]
         
         近五年运势:
-        [未来五年(${current_year}-${current_year+4})的整体运势分析，包括事业、财运、健康、感情等方面的变化趋势]
+        [详细的未来五年(${current_year}-${current_year+4})运势分析，至少200字，包括事业、财运、健康、感情等方面的变化趋势，重大转折点，机遇与挑战，以及应对策略，分析要具体深入]
         
         综合建议:
-        [根据八字特点和人生阶段，给出的全面指导建议]
+        [详细的综合指导建议，至少200字，根据八字特点和人生阶段，给出的全面指导建议，包括如何扬长避短、把握机遇、应对挑战等，分析要具体深入]
         """
         
         headers = {
@@ -266,11 +266,11 @@ def generate_ai_analysis(bazi_chart, focus_areas, gender, birth_date=None, birth
         payload = {
             "model": "deepseek-chat",
             "messages": [
-                {"role": "system", "content": "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。"},
+                {"role": "system", "content": "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。请确保每个分析部分内容详尽，至少200字。"},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7,
-            "max_tokens": 4000
+            "max_tokens": 8000
         }
         
         logging.info("准备调用DeepSeek API...")
@@ -1133,4 +1133,223 @@ def calculate_bazi_api():
         
     except Exception as e:
         logging.error(f"计算八字API出错: {str(e)}")
+        return jsonify(code=500, message=f"服务器内部错误: {str(e)}"), 500
+
+@bazi_bp.route('/followup/<result_id>', methods=['POST'])
+def followup_analysis(result_id):
+    """处理用户追问请求，生成特定领域的详细分析
+    
+    接收参数:
+    - area: 追问领域，如'relationship', 'career', 'health'等
+    - orderId: 支付订单ID (可选，如果提供则会更新订单状态)
+    
+    返回:
+    - 该领域的详细分析结果
+    """
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        
+        if not data:
+            return jsonify(code=400, message="请提供追问信息"), 400
+        
+        # 获取追问领域
+        area = data.get('area')
+        order_id = data.get('orderId')
+        
+        # 验证追问领域
+        valid_areas = ["relationship", "career", "wealth", "health", "children", 
+                      "parents", "education", "social", "future", "personality"]
+        
+        if not area or area not in valid_areas:
+            return jsonify(code=400, message="请提供有效的追问领域"), 400
+        
+        # 查找分析结果
+        result = BaziResultModel.find_by_id(result_id)
+        
+        if not result:
+            return jsonify(code=404, message="找不到分析结果"), 404
+        
+        # 检查是否有八字命盘数据
+        if not result.get('baziChart'):
+            return jsonify(code=400, message="分析结果缺少八字命盘数据"), 400
+        
+        # 获取基本信息
+        bazi_chart = result.get('baziChart', {})
+        gender = result.get('gender', 'male')
+        birth_date = result.get('birthDate')
+        birth_time = result.get('birthTime')
+        
+        # 检查是否已经有该领域的付费分析
+        paid_areas = result.get('paidAreas', {})
+        if paid_areas and area in paid_areas and paid_areas[area]:
+            logging.info(f"用户已付费分析该领域: {area}，直接返回现有结果")
+            
+            # 获取现有分析结果
+            ai_analysis = result.get('aiAnalysis', {})
+            area_analysis = ai_analysis.get(area, "")
+            
+            # 如果有现有分析且不是"正在分析中..."，则直接返回
+            if area_analysis and area_analysis != "正在分析中...":
+                return jsonify(
+                    code=200,
+                    message="获取分析成功",
+                    data={
+                        "area": area,
+                        "analysis": area_analysis
+                    }
+                )
+        
+        # 如果提供了订单ID，更新订单状态
+        if order_id:
+            try:
+                from models.order_model import OrderModel
+                OrderModel.update_status(order_id, "paid", result_id)
+                logging.info(f"已更新订单状态: {order_id}")
+            except Exception as e:
+                logging.error(f"更新订单状态失败: {str(e)}")
+        
+        # 生成该领域的详细分析
+        logging.info(f"开始生成领域详细分析: {area}")
+        
+        # 构建性别信息
+        gender_text = "男性" if gender == "male" else "女性"
+        
+        # 计算年龄
+        if birth_date:
+            try:
+                birth_year = int(birth_date.split('-')[0])
+                current_year = datetime.now().year
+                age = current_year - birth_year
+            except:
+                age = None
+        else:
+            age = None
+        
+        # 根据年龄确定分析类型
+        age_category = "成人"
+        if age is not None:
+            if age < 3:
+                age_category = "婴幼儿"
+            elif age < 12:
+                age_category = "儿童"
+            elif age < 18:
+                age_category = "青少年"
+            elif age < 30:
+                age_category = "青年"
+            elif age < 50:
+                age_category = "中年"
+            else:
+                age_category = "老年"
+        
+        # 构建针对特定领域的提示词
+        area_prompts = {
+            "relationship": "请详细分析此人的婚姻感情状况，包括感情特点、婚姻质量、伴侣选择、相处方式、情感挑战及应对策略等。分析内容至少200字，要具体、专业、有针对性。",
+            "career": "请详细分析此人的事业发展情况，包括事业特点、职业方向、发展建议、职场人际关系、晋升机会、创业可能性等。分析内容至少200字，要具体、专业、有针对性。",
+            "wealth": "请详细分析此人的财运情况，包括财运特点、财富来源、适合行业、理财建议、投资方向、财运高低期等。分析内容至少200字，要具体、专业、有针对性。",
+            "health": "请详细分析此人的身体健康状况，包括体质特点、五行与健康的关系、易发疾病、养生建议、饮食调理、作息建议等。分析内容至少200字，要具体、专业、有针对性。",
+            "children": "请详细分析此人的子女缘分，包括子女数量、性别倾向、亲子关系、教育方式、子女发展方向、注意事项等。分析内容至少200字，要具体、专业、有针对性。",
+            "parents": "请详细分析此人与父母的关系，包括与父母的关系特点、相处模式、沟通方式、孝道表现、潜在冲突及化解方法等。分析内容至少200字，要具体、专业、有针对性。",
+            "education": "请详细分析此人的学业情况，包括学习能力、适合的学习方式、学科优势、学业发展建议、考试应对等。分析内容至少200字，要具体、专业、有针对性。",
+            "social": "请详细分析此人的人际关系，包括人际交往特点、社交能力、朋友圈特征、人脉发展、团队合作能力、社交策略等。分析内容至少200字，要具体、专业、有针对性。",
+            "future": "请详细分析此人未来五年的运势，包括事业、财运、健康、感情等方面的变化趋势，重大转折点，机遇与挑战，以及应对策略。分析内容至少200字，要具体、专业、有针对性。",
+            "personality": "请详细分析此人的性格特点，包括性格优势、劣势、人际交往特点、情绪特点、思维方式、行为模式等。分析内容至少200字，要具体、专业、有针对性。"
+        }
+        
+        # 获取对应领域的提示词
+        area_prompt = area_prompts.get(area, "请详细分析此人的情况。分析内容至少200字，要具体、专业、有针对性。")
+        
+        # 构建完整提示词
+        prompt = f"""
+        请你作为一位专业的命理师，为一位{gender_text}分析八字命盘中关于【{area}】方面的详细情况。
+        
+        【基本信息】
+        性别: {gender_text}
+        出生日期: {birth_date}
+        出生时间: {birth_time}
+        年龄: {age}岁
+        年龄类别: {age_category}
+        
+        【八字命盘信息】
+        年柱: {bazi_chart['yearPillar']['heavenlyStem']}{bazi_chart['yearPillar']['earthlyBranch']}
+        月柱: {bazi_chart['monthPillar']['heavenlyStem']}{bazi_chart['monthPillar']['earthlyBranch']}
+        日柱: {bazi_chart['dayPillar']['heavenlyStem']}{bazi_chart['dayPillar']['earthlyBranch']}
+        时柱: {bazi_chart['hourPillar']['heavenlyStem']}{bazi_chart['hourPillar']['earthlyBranch']}
+        
+        【五行分布】
+        金: {bazi_chart['fiveElements'].get('metal', 0)}
+        木: {bazi_chart['fiveElements'].get('wood', 0)}
+        水: {bazi_chart['fiveElements'].get('water', 0)}
+        火: {bazi_chart['fiveElements'].get('fire', 0)}
+        土: {bazi_chart['fiveElements'].get('earth', 0)}
+        
+        【神煞信息】
+        日冲: {bazi_chart['shenSha'].get('dayChong', '无')}
+        值神: {bazi_chart['shenSha'].get('zhiShen', '无')}
+        彭祖百忌: {bazi_chart['shenSha'].get('pengZuGan', '无')}, {bazi_chart['shenSha'].get('pengZuZhi', '无')}
+        喜神方位: {bazi_chart['shenSha'].get('xiShen', '无')}
+        福神方位: {bazi_chart['shenSha'].get('fuShen', '无')}
+        财神方位: {bazi_chart['shenSha'].get('caiShen', '无')}
+        本命神煞: {', '.join(bazi_chart['shenSha'].get('benMing', ['无']))}
+        
+        【分析要求】
+        {area_prompt}
+        
+        请直接给出分析内容，无需标题，无需前言，直接开始分析。
+        """
+        
+        # 调用DeepSeek API生成分析
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+        }
+        
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {"role": "system", "content": "你是一位专业的八字命理分析师，需要基于给定的八字信息提供专业分析。请确保分析内容详尽，至少200字。"},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 4000  # 单个领域分析不需要太多token
+        }
+        
+        logging.info(f"准备调用DeepSeek API分析领域: {area}")
+        
+        try:
+            response = requests.post(
+                DEEPSEEK_API_URL,
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                result_data = response.json()
+                ai_text = result_data['choices'][0]['message']['content']
+                logging.info(f"成功获取DeepSeek API响应: {ai_text[:100]}...")
+                
+                # 更新数据库中的分析结果
+                BaziResultModel.update_single_area_analysis(result_id, area, ai_text)
+                
+                # 返回分析结果
+                return jsonify(
+                    code=200,
+                    message="分析成功",
+                    data={
+                        "area": area,
+                        "analysis": ai_text
+                    }
+                )
+            else:
+                logging.error(f"调用DeepSeek API失败: {response.status_code}, {response.text[:200]}")
+                return jsonify(code=500, message="生成分析失败，请稍后重试"), 500
+                
+        except Exception as e:
+            logging.error(f"调用DeepSeek API出错: {str(e)}")
+            return jsonify(code=500, message=f"生成分析失败: {str(e)}"), 500
+            
+    except Exception as e:
+        logging.error(f"处理追问请求出错: {str(e)}")
+        logging.error(traceback.format_exc())
         return jsonify(code=500, message=f"服务器内部错误: {str(e)}"), 500
