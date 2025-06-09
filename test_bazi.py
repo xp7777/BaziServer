@@ -32,6 +32,13 @@ try:
     print("\n===== 流年信息 =====")
     for y in result['flowingYears']:
         print(f"{y['year']}年: {y['heavenlyStem']}{y['earthlyBranch']} ({y['element']})")
+
+    def test_bazi():
+        result = calculate_bazi('2000-01-01', '子时 (23:00-01:00)', 'male')
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    if __name__ == '__main__':
+        test_bazi()
 except Exception as e:
     print(f"发生错误: {str(e)}")
     logging.error(f"错误详情: {str(e)}")

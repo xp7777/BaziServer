@@ -562,83 +562,126 @@ def calculate_shen_sha(year_stem_index, year_branch_index,
     返回:
         dict: 神煞信息
     """
-    # 天干地支映射
-    heavenly_stems = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸']
-    earthly_branches = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
-    
-    # 日冲
-    day_chong_index = (day_branch_index + 6) % 12
-    day_chong = earthly_branches[day_chong_index]
-    
-    # 值神
-    zhi_shen_map = ['贵人', '腾蛇', '朱雀', '六合', '勾陈', '青龙', '天空', '白虎', '太常', '玄武', '太阴', '天后']
-    zhi_shen = zhi_shen_map[day_branch_index]
-    
-    # 彭祖百忌
-    peng_zu_gan_map = [
-        '甲不开仓', '乙不栽植', '丙不修灶', '丁不剃头', '戊不受田',
-        '己不破券', '庚不经络', '辛不合酱', '壬不泱水', '癸不词讼'
-    ]
-    peng_zu_zhi_map = [
-        '子不问卜', '丑不冠带', '寅不祭祀', '卯不穿井', '辰不哭泣',
-        '巳不远行', '午不苫盖', '未不服药', '申不安床', '酉不会客',
-        '戌不吃犬', '亥不嫁娶'
-    ]
-    peng_zu_gan = peng_zu_gan_map[day_stem_index]
-    peng_zu_zhi = peng_zu_zhi_map[day_branch_index]
-    
-    # 喜神、福神、财神方位
-    xi_shen_map = ['东北', '东北', '西南', '西南', '东北', '东北', '西南', '西南', '东北', '东北']
-    fu_shen_map = ['东南', '东南', '西北', '西北', '东南', '东南', '西北', '西北', '东南', '东南']
-    cai_shen_map = ['正东', '正东', '正南', '正南', '中央', '中央', '正西', '正西', '正北', '正北']
-    xi_shen = xi_shen_map[day_stem_index]
-    fu_shen = fu_shen_map[day_stem_index]
-    cai_shen = cai_shen_map[day_stem_index]
-    
-    # 本命神煞
-    ben_ming_shen_sha = []
-    
-    # 年干神煞
-    year_gan_shen_sha = []
-    if year_stem_index in [0, 5]:  # 甲己
-        year_gan_shen_sha.append('金舆')
-    if year_stem_index in [2, 7]:  # 丙辛
-        year_gan_shen_sha.append('福星贵人')
-    
-    # 年支神煞
-    year_zhi_shen_sha = []
-    if year_branch_index in [2, 6, 10]:  # 寅午戌
-        year_zhi_shen_sha.append('将星')
-    
-    # 日干神煞
-    day_gan_shen_sha = []
-    if day_stem_index in [4, 5]:  # 戊己
-        day_gan_shen_sha.append('天德')
-    if day_stem_index in [6, 7]:  # 庚辛
-        day_gan_shen_sha.append('月德')
-    
-    # 日支神煞
-    day_zhi_shen_sha = []
-    if day_branch_index in [1, 4, 7, 10]:  # 丑辰未戌
-        day_zhi_shen_sha.append('天乙贵人')
-    
-    # 合并本命神煞
-    ben_ming_shen_sha.extend(['将星', '文昌'])  # 简化示例
-    
-    return {
-        "dayChong": day_chong,
-        "zhiShen": zhi_shen,
-        "pengZuGan": peng_zu_gan,
-        "pengZuZhi": peng_zu_zhi,
-        "xiShen": xi_shen,
-        "fuShen": fu_shen,
-        "caiShen": cai_shen,
-        "benMing": ben_ming_shen_sha,
-        "yearGan": year_gan_shen_sha,
-        "yearZhi": year_zhi_shen_sha,
-        "dayGan": day_gan_shen_sha,
-        "dayZhi": day_zhi_shen_sha
-    }
+    try:
+        # 天干地支映射
+        heavenly_stems = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸']
+        earthly_branches = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
+        
+        # 初始化返回结果
+        shen_sha = {
+            "dayChong": "",
+            "zhiShen": "",
+            "pengZuGan": "",
+            "pengZuZhi": "",
+            "xiShen": "",
+            "fuShen": "",
+            "caiShen": "",
+            "benMing": [],
+            "yearGan": [],
+            "yearZhi": [],
+            "dayGan": [],
+            "dayZhi": []
+        }
+        
+        # 日冲
+        day_chong_index = (day_branch_index + 6) % 12
+        shen_sha["dayChong"] = earthly_branches[day_chong_index]
+        
+        # 值神
+        zhi_shen_map = ['贵人', '腾蛇', '朱雀', '六合', '勾陈', '青龙', '天空', '白虎', '太常', '玄武', '太阴', '天后']
+        shen_sha["zhiShen"] = zhi_shen_map[day_branch_index]
+        
+        # 彭祖百忌
+        peng_zu_gan_map = [
+            '甲不开仓', '乙不栽植', '丙不修灶', '丁不剃头', '戊不受田',
+            '己不破券', '庚不经络', '辛不合酱', '壬不泱水', '癸不词讼'
+        ]
+        peng_zu_zhi_map = [
+            '子不问卜', '丑不冠带', '寅不祭祀', '卯不穿井', '辰不哭泣',
+            '巳不远行', '午不苫盖', '未不服药', '申不安床', '酉不会客',
+            '戌不吃犬', '亥不嫁娶'
+        ]
+        shen_sha["pengZuGan"] = peng_zu_gan_map[day_stem_index]
+        shen_sha["pengZuZhi"] = peng_zu_zhi_map[day_branch_index]
+        
+        # 喜神、福神、财神方位
+        xi_shen_map = ['东北', '东北', '西南', '西南', '东北', '东北', '西南', '西南', '东北', '东北']
+        fu_shen_map = ['东南', '东南', '西北', '西北', '东南', '东南', '西北', '西北', '东南', '东南']
+        cai_shen_map = ['正东', '正东', '正南', '正南', '中央', '中央', '正西', '正西', '正北', '正北']
+        shen_sha["xiShen"] = xi_shen_map[day_stem_index]
+        shen_sha["fuShen"] = fu_shen_map[day_stem_index]
+        shen_sha["caiShen"] = cai_shen_map[day_stem_index]
+        
+        # 年干神煞
+        if year_stem_index in [0, 5]:  # 甲己
+            shen_sha["yearGan"].append('金舆')
+        if year_stem_index in [2, 7]:  # 丙辛
+            shen_sha["yearGan"].append('福星贵人')
+        
+        # 年支神煞
+        if year_branch_index in [2, 6, 10]:  # 寅午戌
+            shen_sha["yearZhi"].append('将星')
+        
+        # 日干神煞
+        if day_stem_index in [4, 5]:  # 戊己
+            shen_sha["dayGan"].append('天德')
+        if day_stem_index in [6, 7]:  # 庚辛
+            shen_sha["dayGan"].append('月德')
+        
+        # 日支神煞
+        if day_branch_index in [1, 4, 7, 10]:  # 丑辰未戌
+            shen_sha["dayZhi"].append('天乙贵人')
+        
+        # 计算本命神煞
+        ben_ming_shen_sha = []
+        
+        # 天乙贵人
+        if day_branch_index in [1, 4, 7, 10]:  # 丑辰未戌
+            ben_ming_shen_sha.append('天乙贵人')
+        
+        # 文昌贵人
+        if day_branch_index in [2, 3]:  # 寅卯
+            ben_ming_shen_sha.append('文昌贵人')
+        
+        # 将星
+        if year_branch_index in [2, 6, 10]:  # 寅午戌
+            ben_ming_shen_sha.append('将星')
+        
+        # 金舆
+        if year_stem_index in [0, 5]:  # 甲己
+            ben_ming_shen_sha.append('金舆')
+        
+        # 天德
+        if day_stem_index in [4, 5]:  # 戊己
+            ben_ming_shen_sha.append('天德')
+        
+        # 月德
+        if day_stem_index in [6, 7]:  # 庚辛
+            ben_ming_shen_sha.append('月德')
+        
+        # 更新本命神煞
+        shen_sha["benMing"] = list(set(ben_ming_shen_sha))  # 去重
+        
+        return shen_sha
+        
+    except Exception as e:
+        logging.error(f"计算神煞时出错: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return {
+            "dayChong": "计算失败",
+            "zhiShen": "计算失败",
+            "pengZuGan": "计算失败",
+            "pengZuZhi": "计算失败",
+            "xiShen": "计算失败",
+            "fuShen": "计算失败",
+            "caiShen": "计算失败",
+            "benMing": [],
+            "yearGan": [],
+            "yearZhi": [],
+            "dayGan": [],
+            "dayZhi": []
+        }
 
 def calculate_flowing_year_shen_sha(stem_index, branch_index):
     """
@@ -669,163 +712,83 @@ def calculate_flowing_year_shen_sha(stem_index, branch_index):
     
     return shen_sha
 
-def calculate_da_yun(birth_year, birth_month, birth_day, 
-                   year_stem_index, year_branch_index, 
-                   month_stem_index, month_branch_index, 
-                   gender):
+def calculate_da_yun(year, month, day, hour, gender):
     """
     计算大运
     
-    参数:
-        birth_year: 出生年
-        birth_month: 出生月
-        birth_day: 出生日
-        year_stem_index: 年干索引
-        year_branch_index: 年支索引
-        month_stem_index: 月干索引
-        month_branch_index: 月支索引
-        gender: 性别 ('male'/'female')
-    
-    返回:
+    Args:
+        year: 公历年
+        month: 公历月
+        day: 公历日
+        hour: 小时 (0-23)
+        gender: 性别 ('male' 或 'female')
+        
+    Returns:
         dict: 大运信息
     """
-    # 天干地支映射
-    heavenly_stems = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸']
-    earthly_branches = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
-    elements = ['木', '木', '火', '火', '土', '土', '金', '金', '水', '水']
-    
-    # 尝试使用lunar-python库计算大运
     try:
-        if USING_LUNAR_PYTHON:
-            logging.info(f"使用lunar-python库计算大运 - 出生年月日: {birth_year}-{birth_month}-{birth_day}, 性别: {gender}")
+        # 创建公历对象
+        solar = Solar.fromYmdHms(year, month, day, hour, 0, 0)
+        # 转换为农历
+        lunar = solar.getLunar()
+        # 获取八字对象
+        bazi = lunar.getEightChar()
+        
+        # 阴阳年月
+        year_gan = lunar.getYearGan()
+        is_yang_year = year_gan in "甲丙戊庚壬"  # 阳年
+        is_yang_month = lunar.getMonthGanIndex() % 2 == 0  # 偶数索引为阳月
+        
+        # 确定顺逆排法（通常男阳女阴顺排，男阴女阳逆排）
+        is_forward = (gender == 'male' and is_yang_year) or (gender == 'female' and not is_yang_year)
+        
+        # 简化起运年龄计算（实际应该根据出生时间到节气的天数计算）
+        # 男孩起运：阳年顺行，阴年逆行
+        # 女孩起运：阳年逆行，阴年顺行
+        start_age = 1  # 最小起运年龄
+        
+        # 计算起运年份
+        start_year = year + start_age
+        
+        # 获取月干支索引
+        month_gan_index = lunar.getMonthGanIndex()
+        month_zhi_index = lunar.getMonthZhiIndex()
+        
+        # 计算大运干支
+        da_yun_list = []
+        for i in range(8):  # 计算8个大运
+            if is_forward:
+                gan_index = (month_gan_index + i + 1) % 10
+                zhi_index = (month_zhi_index + i + 1) % 12
+            else:
+                gan_index = (month_gan_index - i - 1) % 10
+                zhi_index = (month_zhi_index - i - 1) % 12
             
-            # 创建公历对象
-            try:
-                # 解析出生年月日
-                birth_year = int(birth_year)
-                birth_month = int(birth_month)
-                birth_day = int(birth_day)
-                
-                # 获取出生时的小时（简化处理，使用中午12点）
-                birth_hour = 12
-                
-                # 创建公历对象
-                solar = Solar.fromYmdHms(birth_year, birth_month, birth_day, birth_hour, 0, 0)
-                
-                # 转换为农历
-                lunar = solar.getLunar()
-                
-                # 获取八字对象
-                eight_char = lunar.getEightChar()
-                
-                # 获取大运信息
-                yun = eight_char.getYun(1 if gender == 'male' else 0)
-                
-                # 获取起运年龄和起运年份
-                start_age = yun.getStartAge()
-                start_year = birth_year + start_age
-                
-                # 确定大运顺序
-                is_forward = yun.isForward()
-                
-                logging.info(f"lunar-python计算结果 - 起运年龄: {start_age}, 起运年份: {start_year}, 顺行: {is_forward}")
-                
-                # 生成大运列表
-                da_yun_list = []
-                
-                # 获取月干支索引
-                month_gan = lunar.getMonthGan()
-                month_zhi = lunar.getMonthZhi()
-                month_stem_index = heavenly_stems.index(month_gan)
-                month_branch_index = earthly_branches.index(month_zhi)
-                
-                for i in range(8):  # 计算8个大运
-                    if is_forward:
-                        # 顺行
-                        current_stem_index = (month_stem_index + i + 1) % 10
-                        current_branch_index = (month_branch_index + i + 1) % 12
-                    else:
-                        # 逆行
-                        current_stem_index = (month_stem_index - i - 1) % 10
-                        current_branch_index = (month_branch_index - i - 1) % 12
-                    
-                    # 大运开始年份和结束年份
-                    start_year_i = start_year + i * 10
-                    end_year_i = start_year_i + 9
-                    
-                    da_yun_list.append({
-                        "index": i + 1,
-                        "ganZhi": heavenly_stems[current_stem_index] + earthly_branches[current_branch_index],
-                        "heavenlyStem": heavenly_stems[current_stem_index],
-                        "earthlyBranch": earthly_branches[current_branch_index],
-                        "element": elements[current_stem_index],
-                        "startYear": start_year_i,
-                        "endYear": end_year_i
-                    })
-                
-                return {
-                    "startAge": start_age,
-                    "startYear": start_year,
-                    "daYun": da_yun_list
-                }
-                
-            except Exception as e:
-                logging.error(f"使用lunar-python计算大运出错: {str(e)}")
-                # 出错时使用备用算法
-                logging.info("使用备用算法计算大运")
+            da_yun_list.append({
+                "startAge": start_age + i * 10,
+                "endAge": start_age + (i + 1) * 10 - 1,
+                "startYear": start_year + i * 10,
+                "endYear": start_year + (i + 1) * 10 - 1,
+                "heavenlyStem": HEAVENLY_STEMS[gan_index],
+                "earthlyBranch": EARTHLY_BRANCHES[zhi_index],
+                "element": FIVE_ELEMENTS[HEAVENLY_STEMS[gan_index]]
+            })
+        
+        return {
+            "startAge": start_age,
+            "startYear": start_year,
+            "isForward": is_forward,
+            "daYunList": da_yun_list
+        }
+        
     except Exception as e:
-        logging.error(f"lunar-python库调用出错: {str(e)}")
-    
-    # 备用算法：使用简化的大运计算方法
-    logging.info("使用简化算法计算大运")
-    
-    # 确定大运顺序
-    # 阳年生男、阴年生女顺行；阳年生女、阴年生男逆行
-    is_yang_year = year_stem_index % 2 == 0  # 甲丙戊庚壬为阳干
-    is_male = gender == 'male'
-    
-    is_forward = (is_yang_year and is_male) or (not is_yang_year and not is_male)
-    
-    # 起运年龄（简化处理，男孩8岁起运，女孩7岁起运）
-    start_age = 8 if is_male else 7
-    
-    # 使用实际出生年份计算起运年份
-    start_year = int(birth_year) + start_age
-    
-    logging.info(f"简化算法 - 出生年份: {birth_year}, 性别: {gender}, 起运年龄: {start_age}, 起运年份: {start_year}")
-    
-    # 生成大运列表
-    da_yun_list = []
-    
-    for i in range(8):  # 计算8个大运
-        if is_forward:
-            # 顺行
-            current_stem_index = (month_stem_index + i + 1) % 10
-            current_branch_index = (month_branch_index + i + 1) % 12
-        else:
-            # 逆行
-            current_stem_index = (month_stem_index - i - 1) % 10
-            current_branch_index = (month_branch_index - i - 1) % 12
-        
-        # 大运开始年份和结束年份
-        start_year_i = start_year + i * 10
-        end_year_i = start_year_i + 9
-        
-        da_yun_list.append({
-            "index": i + 1,
-            "ganZhi": heavenly_stems[current_stem_index] + earthly_branches[current_branch_index],
-            "heavenlyStem": heavenly_stems[current_stem_index],
-            "earthlyBranch": earthly_branches[current_branch_index],
-            "element": elements[current_stem_index],
-            "startYear": start_year_i,
-            "endYear": end_year_i
-        })
-    
-    return {
-        "startAge": start_age,
-        "startYear": start_year,
-        "daYun": da_yun_list
-    }
+        logging.error(f"计算大运时出错: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return {
+            "error": "计算大运时出错",
+            "message": str(e)
+        }
 
 def calculate_liu_nian_shen_sha(liu_nian_gan, liu_nian_zhi):
     """
@@ -974,129 +937,69 @@ def calculate_bazi(birth_date, birth_time, gender):
         # 获取出生年份
         birth_year = year
         
+        # 获取天干地支索引
+        year_stem_index = HEAVENLY_STEMS.index(year_pillar["heavenlyStem"])
+        year_branch_index = EARTHLY_BRANCHES.index(year_pillar["earthlyBranch"])
+        month_stem_index = HEAVENLY_STEMS.index(month_pillar["heavenlyStem"])
+        month_branch_index = EARTHLY_BRANCHES.index(month_pillar["earthlyBranch"])
+        day_stem_index = HEAVENLY_STEMS.index(day_pillar["heavenlyStem"])
+        day_branch_index = EARTHLY_BRANCHES.index(day_pillar["earthlyBranch"])
+        hour_stem_index = HEAVENLY_STEMS.index(hour_pillar["heavenlyStem"])
+        hour_branch_index = EARTHLY_BRANCHES.index(hour_pillar["earthlyBranch"])
+        
         # 合并八字信息
         bazi_data = {
             "yearPillar": year_pillar,
             "monthPillar": month_pillar,
             "dayPillar": day_pillar,
             "hourPillar": hour_pillar,
-            "birthYear": birth_year  # 确保保存出生年份
+            "birthYear": birth_year,
+            "yearHeavenlyStem": year_pillar["heavenlyStem"],
+            "yearEarthlyBranch": year_pillar["earthlyBranch"],
+            "monthHeavenlyStem": month_pillar["heavenlyStem"],
+            "monthEarthlyBranch": month_pillar["earthlyBranch"],
+            "dayHeavenlyStem": day_pillar["heavenlyStem"],
+            "dayEarthlyBranch": day_pillar["earthlyBranch"],
+            "hourHeavenlyStem": hour_pillar["heavenlyStem"],
+            "hourEarthlyBranch": hour_pillar["earthlyBranch"],
+            "eightChar": {
+                "year": f"{year_pillar['heavenlyStem']}{year_pillar['earthlyBranch']}",
+                "month": f"{month_pillar['heavenlyStem']}{month_pillar['earthlyBranch']}",
+                "day": f"{day_pillar['heavenlyStem']}{day_pillar['earthlyBranch']}",
+                "hour": f"{hour_pillar['heavenlyStem']}{hour_pillar['earthlyBranch']}"
+            }
         }
         
-        # 计算五行
+        # 计算五行分布
         five_elements = calculate_five_elements(bazi_data)
+        bazi_data["fiveElements"] = five_elements
         
         # 计算神煞
-        shen_sha = calculate_shen_sha(year, month, day, hour, gender)
+        shen_sha = calculate_shen_sha(
+            year_stem_index, year_branch_index,
+            month_stem_index, month_branch_index,
+            day_stem_index, day_branch_index,
+            hour_stem_index, hour_branch_index
+        )
+        bazi_data["shenSha"] = shen_sha
         
         # 计算大运
-        # 获取天干地支索引
-        year_stem_index = HEAVENLY_STEMS.index(year_pillar["heavenlyStem"]) if year_pillar["heavenlyStem"] in HEAVENLY_STEMS else 0
-        year_branch_index = EARTHLY_BRANCHES.index(year_pillar["earthlyBranch"]) if year_pillar["earthlyBranch"] in EARTHLY_BRANCHES else 0
-        month_stem_index = HEAVENLY_STEMS.index(month_pillar["heavenlyStem"]) if month_pillar["heavenlyStem"] in HEAVENLY_STEMS else 0
-        month_branch_index = EARTHLY_BRANCHES.index(month_pillar["earthlyBranch"]) if month_pillar["earthlyBranch"] in EARTHLY_BRANCHES else 0
-        
-        # 计算大运，传递实际出生年份
-        da_yun = calculate_da_yun(birth_year, month, day, 
-                                 year_stem_index, year_branch_index,
-                                 month_stem_index, month_branch_index,
-                                 gender)
+        da_yun = calculate_da_yun(year, month, day, hour, gender)
+        bazi_data["daYun"] = da_yun
         
         # 计算流年
         flowing_years = calculate_flowing_years(gender, bazi_data)
+        bazi_data["flowingYears"] = flowing_years
         
-        # 计算十神
-        ten_gods = calculate_ten_gods(bazi_data)
+        return bazi_data
         
-        # 计算纳音
-        na_yin = calculate_na_yin(bazi_data)
-        
-        # 返回完整的八字信息
-        return {
-            "yearPillar": year_pillar,
-            "monthPillar": month_pillar,
-            "dayPillar": day_pillar,
-            "hourPillar": hour_pillar,
-            "fiveElements": five_elements,
-            "shenSha": shen_sha,
-            "daYun": da_yun,
-            "tenGods": ten_gods,
-            "naYin": na_yin,
-            'flowingYears': flowing_years,
-            'birthDate': birth_date,
-            'birthTime': birth_time,
-            'gender': gender,
-            'birthYear': birth_year  # 确保包含出生年份
-        }
     except Exception as e:
+        logging.error(f"计算八字时出错: {str(e)}")
         import traceback
-        logging.error(f"计算八字出错: {str(e)}")
         logging.error(traceback.format_exc())
-        
-        # 返回默认值
         return {
-            'yearPillar': {
-                'heavenlyStem': '甲',
-                'earthlyBranch': '子',
-                'element': '水'
-            },
-            'monthPillar': {
-                'heavenlyStem': '丙',
-                'earthlyBranch': '寅',
-                'element': '木'
-            },
-            'dayPillar': {
-                'heavenlyStem': '戊',
-                'earthlyBranch': '午',
-                'element': '火'
-            },
-            'hourPillar': {
-                'heavenlyStem': '庚',
-                'earthlyBranch': '申',
-                'element': '金'
-            },
-            'fiveElements': {
-                'wood': 2,
-                'fire': 2,
-                'earth': 1,
-                'metal': 2,
-                'water': 1
-            },
-            'flowingYears': [
-                {
-                    'year': 2025,
-                    'heavenlyStem': '乙',
-                    'earthlyBranch': '丑',
-                    'element': '土'
-                },
-                {
-                    'year': 2026,
-                    'heavenlyStem': '丙',
-                    'earthlyBranch': '寅',
-                    'element': '木'
-                },
-                {
-                    'year': 2027,
-                    'heavenlyStem': '丁',
-                    'earthlyBranch': '卯',
-                    'element': '木'
-                },
-                {
-                    'year': 2028,
-                    'heavenlyStem': '戊',
-                    'earthlyBranch': '辰',
-                    'element': '土'
-                },
-                {
-                    'year': 2029,
-                    'heavenlyStem': '己',
-                    'earthlyBranch': '巳',
-                    'element': '火'
-                }
-            ],
-            'birthDate': birth_date,
-            'birthTime': birth_time,
-            'gender': gender
+            "error": "计算八字时出错",
+            "message": str(e)
         }
 
 # 添加兼容性函数，为了解决导入错误

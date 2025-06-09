@@ -389,80 +389,37 @@ const getAnalysisContent = (sectionName) => {
   }
 };
 
-// 模拟数据，作为API调用失败时的备用数据
-const focusAreas = ref(['health', 'wealth', 'career', 'relationship']);
+// 修改数据初始化
+const focusAreas = ref([]);
 
-// 备用数据，只在API调用失败时使用
+// 初始化八字数据
 const baziData = ref({
-  yearPillar: {
-    heavenlyStem: '甲',
-    earthlyBranch: '子',
-    element: '水'
-  },
-  monthPillar: {
-    heavenlyStem: '丙',
-    earthlyBranch: '寅',
-    element: '木'
-  },
-  dayPillar: {
-    heavenlyStem: '戊',
-    earthlyBranch: '午',
-    element: '火'
-  },
-  hourPillar: {
-    heavenlyStem: '庚',
-    earthlyBranch: '申',
-    element: '金'
-  },
-  fiveElements: {
-    wood: 2,
-    fire: 2,
-    earth: 1,
-    metal: 2,
-    water: 1
-  },
-  flowingYears: [
-    {
-      year: 2025,
-      heavenlyStem: '乙',
-      earthlyBranch: '丑',
-      element: '土'
-    },
-    {
-      year: 2026,
-      heavenlyStem: '丙',
-      earthlyBranch: '寅',
-      element: '木'
-    },
-    {
-      year: 2027,
-      heavenlyStem: '丁',
-      earthlyBranch: '卯',
-      element: '木'
-    },
-    {
-      year: 2028,
-      heavenlyStem: '戊',
-      earthlyBranch: '辰',
-      element: '土'
-    },
-    {
-      year: 2029,
-      heavenlyStem: '己',
-      earthlyBranch: '巳',
-      element: '火'
-    }
-  ]
+  yearPillar: null,
+  monthPillar: null,
+  dayPillar: null,
+  hourPillar: null,
+  fiveElements: null,
+  flowingYears: [],
+  shenSha: null,
+  daYun: null,
+  birthDate: null,
+  birthTime: null,
+  gender: null
 });
 
-// 备用分析数据，只在API调用失败时使用
+// 初始化分析数据
 const aiAnalysis = ref({
-  health: '您的八字中火土较旺，木水偏弱。从健康角度看，您需要注意心脑血管系统和消化系统的保养。建议平时多喝水，保持规律作息，避免过度劳累和情绪波动。2025-2026年间需特别注意肝胆健康，可适当增加绿色蔬菜的摄入，定期体检。',
-  wealth: '您的财运在2025年有明显上升趋势，特别是在春夏季节。八字中金水相生，适合从事金融、贸易、水利相关行业。投资方面，稳健为主，可考虑分散投资组合。2027年有意外财运，但需谨慎对待，避免投机性强的项目。',
-  career: '您的事业宫位较为稳定，具有较强的组织能力和执行力。2025-2026年是事业发展的关键期，有升职或转行的机会。建议提升专业技能，扩展人脉关系。您适合在团队中担任协调或管理角色，发挥沟通才能。',
-  relationship: '您的八字中日柱为戊午，感情态度较为务实。2025年下半年至2026年上半年是感情发展的良好时期。已婚者需注意与伴侣的沟通，避免因工作忙碌而忽略家庭。单身者有机会通过社交活动或朋友介绍认识合适的对象。',
-  children: '您的子女宫位较为温和，与子女关系和谐。教育方面，建议采用引导式而非强制式的方法，尊重子女的兴趣发展。2026-2027年是子女发展的重要阶段，可能需要您更多的关注和支持。',
-  overall: '综合分析您的八字，2025-2027年是您人生的一个上升期，各方面都有良好发展。建议把握这段时间，在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。您的人生态度积极乐观，具有较强的适应能力和抗压能力，这将帮助您度过人生中的各种挑战。'
+  health: '',
+  wealth: '',
+  career: '',
+  relationship: '',
+  children: '',
+  overall: '',
+  personality: '',
+  education: '',
+  parents: '',
+  social: '',
+  future: ''
 });
 
 const testApiConnection = async () => {
@@ -838,13 +795,15 @@ const reloadBaziData = async () => {
   Toast.loading('正在重新加载数据...');
   
   try {
-    // 测试模拟支付接口以获取分析结果
     if (!resultId) {
       Toast.fail('缺少结果ID');
       return;
     }
     
-    // 首先尝试使用模拟支付接口
+    // 获取URL参数
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // 尝试使用模拟支付接口
     try {
       console.log('尝试使用模拟支付接口...');
       
@@ -857,9 +816,9 @@ const reloadBaziData = async () => {
       
       // 直接使用完整的resultId，不要去掉RES前缀
       const mockPaymentResponse = await axios.post(`/api/order/mock/pay/${resultId}`, {
-        birthDate: urlParams.get('birthDate') || '2023-06-06',
-        birthTime: urlParams.get('birthTime') || '辰时 (07:00-09:00)',
-        gender: urlParams.get('gender') || 'male'
+        birthDate: urlParams.get('birthDate') || baziData.value.birthDate,
+        birthTime: urlParams.get('birthTime') || baziData.value.birthTime,
+        gender: urlParams.get('gender') || baziData.value.gender
       }, {
         headers: {
           'Content-Type': 'application/json'
@@ -874,9 +833,36 @@ const reloadBaziData = async () => {
         
         const response = await axios.get(`/api/bazi/result/${newResultId}`);
         if (response.data.code === 200) {
-          baziData.value = response.data.data.baziChart;
-          aiAnalysis.value = response.data.data.aiAnalysis;
-          focusAreas.value = response.data.data.focusAreas;
+          // 更新八字数据，使用空值合并运算符确保数据存在
+          baziData.value = {
+            yearPillar: response.data.data.baziChart?.yearPillar || null,
+            monthPillar: response.data.data.baziChart?.monthPillar || null,
+            dayPillar: response.data.data.baziChart?.dayPillar || null,
+            hourPillar: response.data.data.baziChart?.hourPillar || null,
+            fiveElements: response.data.data.baziChart?.fiveElements || null,
+            flowingYears: response.data.data.baziChart?.flowingYears || [],
+            shenSha: response.data.data.baziChart?.shenSha || null,
+            daYun: response.data.data.baziChart?.daYun || null,
+            birthDate: response.data.data.baziChart?.birthDate || null,
+            birthTime: response.data.data.baziChart?.birthTime || null,
+            gender: response.data.data.baziChart?.gender || null
+          };
+          
+          // 更新AI分析结果
+          aiAnalysis.value = {
+            health: response.data.data.aiAnalysis?.health || '',
+            wealth: response.data.data.aiAnalysis?.wealth || '',
+            career: response.data.data.aiAnalysis?.career || '',
+            relationship: response.data.data.aiAnalysis?.relationship || '',
+            children: response.data.data.aiAnalysis?.children || '',
+            overall: response.data.data.aiAnalysis?.overall || '',
+            personality: response.data.data.aiAnalysis?.personality || '',
+            education: response.data.data.aiAnalysis?.education || '',
+            parents: response.data.data.aiAnalysis?.parents || '',
+            social: response.data.data.aiAnalysis?.social || '',
+            future: response.data.data.aiAnalysis?.future || ''
+          };
+          
           Toast.success('数据加载成功');
           return;
         }
@@ -889,9 +875,36 @@ const reloadBaziData = async () => {
     const response = await axios.get(`/api/bazi/result/${resultId}`);
     
     if (response.data.code === 200) {
-      baziData.value = response.data.data.baziChart;
-      aiAnalysis.value = response.data.data.aiAnalysis;
-      focusAreas.value = response.data.data.focusAreas;
+      // 更新八字数据，使用空值合并运算符确保数据存在
+      baziData.value = {
+        yearPillar: response.data.data.baziChart?.yearPillar || null,
+        monthPillar: response.data.data.baziChart?.monthPillar || null,
+        dayPillar: response.data.data.baziChart?.dayPillar || null,
+        hourPillar: response.data.data.baziChart?.hourPillar || null,
+        fiveElements: response.data.data.baziChart?.fiveElements || null,
+        flowingYears: response.data.data.baziChart?.flowingYears || [],
+        shenSha: response.data.data.baziChart?.shenSha || null,
+        daYun: response.data.data.baziChart?.daYun || null,
+        birthDate: response.data.data.baziChart?.birthDate || null,
+        birthTime: response.data.data.baziChart?.birthTime || null,
+        gender: response.data.data.baziChart?.gender || null
+      };
+      
+      // 更新AI分析结果
+      aiAnalysis.value = {
+        health: response.data.data.aiAnalysis?.health || '',
+        wealth: response.data.data.aiAnalysis?.wealth || '',
+        career: response.data.data.aiAnalysis?.career || '',
+        relationship: response.data.data.aiAnalysis?.relationship || '',
+        children: response.data.data.aiAnalysis?.children || '',
+        overall: response.data.data.aiAnalysis?.overall || '',
+        personality: response.data.data.aiAnalysis?.personality || '',
+        education: response.data.data.aiAnalysis?.education || '',
+        parents: response.data.data.aiAnalysis?.parents || '',
+        social: response.data.data.aiAnalysis?.social || '',
+        future: response.data.data.aiAnalysis?.future || ''
+      };
+      
       Toast.success('数据加载成功');
     } else {
       Toast.fail(response.data.message || '加载失败');
@@ -1038,7 +1051,7 @@ const checkPaidFollowups = async () => {
   }
 };
 
-// 修改getBaziResult函数，确保正确更新命盘信息
+// 修改getBaziResult函数
 const getBaziResult = async () => {
   loading.value = true;
   try {
@@ -1047,104 +1060,43 @@ const getBaziResult = async () => {
     console.log('八字分析结果:', response.data);
     
     if (response.data.code === 200 && response.data.data) {
-      // 更新八字数据
-      baziData.value = response.data.data.baziChart || {};
-      
-      // 检查出生日期与大运信息是否匹配
-      const birthDate = baziData.value.birthDate;
-      if (birthDate) {
-        // 提取出生年份
-        const birthYear = parseInt(birthDate.split('-')[0]);
-        const currentYear = new Date().getFullYear();
-        
-        // 记录出生年份和当前年份，用于调试
-        console.log(`出生年份: ${birthYear}, 当前年份: ${currentYear}`);
-        
-        // 检查大运信息
-        if (baziData.value.daYun) {
-          const startYear = baziData.value.daYun.startYear;
-          const startAge = baziData.value.daYun.startAge;
-          
-          // 检查起运年份是否合理
-          if (startYear && birthYear && (startYear - birthYear) !== startAge) {
-            console.warn(`大运信息可能不匹配: 起运年龄=${startAge}, 起运年份=${startYear}, 出生年份=${birthYear}`);
-            console.warn('大运信息可能是基于测试数据而非实际出生日期计算的');
-            
-            // 如果不匹配，尝试修正大运信息
-            if (baziData.value.daYun.daYun) {
-              const correctedDaYun = [];
-              const gender = baziData.value.gender || 'male';
-              const startAge = gender === 'male' ? 8 : 7; // 男命8岁起运，女命7岁起运
-              const startYear = birthYear + startAge;
-              
-              // 修正每个大运的起止年份
-              baziData.value.daYun.daYun.forEach((yun, index) => {
-                const yunStartYear = startYear + (index * 10);
-                const yunEndYear = yunStartYear + 9;
-                
-                correctedDaYun.push({
-                  ...yun,
-                  startYear: yunStartYear,
-                  endYear: yunEndYear
-                });
-              });
-              
-              // 更新大运信息
-              baziData.value.daYun.startAge = startAge;
-              baziData.value.daYun.startYear = startYear;
-              baziData.value.daYun.daYun = correctedDaYun;
-              
-              console.log('已修正大运信息:', baziData.value.daYun);
-            }
-          }
-        }
-        
-        // 检查流年信息是否从当前年份开始
-        if (baziData.value.flowingYears && baziData.value.flowingYears.length > 0) {
-          const firstFlowingYear = baziData.value.flowingYears[0].year;
-          if (firstFlowingYear !== currentYear) {
-            console.warn(`流年信息起始年份不是当前年份: ${firstFlowingYear} vs ${currentYear}`);
-            
-            // 如果不是从当前年份开始，尝试修正流年信息
-            // 这里只是简单调整年份，实际应用中可能需要重新计算天干地支
-            const yearDiff = currentYear - firstFlowingYear;
-            if (Math.abs(yearDiff) < 10) { // 只在差距不大时尝试修正
-              baziData.value.flowingYears.forEach(year => {
-                year.year += yearDiff;
-              });
-              console.log('已修正流年信息:', baziData.value.flowingYears);
-            }
-          }
-        }
-      }
-      
-      // 确保daYun数据结构正确
-      if (baziData.value.daYun && !baziData.value.daYun.daYunList) {
-        // 如果daYun下有daYun数组，保持原有结构
-        console.log('使用原始大运数据结构');
-      } else if (baziData.value.daYun) {
-        // 确保daYun下有daYunList属性
-        console.log('标准化大运数据结构');
-        baziData.value.daYun.daYunList = baziData.value.daYun.daYun || [];
-      }
+      // 更新八字数据，使用空值合并运算符确保数据存在
+      baziData.value = {
+        yearPillar: response.data.data.baziChart?.yearPillar || null,
+        monthPillar: response.data.data.baziChart?.monthPillar || null,
+        dayPillar: response.data.data.baziChart?.dayPillar || null,
+        hourPillar: response.data.data.baziChart?.hourPillar || null,
+        fiveElements: response.data.data.baziChart?.fiveElements || null,
+        flowingYears: response.data.data.baziChart?.flowingYears || [],
+        shenSha: response.data.data.baziChart?.shenSha || null,
+        daYun: response.data.data.baziChart?.daYun || null,
+        birthDate: response.data.data.baziChart?.birthDate || null,
+        birthTime: response.data.data.baziChart?.birthTime || null,
+        gender: response.data.data.baziChart?.gender || null
+      };
       
       // 更新AI分析结果
-      aiAnalysis.value = response.data.data.aiAnalysis || {};
+      aiAnalysis.value = {
+        health: response.data.data.aiAnalysis?.health || '',
+        wealth: response.data.data.aiAnalysis?.wealth || '',
+        career: response.data.data.aiAnalysis?.career || '',
+        relationship: response.data.data.aiAnalysis?.relationship || '',
+        children: response.data.data.aiAnalysis?.children || '',
+        overall: response.data.data.aiAnalysis?.overall || '',
+        personality: response.data.data.aiAnalysis?.personality || '',
+        education: response.data.data.aiAnalysis?.education || '',
+        parents: response.data.data.aiAnalysis?.parents || '',
+        social: response.data.data.aiAnalysis?.social || '',
+        future: response.data.data.aiAnalysis?.future || ''
+      };
       
-      // 更新关注领域
-      if (response.data.data.focusAreas) {
-        focusAreas.value = response.data.data.focusAreas;
+      // 检查数据完整性
+      if (!baziData.value.yearPillar || !baziData.value.monthPillar || 
+          !baziData.value.dayPillar || !baziData.value.hourPillar) {
+        console.warn('八字数据不完整');
+        Toast.fail('八字数据不完整，请重新生成');
+        return;
       }
-      
-      // 记录到控制台以便调试
-      console.log('八字数据:', baziData.value);
-      console.log('AI分析结果:', aiAnalysis.value);
-      console.log('关注领域:', focusAreas.value);
-      
-      // 检查是否有神煞、大运和流年信息
-      console.log('神煞信息:', baziData.value.shenSha ? '存在' : '不存在');
-      console.log('大运信息:', baziData.value.daYun ? '存在' : '不存在');
-      console.log('流年信息:', baziData.value.flowingYears ? `存在 (${baziData.value.flowingYears.length}条)` : '不存在');
       
       // 初始化追问选项
       initFollowupOptions();
