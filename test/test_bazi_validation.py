@@ -4,11 +4,13 @@
 import sys
 import os
 import datetime
+import unittest
+from lunar_python import Solar, Lunar
 
 # 添加项目根目录到路径，以便导入模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.bazi_calculator import get_bazi, format_bazi_analysis
+from utils.bazi_calculator import calculate_bazi
 
 # 已知正确的八字数据用于验证
 KNOWN_CORRECT_BAZIS = [
@@ -59,10 +61,10 @@ def print_subheader(text):
 def print_bazi_chart(bazi):
     """打印漂亮的八字排盘"""
     try:
-        year = bazi['year']
-        month = bazi['month']
-        day = bazi['day']
-        time = bazi['time']
+        year = bazi['yearPillar']['heavenlyStem'] + bazi['yearPillar']['earthlyBranch']
+        month = bazi['monthPillar']['heavenlyStem'] + bazi['monthPillar']['earthlyBranch']
+        day = bazi['dayPillar']['heavenlyStem'] + bazi['dayPillar']['earthlyBranch']
+        time = bazi['hourPillar']['heavenlyStem'] + bazi['hourPillar']['earthlyBranch']
         
         print("\n┌─────┬─────┬─────┬─────┐")
         print(f"│ 年柱 │ 月柱 │ 日柱 │ 时柱 │")
@@ -81,18 +83,22 @@ def validate_bazi(test_case):
     print_subheader(f"测试用例: {test_case['desc']}")
     print(f"输入数据: {solar['year']}年{solar['month']}月{solar['day']}日 {solar['hour']}时 {solar['gender']}")
     
-    # 使用系统计算八字
-    bazi_data = get_bazi(
-        solar['year'], 
-        solar['month'], 
-        solar['day'], 
-        solar['hour'], 
-        solar['gender']
-    )
+    # 构造birth_time字符串
+    birth_time = f"{solar['year']}-{solar['month']:02d}-{solar['day']:02d} {solar['hour']:02d}:00:00"
     
-    system_bazi = bazi_data['bazi']
+    # 使用系统计算八字
+    bazi_data = calculate_bazi(birth_time, solar['gender'])
+    
+    # 提取八字
+    system_bazi = {
+        'year': bazi_data['yearPillar']['heavenlyStem'] + bazi_data['yearPillar']['earthlyBranch'],
+        'month': bazi_data['monthPillar']['heavenlyStem'] + bazi_data['monthPillar']['earthlyBranch'],
+        'day': bazi_data['dayPillar']['heavenlyStem'] + bazi_data['dayPillar']['earthlyBranch'],
+        'time': bazi_data['hourPillar']['heavenlyStem'] + bazi_data['hourPillar']['earthlyBranch']
+    }
+    
     print("\n计算得到的八字:")
-    print_bazi_chart(system_bazi)
+    print_bazi_chart(bazi_data)
     
     # 验证结果
     is_correct = (
@@ -107,7 +113,12 @@ def validate_bazi(test_case):
     else:
         print("\n✗ 八字计算结果不匹配!")
         print("\n期望的八字:")
-        print_bazi_chart(expected)
+        print_bazi_chart({
+            'yearPillar': {'heavenlyStem': expected['year'][0], 'earthlyBranch': expected['year'][1]},
+            'monthPillar': {'heavenlyStem': expected['month'][0], 'earthlyBranch': expected['month'][1]},
+            'dayPillar': {'heavenlyStem': expected['day'][0], 'earthlyBranch': expected['day'][1]},
+            'hourPillar': {'heavenlyStem': expected['time'][0], 'earthlyBranch': expected['time'][1]}
+        })
         
         print("\n差异:")
         for pillar in ['year', 'month', 'day', 'time']:
@@ -144,27 +155,23 @@ def test_current_date_functions():
     
     # 获取当前日期时间
     now = datetime.datetime.now()
-    year = now.year
-    month = now.month
-    day = now.day
-    hour = now.hour
-    
+    birth_time = now.strftime("%Y-%m-%d %H:00:00")
     gender = '男'  # 可以根据需要修改
     
-    print(f"\n当前日期时间: {year}年{month}月{day}日 {hour}时")
+    print(f"\n当前日期时间: {birth_time}")
     print(f"性别: {gender}")
     
     # 计算八字
-    bazi_data = get_bazi(year, month, day, hour, gender)
+    bazi_data = calculate_bazi(birth_time, gender)
     
     # 打印八字
     print_subheader("八字排盘")
-    print_bazi_chart(bazi_data['bazi'])
+    print_bazi_chart(bazi_data)
     
     # 打印神煞
     print_subheader("神煞信息")
-    if bazi_data['shen_sha']:
-        for position, values in bazi_data['shen_sha'].items():
+    if 'shenSha' in bazi_data:
+        for position, values in bazi_data['shenSha'].items():
             values_str = ', '.join(values) if isinstance(values, list) else values
             print(f"{position}: {values_str}")
     else:
@@ -172,9 +179,10 @@ def test_current_date_functions():
     
     # 打印大运
     print_subheader("大运信息")
-    qi_yun = bazi_data['da_yun']['qi_yun']
-    print(f"起运年龄: {qi_yun['years']}岁")
-    print(f"起运日期: {qi_yun['date']}")
+    if 'daYun' in bazi_data:
+        qi_yun = bazi_data['daYun']
+        print(f"起运年龄: {qi_yun['startAge']}岁")
+        print(f"起运年份: {qi_yun['startYear']}年")
     
     # 格式化输出
     print_subheader("格式化输出")
@@ -187,8 +195,9 @@ def test_current_date_functions():
     print("┌───────┬───────┬───────┬───────┬───────┐")
     print("│ 大运  │ 年龄  │ 开始  │ 结束  │ 十神  │")
     print("├───────┼───────┼───────┼───────┼───────┤")
-    for yun in bazi_data['da_yun']['da_yun_list'][:5]:  # 只显示前5个大运
-        print(f"│ {yun['da_yun']} │ {yun['start_age']}-{yun['end_age']}岁 │ {yun['start_year']}年 │ {yun['end_year']}年 │ {yun['shi_shen']} │")
+    if 'daYun' in bazi_data and 'daYunList' in bazi_data['daYun']:
+        for yun in bazi_data['daYun']['daYunList'][:5]:  # 只显示前5个大运
+            print(f"│ {yun['ganZhi']} │ {yun['startAge']}-{yun['endAge']}岁 │ {yun['startYear']}年 │ {yun['endYear']}年 │ {yun['shiShen']} │")
     print("└───────┴───────┴───────┴───────┴───────┘")
 
 def main():
@@ -200,4 +209,4 @@ def main():
     test_current_date_functions()
 
 if __name__ == "__main__":
-    main() 
+    main()

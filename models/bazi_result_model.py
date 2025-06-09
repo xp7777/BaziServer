@@ -133,69 +133,160 @@ class BaziResultModel:
         try:
             logging.info(f"尝试查找结果ID: {result_id}")
             
-            # 首先尝试直接使用字符串ID查询
-            result = results_collection.find_one({"_id": result_id})
+            # 尝试使用原始ID查询
+            result = results_collection.find_one({'_id': result_id})
             
-            # 如果找不到，尝试将字符串转换为ObjectId
-            if not result:
-                try:
-                    logging.info(f"尝试使用ObjectId查询: {result_id}")
-                    obj_id = ObjectId(result_id)
-                    result = results_collection.find_one({"_id": obj_id})
-                    
-                    if result:
-                        logging.info("使用ObjectId查询成功")
-                        # 将_id转换为字符串，方便后续处理
-                        result["_id"] = str(result["_id"])
-                except Exception as e:
-                    logging.error(f"ObjectId转换失败: {str(e)}")
+            # 如果没有找到且原始ID不是以RES开头的，尝试添加RES前缀
+            if not result and isinstance(result_id, str) and not result_id.startswith('RES'):
+                res_id = f"RES{result_id}"
+                logging.info(f"尝试使用RES前缀查询: {res_id}")
+                result = results_collection.find_one({'_id': res_id})
+                
+                # 如果找到了，更新result_id为添加了RES前缀的ID
+                if result:
+                    result_id = res_id
             
-            # 如果仍然找不到，且ID以RES开头，尝试去掉RES前缀后查询
-            if not result and result_id.startswith('RES'):
-                try:
-                    # 去掉RES前缀
-                    stripped_id = result_id[3:]
-                    logging.info(f"尝试去掉RES前缀后查询: {stripped_id}")
-                    
-                    # 尝试使用去掉前缀的ID查询
-                    result = results_collection.find_one({"_id": stripped_id})
-                    
-                    # 如果找不到，尝试将去掉前缀的ID转换为ObjectId
-                    if not result:
-                        try:
-                            logging.info(f"尝试使用去掉前缀后的ObjectId查询: {stripped_id}")
-                            obj_id = ObjectId(stripped_id)
-                            result = results_collection.find_one({"_id": obj_id})
-                            
-                            if result:
-                                logging.info("使用去掉前缀后的ObjectId查询成功")
-                                # 将_id转换为字符串，方便后续处理
-                                result["_id"] = str(result["_id"])
-                        except Exception as e:
-                            logging.error(f"去掉前缀后的ObjectId转换失败: {str(e)}")
-                except Exception as e:
-                    logging.error(f"去掉RES前缀后查询失败: {str(e)}")
+            # 对于已经以RES开头的ID，尝试去掉RES前缀
+            elif not result and isinstance(result_id, str) and result_id.startswith('RES'):
+                no_prefix_id = result_id[3:]  # 去掉RES前缀
+                logging.info(f"尝试去掉RES前缀查询: {no_prefix_id}")
+                result = results_collection.find_one({'_id': no_prefix_id})
+                
+                # 如果找到了，更新result_id为去掉了RES前缀的ID
+                if result:
+                    result_id = no_prefix_id
             
             if result:
-                logging.info(f"已找到结果ID: {result_id}")
-                # 添加调试信息
-                if 'baziChart' in result:
-                    logging.info(f"结果包含baziChart: {bool(result['baziChart'])}")
-                    if result['baziChart'] and 'yearPillar' in result['baziChart']:
-                        logging.info(f"包含年柱: {result['baziChart']['yearPillar']}")
-                else:
-                    logging.warning(f"结果不包含baziChart")
-                    
-                if 'aiAnalysis' in result:
-                    logging.info(f"结果包含aiAnalysis: {bool(result['aiAnalysis'])}")
-                    if result['aiAnalysis'] and 'overall' in result['aiAnalysis']:
-                        logging.info(f"分析整体内容: {result['aiAnalysis']['overall'][:50]}...")
-                else:
-                    logging.warning(f"结果不包含aiAnalysis")
-            else:
-                logging.warning(f"未找到结果ID: {result_id}")
+                logging.info(f"找到结果记录: {result.get('_id')}")
                 
-            return result
+                # 检查八字数据是否完整
+                if not result.get('baziChart'):
+                    logging.warning(f"八字数据不存在，初始化空数据")
+                    result['baziChart'] = {
+                        'yearPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'monthPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'dayPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'hourPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'fiveElements': {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0},
+                        'shenSha': {
+                            'dayChong': '',
+                            'zhiShen': '',
+                            'pengZuGan': '',
+                            'pengZuZhi': '',
+                            'xiShen': '',
+                            'fuShen': '',
+                            'caiShen': '',
+                            'benMing': [],
+                            'yearGan': [],
+                            'yearZhi': [],
+                            'dayGan': [],
+                            'dayZhi': []
+                        },
+                        'daYun': {
+                            'startAge': 1,
+                            'startYear': datetime.now().year,
+                            'isForward': True,
+                            'daYunList': []
+                        },
+                        'flowingYears': []
+                    }
+                    
+                    # 更新数据库
+                    results_collection.update_one(
+                        {"_id": result['_id']},
+                        {"$set": {"baziChart": result['baziChart']}}
+                    )
+                
+                # 检查AI分析数据是否完整
+                if not result.get('aiAnalysis'):
+                    logging.warning(f"AI分析数据不存在，初始化空数据")
+                    result['aiAnalysis'] = {
+                        'overall': '正在分析整体运势...',
+                        'health': '正在分析健康运势...',
+                        'wealth': '正在分析财运...',
+                        'career': '正在分析事业运势...',
+                        'relationship': '正在分析感情运势...',
+                        'children': '正在分析子女运势...'
+                    }
+                    
+                    # 更新数据库
+                    results_collection.update_one(
+                        {"_id": result['_id']},
+                        {"$set": {"aiAnalysis": result['aiAnalysis']}}
+                    )
+                else:
+                    # 确保所有必要字段都存在
+                    required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children']
+                    updates = {}
+                    for field in required_fields:
+                        if field not in result['aiAnalysis'] or not result['aiAnalysis'][field]:
+                            logging.warning(f"AI分析缺少字段: {field}，添加默认值")
+                            result['aiAnalysis'][field] = f"正在分析{field}..."
+                            updates[f"aiAnalysis.{field}"] = f"正在分析{field}..."
+                    
+                    # 如果有需要更新的字段，执行更新
+                    if updates:
+                        results_collection.update_one(
+                            {"_id": result['_id']},
+                            {"$set": updates}
+                        )
+                
+                # 检查神煞数据是否完整
+                if 'baziChart' in result and 'shenSha' not in result['baziChart']:
+                    logging.warning(f"神煞数据不存在，初始化空数据")
+                    result['baziChart']['shenSha'] = {
+                        'dayChong': '',
+                        'zhiShen': '',
+                        'pengZuGan': '',
+                        'pengZuZhi': '',
+                        'xiShen': '',
+                        'fuShen': '',
+                        'caiShen': '',
+                        'benMing': [],
+                        'yearGan': [],
+                        'yearZhi': [],
+                        'dayGan': [],
+                        'dayZhi': []
+                    }
+                    
+                    # 更新数据库
+                    results_collection.update_one(
+                        {"_id": result['_id']},
+                        {"$set": {"baziChart.shenSha": result['baziChart']['shenSha']}}
+                    )
+                
+                # 检查大运数据是否完整
+                if 'baziChart' in result and 'daYun' not in result['baziChart']:
+                    logging.warning(f"大运数据不存在，初始化空数据")
+                    result['baziChart']['daYun'] = {
+                        'startAge': 1,
+                        'startYear': datetime.now().year,
+                        'isForward': True,
+                        'daYunList': []
+                    }
+                    
+                    # 更新数据库
+                    results_collection.update_one(
+                        {"_id": result['_id']},
+                        {"$set": {"baziChart.daYun": result['baziChart']['daYun']}}
+                    )
+                
+                # 检查流年数据是否完整
+                if 'baziChart' in result and 'flowingYears' not in result['baziChart']:
+                    logging.warning(f"流年数据不存在，初始化空数据")
+                    result['baziChart']['flowingYears'] = []
+                    
+                    # 更新数据库
+                    results_collection.update_one(
+                        {"_id": result['_id']},
+                        {"$set": {"baziChart.flowingYears": result['baziChart']['flowingYears']}}
+                    )
+                
+                return result
+            else:
+                logging.warning(f"未找到结果记录: {result_id}")
+                return None
+                
         except Exception as e:
             logging.error(f"查找分析结果失败: {str(e)}")
             logging.error(traceback.format_exc())
@@ -287,56 +378,59 @@ class BaziResultModel:
             return None
     
     @staticmethod
-    def update_ai_analysis(result_id, area, analysis):
-        """更新特定领域的AI分析结果
-        
-        Args:
-            result_id: 结果ID
-            area: 分析领域，如'health', 'wealth'等
-            analysis: 分析内容
-            
-        Returns:
-            更新后的结果对象
-        """
+    def update_ai_analysis(result_id, analysis_data):
+        """更新AI分析结果"""
         try:
-            logger.info(f"更新AI分析结果: {result_id}, 领域: {area}")
+            # 记录更新内容
+            logger.info(f"更新AI分析结果: {result_id}")
             
-            # 构建更新字段
-            update_field = f"aiAnalysis.{area}"
+            # 检查分析数据
+            if not analysis_data:
+                logger.warning(f"AI分析数据为空: {result_id}")
+                analysis_data = {}
             
-            # 尝试直接使用字符串ID更新
+            # 确保所有必要字段都存在
+            required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children']
+            for field in required_fields:
+                if field not in analysis_data or not analysis_data[field]:
+                    logger.warning(f"aiAnalysis缺少必要字段: {field}，添加默认值")
+                    analysis_data[field] = f"正在分析{field}..."
+            
+            # 尝试直接使用原始ID更新
             result = results_collection.find_one_and_update(
-                {"_id": result_id},
-                {"$set": {update_field: analysis}},
+                {'_id': result_id},
+                {'$set': {
+                    'aiAnalysis': analysis_data,
+                    'updateTime': datetime.now()
+                }},
                 return_document=ReturnDocument.AFTER
             )
             
-            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
-            if not result:
-                try:
-                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
-                    obj_id = ObjectId(result_id)
-                    result = results_collection.find_one_and_update(
-                        {"_id": obj_id},
-                        {"$set": {update_field: analysis}},
-                        return_document=ReturnDocument.AFTER
-                    )
-                except Exception as e:
-                    logger.error(f"ObjectId转换失败: {str(e)}")
+            # 如果没找到，尝试添加RES前缀
+            if not result and isinstance(result_id, str) and not result_id.startswith('RES'):
+                res_id = f"RES{result_id}"
+                logger.info(f"尝试使用RES前缀更新: {res_id}")
+                result = results_collection.find_one_and_update(
+                    {'_id': res_id},
+                    {'$set': {
+                        'aiAnalysis': analysis_data,
+                        'updateTime': datetime.now()
+                    }},
+                    return_document=ReturnDocument.AFTER
+                )
             
             if result:
-                logger.info(f"成功更新AI分析结果: {result_id}, 领域: {area}")
-                result['_id'] = str(result['_id'])
-                return result
+                logger.info(f"成功更新AI分析结果: {result_id}")
+                return True
             else:
-                logger.warning(f"未找到要更新的结果: {result_id}")
-                return None
+                logger.warning(f"未找到要更新的记录: {result_id}")
+                return False
                 
         except Exception as e:
             logger.error(f"更新AI分析结果失败: {str(e)}")
             logger.error(traceback.format_exc())
-            return None
-            
+            return False
+    
     @staticmethod
     def update_single_area_analysis(result_id, area, analysis_content):
         """更新单个领域的分析结果，用于按需付费的追问功能
@@ -416,6 +510,16 @@ class BaziResultModel:
             # 记录更新内容
             logger.info(f"更新分析结果: {result_id}")
             
+            # 获取现有记录
+            existing_result = results_collection.find_one({"_id": result_id})
+            if not existing_result:
+                logger.warning(f"未找到现有记录，尝试添加RES前缀: {result_id}")
+                if isinstance(result_id, str) and not result_id.startswith("RES"):
+                    existing_result = results_collection.find_one({"_id": f"RES{result_id}"})
+                    if existing_result:
+                        result_id = f"RES{result_id}"
+            
+            # 准备八字命盘数据
             if bazi_chart:
                 logger.info(f"更新八字命盘数据: {list(bazi_chart.keys())}")
                 
@@ -425,7 +529,46 @@ class BaziResultModel:
                     if pillar not in bazi_chart or not bazi_chart[pillar]:
                         logger.warning(f"baziChart缺少必要字段: {pillar}，添加默认值")
                         bazi_chart[pillar] = {'heavenlyStem': '?', 'earthlyBranch': '?'}
+                
+                # 确保五行分布存在
+                if 'fiveElements' not in bazi_chart or not bazi_chart['fiveElements']:
+                    logger.warning("baziChart缺少五行分布，添加默认值")
+                    bazi_chart['fiveElements'] = {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0}
+                
+                # 确保神煞数据存在
+                if 'shenSha' not in bazi_chart:
+                    logger.warning("baziChart缺少神煞数据，添加默认值")
+                    bazi_chart['shenSha'] = {
+                        'dayChong': '',
+                        'zhiShen': '',
+                        'pengZuGan': '',
+                        'pengZuZhi': '',
+                        'xiShen': '',
+                        'fuShen': '',
+                        'caiShen': '',
+                        'benMing': [],
+                        'yearGan': [],
+                        'yearZhi': [],
+                        'dayGan': [],
+                        'dayZhi': []
+                    }
+                
+                # 确保大运数据存在
+                if 'daYun' not in bazi_chart:
+                    logger.warning("baziChart缺少大运数据，添加默认值")
+                    bazi_chart['daYun'] = {
+                        'startAge': 1,
+                        'startYear': datetime.now().year,
+                        'isForward': True,
+                        'daYunList': []
+                    }
+                
+                # 确保流年数据存在
+                if 'flowingYears' not in bazi_chart:
+                    logger.warning("baziChart缺少流年数据，添加默认值")
+                    bazi_chart['flowingYears'] = []
             
+            # 准备AI分析数据
             if ai_analysis:
                 logger.info(f"更新AI分析结果: {list(ai_analysis.keys())}")
                 
@@ -434,7 +577,7 @@ class BaziResultModel:
                 for field in required_fields:
                     if field not in ai_analysis or not ai_analysis[field]:
                         logger.warning(f"aiAnalysis缺少必要字段: {field}，添加默认值")
-                        ai_analysis[field] = f"暂无{field}分析数据"
+                        ai_analysis[field] = f"正在分析{field}..."
             
             # 准备更新数据
             update_data = {
@@ -469,23 +612,11 @@ class BaziResultModel:
                                     # 尝试修复问题字段
                                     update_data[key][sub_key] = str(sub_value)
             
-            # 尝试直接使用字符串ID更新
+            # 尝试更新记录
             result = results_collection.update_one(
                 {'_id': result_id},
                 {'$set': update_data}
             )
-            
-            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
-            if result.matched_count == 0:
-                try:
-                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
-                    obj_id = ObjectId(result_id)
-                    result = results_collection.update_one(
-                        {'_id': obj_id},
-                        {'$set': update_data}
-                    )
-                except Exception as e:
-                    logger.error(f"ObjectId转换失败: {str(e)}")
             
             if result.matched_count > 0:
                 logger.info(f"成功更新分析结果: {result_id}")
@@ -628,7 +759,7 @@ class BaziResultModel:
             ai_analysis: AI分析结果
             
         Returns:
-            bool: 是否更新成功
+            dict: 更新后的结果记录
         """
         try:
             # 记录更新内容
@@ -656,12 +787,45 @@ class BaziResultModel:
                 logger.warning("baziChart缺少五行分布，添加默认值")
                 bazi_chart['fiveElements'] = {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0}
             
+            # 确保神煞数据存在
+            if 'shenSha' not in bazi_chart or not bazi_chart['shenSha']:
+                logger.warning("baziChart缺少神煞数据，添加默认值")
+                bazi_chart['shenSha'] = {
+                    'dayChong': '',
+                    'zhiShen': '',
+                    'pengZuGan': '',
+                    'pengZuZhi': '',
+                    'xiShen': '',
+                    'fuShen': '',
+                    'caiShen': '',
+                    'benMing': [],
+                    'yearGan': [],
+                    'yearZhi': [],
+                    'dayGan': [],
+                    'dayZhi': []
+                }
+                
+            # 确保大运数据存在
+            if 'daYun' not in bazi_chart or not bazi_chart['daYun']:
+                logger.warning("baziChart缺少大运数据，添加默认值")
+                bazi_chart['daYun'] = {
+                    'startAge': 1,
+                    'startYear': datetime.now().year,
+                    'isForward': True,
+                    'daYunList': []
+                }
+            
+            # 确保流年数据存在
+            if 'flowingYears' not in bazi_chart:
+                logger.warning("baziChart缺少流年数据，添加默认值")
+                bazi_chart['flowingYears'] = []
+            
             # 确保AI分析结果包含必要字段
-            required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 'personality', 'education', 'parents', 'social', 'future']
+            required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children']
             for field in required_fields:
                 if field not in ai_analysis or not ai_analysis[field]:
                     logger.warning(f"aiAnalysis缺少必要字段: {field}，添加默认值")
-                    ai_analysis[field] = f"暂无{field}分析数据"
+                    ai_analysis[field] = f"正在分析{field}..."
             
             # 准备更新数据
             update_data = {
@@ -692,27 +856,26 @@ class BaziResultModel:
                                     # 尝试修复问题字段
                                     update_data[key][sub_key] = str(sub_value)
             
-            # 尝试直接使用字符串ID更新
-            result = results_collection.update_one(
+            # 尝试直接使用原始ID更新
+            result = results_collection.find_one_and_update(
                 {'_id': result_id},
-                {'$set': update_data}
+                {'$set': update_data},
+                return_document=ReturnDocument.AFTER
             )
             
-            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
-            if result.matched_count == 0:
-                try:
-                    logger.info(f"使用字符串ID未找到记录，尝试转换为ObjectId: {result_id}")
-                    obj_id = ObjectId(result_id)
-                    result = results_collection.update_one(
-                        {'_id': obj_id},
-                        {'$set': update_data}
-                    )
-                except Exception as e:
-                    logger.error(f"ObjectId转换失败: {str(e)}")
+            # 如果没找到，尝试添加RES前缀
+            if not result and isinstance(result_id, str) and not result_id.startswith('RES'):
+                res_id = f"RES{result_id}"
+                logger.info(f"尝试使用RES前缀更新: {res_id}")
+                result = results_collection.find_one_and_update(
+                    {'_id': res_id},
+                    {'$set': update_data},
+                    return_document=ReturnDocument.AFTER
+                )
             
-            if result.matched_count > 0:
+            if result:
                 logger.info(f"成功完整更新分析结果: {result_id}")
-                return True
+                return result
             else:
                 # 尝试创建新记录
                 try:
@@ -727,15 +890,15 @@ class BaziResultModel:
                     }
                     results_collection.insert_one(new_data)
                     logger.info(f"成功创建新的分析结果: {result_id}")
-                    return True
+                    return new_data
                 except Exception as create_err:
                     logger.error(f"创建新记录失败: {str(create_err)}")
+                    return None
                     
-                # 如果创建失败，返回原始错误
         except Exception as e:
             logger.error(f"完整更新分析结果失败: {str(e)}")
             logger.error(traceback.format_exc())
-            return False
+            return None
     
     @staticmethod
     def update_followup(result_id, area, analysis):
@@ -751,4 +914,189 @@ class BaziResultModel:
                 "updateTime": datetime.now()
             }}
         )
-        return True 
+        return True
+    
+    @staticmethod
+    def create_result_with_id(result_id, user_id, order_id, birth_date, birth_time, gender, area, bazi_data=None):
+        """创建新的结果记录，使用指定的结果ID"""
+        try:
+            logging.info(f"创建结果记录: result_id={result_id}, user_id={user_id}, order_id={order_id}")
+            
+            # 检查是否已存在相同ID的记录
+            existing = results_collection.find_one({"_id": result_id})
+            if existing:
+                logging.warning(f"已存在相同ID的记录: {result_id}")
+                # 更新现有记录
+                update_result = results_collection.update_one(
+                    {"_id": result_id},
+                    {
+                        "$set": {
+                            "userId": user_id,
+                            "orderId": order_id,
+                            "birthDate": birth_date,
+                            "birthTime": birth_time,
+                            "gender": gender,
+                            "area": area,
+                            "updateTime": datetime.now()
+                        }
+                    }
+                )
+                if bazi_data:
+                    update_result = results_collection.update_one(
+                        {"_id": result_id},
+                        {"$set": {"baziChart": bazi_data}}
+                    )
+                logging.info(f"更新现有记录成功: {result_id}")
+                return True
+            
+            # 创建新记录
+            result = {
+                "_id": result_id,
+                "userId": user_id,
+                "orderId": order_id,
+                "birthDate": birth_date,
+                "birthTime": birth_time,
+                "gender": gender,
+                "area": area,
+                "createTime": datetime.now(),
+                "updateTime": datetime.now(),
+                "aiAnalysis": {
+                    'overall': '正在分析整体运势...',
+                    'health': '正在分析健康运势...',
+                    'wealth': '正在分析财运...',
+                    'career': '正在分析事业运势...',
+                    'relationship': '正在分析感情运势...',
+                    'children': '正在分析子女运势...'
+                }
+            }
+            
+            # 如果提供了八字数据，添加到记录中
+            if bazi_data:
+                # 确保八字数据完整
+                if not isinstance(bazi_data, dict):
+                    bazi_data = {}
+                
+                # 确保年月日时四柱都存在
+                pillars = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']
+                for pillar in pillars:
+                    if pillar not in bazi_data or not bazi_data[pillar]:
+                        logging.warning(f"baziChart缺少必要字段: {pillar}，添加默认值")
+                        bazi_data[pillar] = {'heavenlyStem': '?', 'earthlyBranch': '?'}
+                
+                # 确保五行分布存在
+                if 'fiveElements' not in bazi_data or not bazi_data['fiveElements']:
+                    logging.warning("baziChart缺少五行分布，添加默认值")
+                    bazi_data['fiveElements'] = {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0}
+                
+                # 确保神煞数据存在
+                if 'shenSha' not in bazi_data:
+                    logging.warning("baziChart缺少神煞数据，添加默认值")
+                    bazi_data['shenSha'] = {
+                        'dayChong': '',
+                        'zhiShen': '',
+                        'pengZuGan': '',
+                        'pengZuZhi': '',
+                        'xiShen': '',
+                        'fuShen': '',
+                        'caiShen': '',
+                        'benMing': [],
+                        'yearGan': [],
+                        'yearZhi': [],
+                        'dayGan': [],
+                        'dayZhi': []
+                    }
+                
+                # 确保大运数据存在
+                if 'daYun' not in bazi_data:
+                    logging.warning("baziChart缺少大运数据，添加默认值")
+                    bazi_data['daYun'] = {
+                        'startAge': 1,
+                        'startYear': datetime.now().year,
+                        'isForward': True,
+                        'daYunList': []
+                    }
+                
+                # 确保流年数据存在
+                if 'flowingYears' not in bazi_data:
+                    logging.warning("baziChart缺少流年数据，添加默认值")
+                    bazi_data['flowingYears'] = []
+                
+                result["baziChart"] = bazi_data
+            else:
+                # 如果没有提供八字数据，创建空的数据结构
+                result["baziChart"] = {
+                    'yearPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                    'monthPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                    'dayPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                    'hourPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                    'fiveElements': {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0},
+                    'shenSha': {
+                        'dayChong': '',
+                        'zhiShen': '',
+                        'pengZuGan': '',
+                        'pengZuZhi': '',
+                        'xiShen': '',
+                        'fuShen': '',
+                        'caiShen': '',
+                        'benMing': [],
+                        'yearGan': [],
+                        'yearZhi': [],
+                        'dayGan': [],
+                        'dayZhi': []
+                    },
+                    'daYun': {
+                        'startAge': 1,
+                        'startYear': datetime.now().year,
+                        'isForward': True,
+                        'daYunList': []
+                    },
+                    'flowingYears': []
+                }
+            
+            # 插入记录
+            results_collection.insert_one(result)
+            logging.info(f"创建结果记录成功: {result_id}")
+            return True
+            
+        except Exception as e:
+            logging.error(f"创建结果记录失败: {str(e)}")
+            logging.error(traceback.format_exc())
+            return False
+    
+    @staticmethod
+    def get_followup_list(result_id):
+        """获取已支付的追问列表"""
+        try:
+            # 从数据库获取结果
+            result = results_collection.find_one({"_id": result_id})
+            if not result:
+                return []
+            
+            # 获取已支付的追问列表
+            followups = result.get('followups', [])
+            return followups
+        except Exception as e:
+            logging.error(f"获取追问列表失败: {str(e)}")
+            logging.error(traceback.format_exc())
+            return []
+    
+    @staticmethod
+    def get_followup_analysis(result_id, area):
+        """获取特定领域的追问分析结果"""
+        try:
+            # 从数据库获取结果
+            result = results_collection.find_one({"_id": result_id})
+            if not result:
+                return None
+            
+            # 获取追问分析结果
+            followups = result.get('followups', [])
+            for followup in followups:
+                if followup.get('area') == area:
+                    return followup
+                
+            return None
+        except Exception as e:
+            logging.error(f"获取追问分析失败: {str(e)}")
+            logging.error(traceback.format_exc())
+            return None 

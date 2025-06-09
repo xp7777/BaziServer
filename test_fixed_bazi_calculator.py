@@ -2,13 +2,17 @@ import sys
 import os
 import traceback
 import json
+import unittest
+from datetime import datetime
+from lunar_python import Solar, Lunar
+from utils.bazi_calculator import calculate_bazi
 
 print("Python版本:", sys.version)
 print("当前工作目录:", os.getcwd())
 
 try:
     # 导入修改后的bazi_calculator模块
-    from utils.bazi_calculator import calculate_bazi, format_bazi_analysis, get_bazi
+    from utils.bazi_calculator import calculate_bazi, format_bazi_analysis
     
     print("bazi_calculator模块已成功导入")
     
@@ -17,28 +21,33 @@ try:
         print(f"\n=== 测试用例: {description or f'{year}年{month}月{day}日{hour}时 {gender}'} ===")
         
         try:
-            # 直接使用get_bazi测试
-            bazi_data = get_bazi(year, month, day, hour, gender)
+            # 构造birth_time字符串
+            birth_time = f"{year}-{month:02d}-{day:02d} {hour:02d}:00:00"
+            
+            # 使用calculate_bazi函数测试
+            bazi_data = calculate_bazi(birth_time, gender)
             
             # 格式化输出
             formatted_data = format_bazi_analysis(bazi_data)
             
             print(f"八字: {formatted_data['bazi']}")
-            print(f"神煞: {formatted_data['shenSha']}")
-            print(f"{formatted_data['qiYun']}")
-            print(f"大运: \n{formatted_data['daYun']}")
+            print(f"神煞: {formatted_data['shen_sha']}")
+            print(f"{formatted_data['qi_yun']}")
+            print(f"大运: \n{formatted_data['da_yun']}")
             
             # 输出五行分布
-            print("五行分布:")
-            five_elements = bazi_data["fiveElements"]
-            for element, count in five_elements.items():
-                print(f"  {element}: {count}")
-                
+            if 'fiveElements' in bazi_data:
+                print("五行分布:")
+                five_elements = bazi_data["fiveElements"]
+                for element, count in five_elements.items():
+                    print(f"  {element}: {count}")
+            
             # 输出流年
-            print("流年:")
-            for year_data in bazi_data["flowingYears"][:3]:  # 只显示前3年
-                print(f"  {year_data['year']}年: {year_data['heavenlyStem']}{year_data['earthlyBranch']} ({year_data['element']})")
-                
+            if 'flowingYears' in bazi_data:
+                print("流年:")
+                for year_data in bazi_data["flowingYears"][:3]:  # 只显示前3年
+                    print(f"  {year_data['year']}年: {year_data['heavenlyStem']}{year_data['earthlyBranch']} ({year_data['element']})")
+            
             return True
         except Exception as e:
             print(f"测试失败: {str(e)}")
@@ -51,27 +60,29 @@ try:
         
         try:
             # 使用calculate_bazi函数测试
-            bazi_data = calculate_bazi(gender, birth_time)
+            bazi_data = calculate_bazi(birth_time, gender)
             
             # 格式化输出
             formatted_data = format_bazi_analysis(bazi_data)
             
             print(f"八字: {formatted_data['bazi']}")
-            print(f"神煞: {formatted_data['shenSha']}")
-            print(f"{formatted_data['qiYun']}")
-            print(f"大运: \n{formatted_data['daYun']}")
+            print(f"神煞: {formatted_data['shen_sha']}")
+            print(f"{formatted_data['qi_yun']}")
+            print(f"大运: \n{formatted_data['da_yun']}")
             
             # 输出五行分布
-            print("五行分布:")
-            five_elements = bazi_data["fiveElements"]
-            for element, count in five_elements.items():
-                print(f"  {element}: {count}")
-                
+            if 'fiveElements' in bazi_data:
+                print("五行分布:")
+                five_elements = bazi_data["fiveElements"]
+                for element, count in five_elements.items():
+                    print(f"  {element}: {count}")
+            
             # 输出流年
-            print("流年:")
-            for year_data in bazi_data["flowingYears"][:3]:  # 只显示前3年
-                print(f"  {year_data['year']}年: {year_data['heavenlyStem']}{year_data['earthlyBranch']} ({year_data['element']})")
-                
+            if 'flowingYears' in bazi_data:
+                print("流年:")
+                for year_data in bazi_data["flowingYears"][:3]:  # 只显示前3年
+                    print(f"  {year_data['year']}年: {year_data['heavenlyStem']}{year_data['earthlyBranch']} ({year_data['element']})")
+            
             return True
         except Exception as e:
             print(f"测试失败: {str(e)}")
@@ -94,7 +105,7 @@ try:
     # 测试使用birth_time字符串的方式
     birth_time_cases = [
         ("1990-01-15 12:00:00", "男", "1990年男性 (字符串时间)"),
-        ("2025-05-21 12", "男", "2025年未出生男婴 (简化时间字符串)")
+        ("2025-05-21 12:00:00", "男", "2025年未出生男婴 (简化时间字符串)")
     ]
     
     for birth_time, gender, desc in birth_time_cases:

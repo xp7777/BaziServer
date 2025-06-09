@@ -16,57 +16,51 @@
       <van-tab title="命盘信息">
         <div class="bazi-chart">
           <h3>八字命盘</h3>
-          <van-grid :column-num="4" :border="false" v-if="baziData && baziData.yearPillar && baziData.monthPillar && baziData.dayPillar && baziData.hourPillar">
-            <van-grid-item>
-              <template #default>
-                <div class="pillar">
-                  <div class="stem">{{ baziData.yearPillar.heavenlyStem }}</div>
-                  <div class="branch">{{ baziData.yearPillar.earthlyBranch }}</div>
-                  <div class="label">年柱</div>
-                </div>
-              </template>
-            </van-grid-item>
-            <van-grid-item>
-              <template #default>
-                <div class="pillar">
-                  <div class="stem">{{ baziData.monthPillar.heavenlyStem }}</div>
-                  <div class="branch">{{ baziData.monthPillar.earthlyBranch }}</div>
-                  <div class="label">月柱</div>
-                </div>
-              </template>
-            </van-grid-item>
-            <van-grid-item>
-              <template #default>
-                <div class="pillar">
-                  <div class="stem">{{ baziData.dayPillar.heavenlyStem }}</div>
-                  <div class="branch">{{ baziData.dayPillar.earthlyBranch }}</div>
-                  <div class="label">日柱</div>
-                </div>
-              </template>
-            </van-grid-item>
-            <van-grid-item>
-              <template #default>
-                <div class="pillar">
-                  <div class="stem">{{ baziData.hourPillar.heavenlyStem }}</div>
-                  <div class="branch">{{ baziData.hourPillar.earthlyBranch }}</div>
-                  <div class="label">时柱</div>
-                </div>
-              </template>
-            </van-grid-item>
-          </van-grid>
-          
-          <!-- 数据缺失时显示占位符 -->
-          <van-grid :column-num="4" :border="false" v-else>
-            <van-grid-item v-for="pillar in ['年柱', '月柱', '日柱', '时柱']" :key="pillar">
-              <template #default>
-                <div class="pillar">
-                  <div class="stem placeholder">--</div>
-                  <div class="branch placeholder">--</div>
-                  <div class="label">{{ pillar }}</div>
-                </div>
-              </template>
-            </van-grid-item>
-          </van-grid>
+          <div v-if="baziData && baziData.yearPillar && baziData.monthPillar && baziData.dayPillar && baziData.hourPillar" class="four-pillars">
+            <!-- 年柱 -->
+            <div class="pillar">
+              <div class="stem">{{ baziData.yearPillar.heavenlyStem }}</div>
+              <div class="branch">{{ baziData.yearPillar.earthlyBranch }}</div>
+              <div class="label">年柱</div>
+              <div class="nayin">{{ baziData.yearPillar.naYin }}</div>
+              <div class="shishen">{{ baziData.yearPillar.shiShen }}</div>
+              <div class="wangshuai">{{ baziData.yearPillar.wangShuai }}</div>
+            </div>
+            
+            <!-- 月柱 -->
+            <div class="pillar">
+              <div class="stem">{{ baziData.monthPillar.heavenlyStem }}</div>
+              <div class="branch">{{ baziData.monthPillar.earthlyBranch }}</div>
+              <div class="label">月柱</div>
+              <div class="nayin">{{ baziData.monthPillar.naYin }}</div>
+              <div class="shishen">{{ baziData.monthPillar.shiShen }}</div>
+              <div class="wangshuai">{{ baziData.monthPillar.wangShuai }}</div>
+            </div>
+            
+            <!-- 日柱 -->
+            <div class="pillar">
+              <div class="stem">{{ baziData.dayPillar.heavenlyStem }}</div>
+              <div class="branch">{{ baziData.dayPillar.earthlyBranch }}</div>
+              <div class="label">日柱</div>
+              <div class="nayin">{{ baziData.dayPillar.naYin }}</div>
+              <div class="shishen">{{ baziData.dayPillar.shiShen }}</div>
+              <div class="wangshuai">{{ baziData.dayPillar.wangShuai }}</div>
+            </div>
+            
+            <!-- 时柱 -->
+            <div class="pillar">
+              <div class="stem">{{ baziData.hourPillar.heavenlyStem }}</div>
+              <div class="branch">{{ baziData.hourPillar.earthlyBranch }}</div>
+              <div class="label">时柱</div>
+              <div class="nayin">{{ baziData.hourPillar.naYin }}</div>
+              <div class="shishen">{{ baziData.hourPillar.shiShen }}</div>
+              <div class="wangshuai">{{ baziData.hourPillar.wangShuai }}</div>
+            </div>
+          </div>
+          <div v-else class="error-message">
+            <van-empty description="八字数据加载失败，请重试" />
+            <van-button type="primary" size="small" @click="reloadBaziData">重新加载</van-button>
+          </div>
           
           <h3>五行分布</h3>
           <div class="five-elements" v-if="baziData && baziData.fiveElements">
@@ -85,19 +79,38 @@
           <!-- 添加神煞显示 -->
           <h3>神煞信息</h3>
           <div class="shen-sha-info" v-if="baziData && baziData.shenSha">
-            <van-cell-group inset>
-              <van-cell title="日冲" :value="baziData.shenSha.dayChong || '无'" />
-              <van-cell title="值神" :value="baziData.shenSha.zhiShen || '无'" />
-              <van-cell title="彭祖百忌" :value="(baziData.shenSha.pengZuGan && baziData.shenSha.pengZuZhi) ? `${baziData.shenSha.pengZuGan} ${baziData.shenSha.pengZuZhi}` : '无'" />
-              <van-cell title="喜神方位" :value="baziData.shenSha.xiShen || '无'" />
-              <van-cell title="福神方位" :value="baziData.shenSha.fuShen || '无'" />
-              <van-cell title="财神方位" :value="baziData.shenSha.caiShen || '无'" />
-              <van-cell title="本命神煞" :value="baziData.shenSha.benMing ? baziData.shenSha.benMing.join('、') : '无'" />
-              <van-cell title="年干神煞" :value="baziData.shenSha.yearGan && baziData.shenSha.yearGan.length ? baziData.shenSha.yearGan.join('、') : '无'" />
-              <van-cell title="年支神煞" :value="baziData.shenSha.yearZhi && baziData.shenSha.yearZhi.length ? baziData.shenSha.yearZhi.join('、') : '无'" />
-              <van-cell title="日干神煞" :value="baziData.shenSha.dayGan && baziData.shenSha.dayGan.length ? baziData.shenSha.dayGan.join('、') : '无'" />
-              <van-cell title="日支神煞" :value="baziData.shenSha.dayZhi && baziData.shenSha.dayZhi.length ? baziData.shenSha.dayZhi.join('、') : '无'" />
-            </van-cell-group>
+            <div class="shen-sha-content">
+              <div class="shen-sha-item">
+                <span class="label">日冲</span>
+                <span class="value">{{ baziData.shenSha.dayChong }}</span>
+              </div>
+              <div class="shen-sha-item">
+                <span class="label">值神</span>
+                <span class="value">{{ baziData.shenSha.zhiShen }}</span>
+              </div>
+              <div class="shen-sha-item">
+                <span class="label">喜神</span>
+                <span class="value">{{ baziData.shenSha.xiShen }}</span>
+              </div>
+              <div class="shen-sha-item">
+                <span class="label">福神</span>
+                <span class="value">{{ baziData.shenSha.fuShen }}</span>
+              </div>
+              <div class="shen-sha-item">
+                <span class="label">财神</span>
+                <span class="value">{{ baziData.shenSha.caiShen }}</span>
+              </div>
+            </div>
+            
+            <!-- 本命神煞 -->
+            <div class="ben-ming-sha" v-if="baziData.shenSha.benMing.length > 0">
+              <h4>本命神煞</h4>
+              <div class="ben-ming-list">
+                <span v-for="(sha, index) in baziData.shenSha.benMing" :key="index" class="ben-ming-item">
+                  {{ sha }}
+                </span>
+              </div>
+            </div>
           </div>
           <div class="shen-sha-info" v-else>
             <van-cell-group inset>
@@ -108,29 +121,36 @@
           <!-- 添加大运显示 -->
           <h3>大运信息</h3>
           <div class="da-yun-info" v-if="baziData && baziData.daYun">
-            <p class="qi-yun-info">起运年龄: {{ baziData.daYun.startAge || '--' }}岁，起运年份: {{ baziData.daYun.startYear || '--' }}年</p>
+            <div class="qi-yun-info">
+              <p>起运年龄: {{ baziData.daYun.startAge }}岁</p>
+              <p>起运年份: {{ baziData.daYun.startYear }}年</p>
+              <p>大运顺序: {{ baziData.daYun.isForward ? '顺行' : '逆行' }}</p>
+            </div>
             
-            <div class="da-yun-table" v-if="baziData.daYun.daYunList && baziData.daYun.daYunList.length">
-              <van-cell-group inset>
-                <van-cell v-for="item in baziData.daYun.daYunList" :key="item.index"
-                  :title="`${item.index || '--'}. ${item.heavenlyStem || '--'}${item.earthlyBranch || '--'} (${item.element || '--'})`"
-                  :value="`${item.startYear || '--'}-${item.endYear || '--'}年`"
-                />
-              </van-cell-group>
-            </div>
-            <!-- 处理数据结构不一致的情况：daYun下有daYun数组 -->
-            <div class="da-yun-table" v-else-if="baziData.daYun.daYun && baziData.daYun.daYun.length">
-              <van-cell-group inset>
-                <van-cell v-for="item in baziData.daYun.daYun" :key="item.index || item.ganZhi"
-                  :title="`${item.index || '--'}. ${item.heavenlyStem || item.ganZhi?.slice(0,1) || '--'}${item.earthlyBranch || item.ganZhi?.slice(1,2) || '--'} (${item.element || '--'})`"
-                  :value="`${item.startYear || '--'}-${item.endYear || '--'}年`"
-                />
-              </van-cell-group>
-            </div>
-            <div v-else>
-              <van-cell-group inset>
-                <van-cell title="大运信息" value="暂无详细数据" />
-              </van-cell-group>
+            <!-- 大运列表 -->
+            <div class="da-yun-table">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>年龄</th>
+                    <th>年份</th>
+                    <th>天干</th>
+                    <th>地支</th>
+                    <th>纳音</th>
+                    <th>吉凶</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(yun, index) in baziData.daYun.daYunList" :key="index">
+                    <td>{{ yun.startAge }}-{{ yun.endAge }}</td>
+                    <td>{{ yun.startYear }}-{{ yun.endYear }}</td>
+                    <td>{{ yun.heavenlyStem }}</td>
+                    <td>{{ yun.earthlyBranch }}</td>
+                    <td>{{ yun.naYin }}</td>
+                    <td>{{ yun.jiXiong }}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
           <div class="da-yun-info" v-else>
@@ -140,18 +160,34 @@
           </div>
           
           <h3>流年信息</h3>
-          <div class="flowing-years" v-if="baziData && baziData.flowingYears && baziData.flowingYears.length">
-            <van-cell-group inset>
-              <van-cell v-for="(year, index) in baziData.flowingYears" :key="index"
-                :title="`${year.year || '--'}年: ${year.heavenlyStem || '--'}${year.earthlyBranch || '--'} (${year.element || '--'})`"
-                :value="year.shenSha && year.shenSha.length ? year.shenSha.join('、') : '无神煞'"
-              />
-            </van-cell-group>
+          <div class="liu-nian-info" v-if="baziData && baziData.flowingYears && baziData.flowingYears.length">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>年份</th>
+                  <th>年龄</th>
+                  <th>天干</th>
+                  <th>地支</th>
+                  <th>五行</th>
+                  <th>神煞</th>
+                  <th>吉凶</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(year, index) in baziData.flowingYears" :key="index">
+                  <td>{{ year.year }}</td>
+                  <td>{{ year.age }}</td>
+                  <td>{{ year.heavenlyStem }}</td>
+                  <td>{{ year.earthlyBranch }}</td>
+                  <td>{{ getElementName(year.ganElement) }}/{{ getElementName(year.zhiElement) }}</td>
+                  <td>{{ year.shenSha && Array.isArray(year.shenSha) ? year.shenSha.join(', ') : '无' }}</td>
+                  <td>{{ year.jiXiong || '未知' }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div class="flowing-years" v-else>
-            <van-cell-group inset>
-              <van-cell title="流年信息" value="暂无数据" />
-            </van-cell-group>
+          <div class="liu-nian-info" v-else>
+            <van-empty description="流年数据暂无" />
           </div>
         </div>
       </van-tab>
@@ -333,7 +369,7 @@ import axios from 'axios';
 
 const route = useRoute();
 const router = useRouter();
-const resultId = route.params.id || route.query.resultId;
+const resultId = ref(route.params.id || route.query.resultId);
 const activeTab = ref(0);
 const loading = ref(false);
 
@@ -391,17 +427,58 @@ const getAnalysisContent = (sectionName) => {
 
 // 修改数据初始化
 const focusAreas = ref([]);
+const analysisResult = ref({});
 
 // 初始化八字数据
 const baziData = ref({
-  yearPillar: null,
-  monthPillar: null,
-  dayPillar: null,
-  hourPillar: null,
-  fiveElements: null,
+  yearPillar: { 
+    heavenlyStem: '', 
+    earthlyBranch: '',
+    naYin: '',
+    shiShen: '',
+    wangShuai: ''
+  },
+  monthPillar: { 
+    heavenlyStem: '', 
+    earthlyBranch: '',
+    naYin: '',
+    shiShen: '',
+    wangShuai: ''
+  },
+  dayPillar: { 
+    heavenlyStem: '', 
+    earthlyBranch: '',
+    naYin: '',
+    shiShen: '',
+    wangShuai: ''
+  },
+  hourPillar: { 
+    heavenlyStem: '', 
+    earthlyBranch: '',
+    naYin: '',
+    shiShen: '',
+    wangShuai: ''
+  },
+  fiveElements: {},
   flowingYears: [],
-  shenSha: null,
-  daYun: null,
+  shenSha: {
+    dayChong: '',
+    zhiShen: '',
+    xiShen: '',
+    fuShen: '',
+    caiShen: '',
+    benMing: [],
+    yearGan: [],
+    yearZhi: [],
+    dayGan: [],
+    dayZhi: []
+  },
+  daYun: {
+    startAge: 0,
+    startYear: 0,
+    isForward: true,
+    daYunList: []
+  },
   birthDate: null,
   birthTime: null,
   gender: null
@@ -446,37 +523,73 @@ onMounted(async () => {
     return;
   }
   
-  console.log('结果页面加载，ID:', resultId);
+  console.log('结果页面加载，URL参数中的ID:', resultId.value);
   
   // 如果没有resultId，尝试从本地存储获取
   const localResultId = localStorage.getItem('resultId');
-  if (!resultId && localResultId) {
+  if (!resultId.value && localResultId) {
     console.log('从本地存储获取ID:', localResultId);
+    // 更新resultId为从本地存储获取的值
+    resultId.value = localResultId;
   }
   
-  const finalResultId = resultId || localResultId;
+  // 确保resultId是字符串类型，不是布尔值或其他数据类型
+  if (resultId.value === true || resultId.value === false) {
+    console.error('resultId不应该是布尔值:', resultId.value);
+    resultId.value = localResultId || route.query.resultId || '';
+  }
   
-  if (!finalResultId) {
+  console.log('最终使用的resultId:', resultId.value);
+  
+  // 如果resultId为空或无效，显示错误并尝试从URL查询参数获取
+  if (!resultId.value) {
     console.error('缺少结果ID，无法获取分析结果');
-    Toast.fail('缺少结果ID，无法获取分析结果');
-    loading.value = false;
-    return;
+    
+    // 尝试从URL查询参数获取备选ID
+    const urlResultId = route.query.resultId;
+    if (urlResultId) {
+      console.log('从URL查询参数获取备选ID:', urlResultId);
+      resultId.value = urlResultId;
+    } else {
+      Toast.fail('缺少结果ID，无法获取分析结果');
+      loading.value = false;
+      return;
+    }
   }
+  
+  // 存储确认的resultId到本地存储
+  localStorage.setItem('resultId', resultId.value);
+  
+  // 显示加载提示
+  Toast.loading({
+    message: '正在加载八字分析结果，请稍候...',
+    duration: 0,
+    forbidClick: true
+  });
   
   // 调用getBaziResult函数获取结果
   await getBaziResult();
+  
+  // 关闭加载提示
+  Toast.clear();
 });
 
 const getElementName = (element) => {
   if (!element) return '--';
   
   const elementNames = {
-    wood: '木',
-    fire: '火',
-    earth: '土',
-    metal: '金',
-    water: '水'
+    'wood': '木',
+    'fire': '火',
+    'earth': '土',
+    'metal': '金',
+    'water': '水',
+    '木': '木',
+    '火': '火',
+    '土': '土',
+    '金': '金',
+    '水': '水'
   };
+  
   return elementNames[element] || element;
 };
 
@@ -493,18 +606,18 @@ const downloadPDFAsStream = async () => {
     forbidClick: true
   });
   
-  if (!resultId) {
+  if (!resultId.value) {
     Toast.clear();
     Toast.fail('缺少结果ID，无法下载报告');
     return false;
   }
   
   try {
-    console.log('直接下载报告, 结果ID:', resultId);
+    console.log('直接下载报告, 结果ID:', resultId.value);
     
     // 创建下载链接，添加时间戳避免缓存问题
     const timestamp = new Date().getTime();
-    const downloadUrl = `/api/bazi/pdf/${resultId}?t=${timestamp}`;
+    const downloadUrl = `/api/bazi/pdf/${resultId.value}?t=${timestamp}`;
     console.log('下载URL:', downloadUrl);
     
     // 使用fetch API获取文件流
@@ -547,7 +660,7 @@ const downloadPDFAsStream = async () => {
     console.log('响应内容处置:', disposition);
     
     // 确定文件名和扩展名
-    let filename = `八字命理分析_${resultId}.pdf`;
+    let filename = `八字命理分析_${resultId.value}.pdf`;
     if (disposition && disposition.includes('filename=')) {
       const filenameMatch = disposition.match(/filename=["']?([^"']+)["']?/);
       if (filenameMatch && filenameMatch[1]) {
@@ -558,7 +671,7 @@ const downloadPDFAsStream = async () => {
     // 确定文件类型
     const fileExtension = contentType && contentType.includes('html') ? 'html' : 'pdf';
     if (!filename.endsWith(fileExtension)) {
-      filename = `八字命理分析_${resultId}.${fileExtension}`;
+      filename = `八字命理分析_${resultId.value}.${fileExtension}`;
     }
     
     // 转换为Blob对象
@@ -654,7 +767,7 @@ const downloadPDF = async () => {
     position: 'middle'
   });
   
-  if (!resultId) {
+  if (!resultId.value) {
     Toast.fail('缺少结果ID，无法生成报告');
     return;
   }
@@ -758,7 +871,7 @@ const generatePDFLocally = async () => {
     }
     
     // 保存PDF
-    pdf.save(`八字命理分析_${resultId}.pdf`);
+    pdf.save(`八字命理分析_${resultId.value}.pdf`);
     
     return true;
   } catch (error) {
@@ -795,7 +908,7 @@ const reloadBaziData = async () => {
   Toast.loading('正在重新加载数据...');
   
   try {
-    if (!resultId) {
+    if (!resultId.value) {
       Toast.fail('缺少结果ID');
       return;
     }
@@ -809,70 +922,102 @@ const reloadBaziData = async () => {
       
       // 显示加载提示
       Toast.loading({
-        message: '正在重新分析八字，请耐心等待30-60秒...',
-        duration: 10000,
-        position: 'middle'
+        message: '正在分析八字，AI处理通常需要30-60秒，请耐心等待...',
+        duration: 0,
+        position: 'middle',
+        forbidClick: true
       });
       
-      // 直接使用完整的resultId，不要去掉RES前缀
-      const mockPaymentResponse = await axios.post(`/api/order/mock/pay/${resultId}`, {
-        birthDate: urlParams.get('birthDate') || baziData.value.birthDate,
-        birthTime: urlParams.get('birthTime') || baziData.value.birthTime,
-        gender: urlParams.get('gender') || baziData.value.gender
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      // 准备请求数据
+      const requestData = {
+        birthDate: baziData.value.birthDate || urlParams.get('birthDate'),
+        birthTime: baziData.value.birthTime || urlParams.get('birthTime'),
+        gender: baziData.value.gender || urlParams.get('gender')
+      };
+      
+      console.log('请求数据:', requestData);
+      
+      // 发送模拟支付请求
+      const mockPaymentResponse = await axios.post(`/api/order/mock/pay/${resultId.value}`, requestData);
       console.log('模拟支付响应:', mockPaymentResponse.data);
       
-      if (mockPaymentResponse.data.code === 200 && mockPaymentResponse.data.data.resultId) {
+      if (mockPaymentResponse.data.code === 200) {
         // 使用返回的resultId重新加载数据
-        const newResultId = mockPaymentResponse.data.data.resultId;
-        console.log('获取到新的resultId:', newResultId);
-        
-        const response = await axios.get(`/api/bazi/result/${newResultId}`);
-        if (response.data.code === 200) {
-          // 更新八字数据，使用空值合并运算符确保数据存在
-          baziData.value = {
-            yearPillar: response.data.data.baziChart?.yearPillar || null,
-            monthPillar: response.data.data.baziChart?.monthPillar || null,
-            dayPillar: response.data.data.baziChart?.dayPillar || null,
-            hourPillar: response.data.data.baziChart?.hourPillar || null,
-            fiveElements: response.data.data.baziChart?.fiveElements || null,
-            flowingYears: response.data.data.baziChart?.flowingYears || [],
-            shenSha: response.data.data.baziChart?.shenSha || null,
-            daYun: response.data.data.baziChart?.daYun || null,
-            birthDate: response.data.data.baziChart?.birthDate || null,
-            birthTime: response.data.data.baziChart?.birthTime || null,
-            gender: response.data.data.baziChart?.gender || null
-          };
+        if (mockPaymentResponse.data.data && mockPaymentResponse.data.data.resultId) {
+          const newResultId = mockPaymentResponse.data.data.resultId;
+          console.log('获取到新的resultId:', newResultId);
           
-          // 更新AI分析结果
-          aiAnalysis.value = {
-            health: response.data.data.aiAnalysis?.health || '',
-            wealth: response.data.data.aiAnalysis?.wealth || '',
-            career: response.data.data.aiAnalysis?.career || '',
-            relationship: response.data.data.aiAnalysis?.relationship || '',
-            children: response.data.data.aiAnalysis?.children || '',
-            overall: response.data.data.aiAnalysis?.overall || '',
-            personality: response.data.data.aiAnalysis?.personality || '',
-            education: response.data.data.aiAnalysis?.education || '',
-            parents: response.data.data.aiAnalysis?.parents || '',
-            social: response.data.data.aiAnalysis?.social || '',
-            future: response.data.data.aiAnalysis?.future || ''
-          };
+          // 更新全局的resultId变量
+          resultId.value = newResultId;
+          // 还需要更新本地存储中的resultId
+          localStorage.setItem('resultId', newResultId);
           
-          Toast.success('数据加载成功');
-          return;
+          const response = await axios.get(`/api/bazi/result/${newResultId}`);
+          if (response.data.code === 200) {
+            // 更新八字数据，使用空值合并运算符确保数据存在
+            baziData.value = {
+              yearPillar: response.data.data.baziChart?.yearPillar || null,
+              monthPillar: response.data.data.baziChart?.monthPillar || null,
+              dayPillar: response.data.data.baziChart?.dayPillar || null,
+              hourPillar: response.data.data.baziChart?.hourPillar || null,
+              fiveElements: response.data.data.baziChart?.fiveElements || null,
+              flowingYears: response.data.data.baziChart?.flowingYears || [],
+              shenSha: response.data.data.baziChart?.shenSha || {
+                dayChong: "",
+                zhiShen: "",
+                pengZuGan: "",
+                pengZuZhi: "",
+                xiShen: "",
+                fuShen: "",
+                caiShen: "",
+                benMing: [],
+                yearGan: [],
+                yearZhi: [],
+                dayGan: [],
+                dayZhi: []
+              },
+              daYun: response.data.data.baziChart?.daYun || {
+                startAge: 1,
+                startYear: new Date().getFullYear() + 1,
+                isForward: true,
+                daYunList: []
+              },
+              birthDate: response.data.data.baziChart?.birthDate || null,
+              birthTime: response.data.data.baziChart?.birthTime || null,
+              gender: response.data.data.baziChart?.gender || null
+            };
+            
+            // 更新AI分析结果
+            aiAnalysis.value = {
+              health: response.data.data.aiAnalysis?.health || '',
+              wealth: response.data.data.aiAnalysis?.wealth || '',
+              career: response.data.data.aiAnalysis?.career || '',
+              relationship: response.data.data.aiAnalysis?.relationship || '',
+              children: response.data.data.aiAnalysis?.children || '',
+              overall: response.data.data.aiAnalysis?.overall || '',
+              personality: response.data.data.aiAnalysis?.personality || '',
+              education: response.data.data.aiAnalysis?.education || '',
+              parents: response.data.data.aiAnalysis?.parents || '',
+              social: response.data.data.aiAnalysis?.social || '',
+              future: response.data.data.aiAnalysis?.future || ''
+            };
+            
+            Toast.success('数据加载成功');
+            return;
+          }
+        } else {
+          console.error('响应中缺少resultId');
+          Toast.fail('响应格式不正确');
         }
       }
     } catch (mockError) {
-      console.warn('模拟支付失败，尝试直接获取结果:', mockError);
+      console.error('模拟支付失败:', mockError);
+      Toast.fail('重新加载失败: ' + (mockError.message || '未知错误'));
+      return;
     }
     
     // 如果模拟支付失败，尝试直接获取结果
-    const response = await axios.get(`/api/bazi/result/${resultId}`);
+    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
     
     if (response.data.code === 200) {
       // 更新八字数据，使用空值合并运算符确保数据存在
@@ -883,8 +1028,26 @@ const reloadBaziData = async () => {
         hourPillar: response.data.data.baziChart?.hourPillar || null,
         fiveElements: response.data.data.baziChart?.fiveElements || null,
         flowingYears: response.data.data.baziChart?.flowingYears || [],
-        shenSha: response.data.data.baziChart?.shenSha || null,
-        daYun: response.data.data.baziChart?.daYun || null,
+        shenSha: response.data.data.baziChart?.shenSha || {
+          dayChong: "",
+          zhiShen: "",
+          pengZuGan: "",
+          pengZuZhi: "",
+          xiShen: "",
+          fuShen: "",
+          caiShen: "",
+          benMing: [],
+          yearGan: [],
+          yearZhi: [],
+          dayGan: [],
+          dayZhi: []
+        },
+        daYun: response.data.data.baziChart?.daYun || {
+          startAge: 1,
+          startYear: new Date().getFullYear() + 1,
+          isForward: true,
+          daYunList: []
+        },
         birthDate: response.data.data.baziChart?.birthDate || null,
         birthTime: response.data.data.baziChart?.birthTime || null,
         gender: response.data.data.baziChart?.gender || null
@@ -958,9 +1121,12 @@ const payForFollowup = async () => {
       duration: 0
     });
     
+    // 获取URL参数
+    const urlParams = new URLSearchParams(window.location.search);
+    
     // 创建追问订单
     const orderResponse = await axios.post('/api/order/create/followup', {
-      resultId: resultId,
+      resultId: resultId.value,
       area: currentFollowup.value.id
     });
     
@@ -974,11 +1140,21 @@ const payForFollowup = async () => {
         birthTime: baziData.value?.birthTime || urlParams.get('birthTime'),
         gender: baziData.value?.gender || urlParams.get('gender'),
         area: currentFollowup.value.id,
-        resultId: resultId
+        resultId: resultId.value
       });
       
       if (paymentResponse.data.code === 200) {
         console.log('追问支付成功:', paymentResponse.data);
+        
+        // 获取并保存新的resultId（如果有的话）
+        if (paymentResponse.data.data && paymentResponse.data.data.resultId) {
+          const newResultId = paymentResponse.data.data.resultId;
+          console.log('获取到新的resultId:', newResultId);
+          // 更新全局的resultId变量
+          resultId.value = newResultId;
+          // 还需要更新本地存储中的resultId
+          localStorage.setItem('resultId', newResultId);
+        }
         
         // 获取追问分析结果
         await getFollowupAnalysis(currentFollowup.value.id);
@@ -1010,7 +1186,7 @@ const payForFollowup = async () => {
 const getFollowupAnalysis = async (area) => {
   loading.value = true;
   try {
-    const response = await axios.get(`/api/bazi/followup/${resultId}/${area}`);
+    const response = await axios.get(`/api/bazi/followup/${resultId.value}/${area}`);
     
     if (response.data.code === 200) {
       console.log('获取追问分析成功:', response.data);
@@ -1031,7 +1207,7 @@ const getFollowupAnalysis = async (area) => {
 // 检查已支付的追问
 const checkPaidFollowups = async () => {
   try {
-    const response = await axios.get(`/api/bazi/followup/list/${resultId}`);
+    const response = await axios.get(`/api/bazi/followup/list/${resultId.value}`);
     
     if (response.data.code === 200 && response.data.data.followups) {
       const paidFollowups = response.data.data.followups;
@@ -1055,47 +1231,46 @@ const checkPaidFollowups = async () => {
 const getBaziResult = async () => {
   loading.value = true;
   try {
-    console.log('获取八字分析结果，ID:', resultId);
-    const response = await axios.get(`/api/bazi/result/${resultId}`);
+    console.log('获取八字分析结果，ID:', resultId.value);
+    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
     console.log('八字分析结果:', response.data);
     
     if (response.data.code === 200 && response.data.data) {
-      // 更新八字数据，使用空值合并运算符确保数据存在
-      baziData.value = {
-        yearPillar: response.data.data.baziChart?.yearPillar || null,
-        monthPillar: response.data.data.baziChart?.monthPillar || null,
-        dayPillar: response.data.data.baziChart?.dayPillar || null,
-        hourPillar: response.data.data.baziChart?.hourPillar || null,
-        fiveElements: response.data.data.baziChart?.fiveElements || null,
-        flowingYears: response.data.data.baziChart?.flowingYears || [],
-        shenSha: response.data.data.baziChart?.shenSha || null,
-        daYun: response.data.data.baziChart?.daYun || null,
-        birthDate: response.data.data.baziChart?.birthDate || null,
-        birthTime: response.data.data.baziChart?.birthTime || null,
-        gender: response.data.data.baziChart?.gender || null
-      };
+      // 更新八字数据，使用深度合并确保数据结构完整
+      if (response.data.data.baziChart) {
+        baziData.value = {
+          yearPillar: response.data.data.baziChart.yearPillar || baziData.value.yearPillar,
+          monthPillar: response.data.data.baziChart.monthPillar || baziData.value.monthPillar,
+          dayPillar: response.data.data.baziChart.dayPillar || baziData.value.dayPillar,
+          hourPillar: response.data.data.baziChart.hourPillar || baziData.value.hourPillar,
+          fiveElements: response.data.data.baziChart.fiveElements || baziData.value.fiveElements,
+          flowingYears: response.data.data.baziChart.flowingYears || [],
+          shenSha: response.data.data.baziChart.shenSha || baziData.value.shenSha,
+          daYun: response.data.data.baziChart.daYun || baziData.value.daYun,
+          birthDate: response.data.data.baziChart.birthDate || null,
+          birthTime: response.data.data.baziChart.birthTime || null,
+          gender: response.data.data.baziChart.gender || null
+        };
+      } else {
+        console.warn('响应中缺少baziChart数据');
+        Toast.fail('数据格式不正确');
+      }
       
       // 更新AI分析结果
-      aiAnalysis.value = {
-        health: response.data.data.aiAnalysis?.health || '',
-        wealth: response.data.data.aiAnalysis?.wealth || '',
-        career: response.data.data.aiAnalysis?.career || '',
-        relationship: response.data.data.aiAnalysis?.relationship || '',
-        children: response.data.data.aiAnalysis?.children || '',
-        overall: response.data.data.aiAnalysis?.overall || '',
-        personality: response.data.data.aiAnalysis?.personality || '',
-        education: response.data.data.aiAnalysis?.education || '',
-        parents: response.data.data.aiAnalysis?.parents || '',
-        social: response.data.data.aiAnalysis?.social || '',
-        future: response.data.data.aiAnalysis?.future || ''
-      };
-      
-      // 检查数据完整性
-      if (!baziData.value.yearPillar || !baziData.value.monthPillar || 
-          !baziData.value.dayPillar || !baziData.value.hourPillar) {
-        console.warn('八字数据不完整');
-        Toast.fail('八字数据不完整，请重新生成');
-        return;
+      if (response.data.data.aiAnalysis) {
+        aiAnalysis.value = {
+          health: response.data.data.aiAnalysis.health || '',
+          wealth: response.data.data.aiAnalysis.wealth || '',
+          career: response.data.data.aiAnalysis.career || '',
+          relationship: response.data.data.aiAnalysis.relationship || '',
+          children: response.data.data.aiAnalysis.children || '',
+          overall: response.data.data.aiAnalysis.overall || '',
+          personality: response.data.data.aiAnalysis.personality || '',
+          education: response.data.data.aiAnalysis.education || '',
+          parents: response.data.data.aiAnalysis.parents || '',
+          social: response.data.data.aiAnalysis.social || '',
+          future: response.data.data.aiAnalysis.future || ''
+        };
       }
       
       // 初始化追问选项
@@ -1142,13 +1317,13 @@ const initFollowupOptions = () => {
 const loadFollowupResults = async () => {
   try {
     // 检查是否有结果ID
-    if (!resultId) {
+    if (!resultId.value) {
       console.warn('缺少结果ID，无法加载追问分析');
       return;
     }
     
     // 调用API获取已支付的追问列表
-    const response = await axios.get(`/api/bazi/followup/list/${resultId}`);
+    const response = await axios.get(`/api/bazi/followup/list/${resultId.value}`);
     
     if (response.data.code === 200 && response.data.data.followups) {
       const paidFollowups = response.data.data.followups;
@@ -1170,6 +1345,66 @@ const loadFollowupResults = async () => {
     // 出错时不显示错误提示，静默失败
   }
 };
+
+// 解析八字数据
+const parseBaZiData = (data) => {
+  if (!data) return null;
+  
+  return {
+    yearPillar: data.yearPillar || { heavenlyStem: '未知', earthlyBranch: '未知' },
+    monthPillar: data.monthPillar || { heavenlyStem: '未知', earthlyBranch: '未知' },
+    dayPillar: data.dayPillar || { heavenlyStem: '未知', earthlyBranch: '未知' },
+    hourPillar: data.hourPillar || { heavenlyStem: '未知', earthlyBranch: '未知' },
+    shenSha: data.shenSha || {
+      dayChong: '未知',
+      zhiShen: '未知',
+      pengZuGan: '未知',
+      pengZuZhi: '未知',
+      xiShen: '未知',
+      fuShen: '未知',
+      caiShen: '未知',
+      benMing: [],
+      yearGan: [],
+      yearZhi: [],
+      dayGan: [],
+      dayZhi: []
+    },
+    daYun: data.daYun || {
+      startAge: 0,
+      startYear: 0,
+      isForward: true,
+      daYunList: []
+    },
+    flowingYears: data.flowingYears || []
+  };
+};
+
+// 在mounted或created钩子中调用
+onMounted(async () => {
+  // ... existing code ...
+  
+  try {
+    // 修改为正确的API端点
+    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
+    if (response.data.code === 200) {
+      const analysisData = response.data.data;
+      // 解析八字数据
+      const baziData = parseBaZiData(analysisData.baziChart);
+      
+      // 更新状态
+      analysisResult.value = {
+        ...analysisData,
+        baziData
+      };
+      
+      // 初始化完成
+      loading.value = false;
+    }
+  } catch (error) {
+    console.error('加载分析结果失败:', error);
+    loading.value = false;
+  }
+});
 </script>
 
 <style scoped>
@@ -1204,37 +1439,54 @@ const loadFollowupResults = async () => {
   color: #323233;
 }
 
+.four-pillars {
+  display: flex;
+  justify-content: space-around;
+  margin: 20px 0;
+}
+
 .pillar {
   display: flex;
   flex-direction: column;
   align-items: center;
+  background: #f5f7fa;
+  padding: 10px;
+  border-radius: 8px;
+  width: 80px;
+}
+
+.stem, .branch {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  margin: 4px 0;
+  border-radius: 4px;
 }
 
 .stem {
-  width: 40px;
-  height: 40px;
-  line-height: 40px;
-  text-align: center;
-  background-color: #1989fa;
+  background: #1989fa;
   color: white;
-  border-radius: 4px;
-  margin-bottom: 5px;
 }
 
 .branch {
-  width: 40px;
-  height: 40px;
-  line-height: 40px;
-  text-align: center;
-  background-color: #07c160;
+  background: #07c160;
   color: white;
-  border-radius: 4px;
-  margin-bottom: 5px;
 }
 
 .label {
   font-size: 12px;
   color: #646566;
+  margin-top: 4px;
+}
+
+.nayin, .shishen, .wangshuai {
+  font-size: 12px;
+  color: #323233;
+  margin-top: 4px;
 }
 
 .five-elements {
@@ -1403,5 +1655,33 @@ const loadFollowupResults = async () => {
 .followup-dialog-content {
   padding: 15px;
   text-align: center;
+}
+
+/* 添加表格样式 */
+.custom-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  margin: 10px 0;
+  background-color: #fff;
+  color: #323233;
+  font-size: 14px;
+}
+
+.custom-table th,
+.custom-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #ebedf0;
+  text-align: center;
+}
+
+.custom-table th {
+  font-weight: 500;
+  background-color: #f7f8fa;
+  color: #646566;
+}
+
+.custom-table tr:hover {
+  background-color: #f2f3f5;
 }
 </style>
