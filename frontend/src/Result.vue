@@ -12,6 +12,21 @@
       <p>基于您的出生信息，AI为您提供的个性化人生指导</p>
     </div>
     
+    <!-- 添加全局分析状态提示 -->
+    <van-notice-bar
+      v-if="isAnalyzing"
+      color="#1989fa"
+      background="#ecf9ff"
+      left-icon="info-o"
+      :scrollable="false"
+      class="analysis-progress-notice"
+    >
+      <div class="analysis-progress">
+        <p>AI正在生成八字分析结果，这可能需要30-60秒</p>
+        <van-progress :percentage="analyzeProgress" :show-pivot="false" color="#1989fa" />
+      </div>
+    </van-notice-bar>
+    
     <van-tabs v-model="activeTab" sticky>
       <van-tab title="命盘信息">
         <div class="bazi-chart">
@@ -222,67 +237,123 @@
             </van-notice-bar>
           </div>
           
+          <!-- 修改分析部分显示，添加加载状态 -->
           <div class="analysis-section">
             <h3>身体健康</h3>
-            <p>{{ aiAnalysis.health }}</p>
+            <template v-if="isAnalysisItemLoading('health')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.health }}</p>
           </div>
           
           <div class="analysis-section">
             <h3>性格特点</h3>
-            <p>{{ aiAnalysis.personality || getAnalysisContent('性格特点') }}</p>
+            <template v-if="isAnalysisItemLoading('personality')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.personality || getAnalysisContent('性格特点') }}</p>
           </div>
           
-          <!-- 学业分析（对所有年龄段显示，但侧重点不同） -->
+          <!-- 学业分析 -->
           <div class="analysis-section">
             <h3>学业分析</h3>
-            <p>{{ aiAnalysis.education || getAnalysisContent('学业分析') }}</p>
+            <template v-if="isAnalysisItemLoading('education')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.education || getAnalysisContent('学业分析') }}</p>
           </div>
           
-          <!-- 父母情况（所有年龄段都显示） -->
+          <!-- 父母情况 -->
           <div class="analysis-section">
             <h3>父母情况</h3>
-            <p>{{ aiAnalysis.parents || '暂无父母情况分析' }}</p>
+            <template v-if="isAnalysisItemLoading('parents')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.parents || '暂无父母情况分析' }}</p>
           </div>
           
-          <!-- 人际关系（所有年龄段都显示） -->
+          <!-- 人际关系 -->
           <div class="analysis-section">
             <h3>人际关系</h3>
-            <p>{{ aiAnalysis.social || '暂无人际关系分析' }}</p>
+            <template v-if="isAnalysisItemLoading('social')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.social || '暂无人际关系分析' }}</p>
           </div>
           
-          <!-- 财运分析（18岁以上显示，或者标注为未来发展） -->
+          <!-- 财运分析 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '财运分析' : '未来财运发展' }}</h3>
-            <p>{{ aiAnalysis.wealth }}</p>
+            <template v-if="isAnalysisItemLoading('wealth')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.wealth }}</p>
           </div>
           
-          <!-- 事业发展（18岁以上显示，或者标注为未来发展） -->
+          <!-- 事业发展 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '事业发展' : '未来事业发展' }}</h3>
-            <p>{{ aiAnalysis.career }}</p>
+            <template v-if="isAnalysisItemLoading('career')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.career }}</p>
           </div>
           
-          <!-- 婚姻感情（18岁以上显示，或者标注为未来发展） -->
+          <!-- 婚姻感情 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '婚姻感情' : '未来感情发展' }}</h3>
-            <p>{{ aiAnalysis.relationship }}</p>
+            <template v-if="isAnalysisItemLoading('relationship')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.relationship }}</p>
           </div>
           
-          <!-- 子女情况（18岁以上显示，或者标注为未来发展） -->
+          <!-- 子女情况 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '子女情况' : '未来子女缘分' }}</h3>
-            <p>{{ aiAnalysis.children }}</p>
+            <template v-if="isAnalysisItemLoading('children')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.children }}</p>
           </div>
           
-          <!-- 近五年运势（所有年龄段都显示） -->
+          <!-- 近五年运势 -->
           <div class="analysis-section">
             <h3>近五年运势</h3>
-            <p>{{ aiAnalysis.future || getAnalysisContent('近五年运势') || aiAnalysis.overall }}</p>
+            <template v-if="isAnalysisItemLoading('future')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.future || getAnalysisContent('近五年运势') || aiAnalysis.overall }}</p>
           </div>
           
           <div class="analysis-section">
             <h3>综合建议</h3>
-            <p>{{ aiAnalysis.overall }}</p>
+            <template v-if="isAnalysisItemLoading('overall')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.overall }}</p>
           </div>
         </div>
       </van-tab>
@@ -360,7 +431,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed } from 'vue';
+import { ref, onMounted, reactive, computed, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Toast, Dialog } from 'vant';
 import { jsPDF } from 'jspdf';
@@ -372,6 +443,11 @@ const router = useRouter();
 const resultId = ref(route.params.id || route.query.resultId);
 const activeTab = ref(0);
 const loading = ref(false);
+
+// 添加分析状态相关变量
+const isAnalyzing = ref(false);
+const analyzeProgress = ref(0);
+const analyzeTimer = ref(null);
 
 // 用户年龄，从URL参数或localStorage获取
 const userAge = ref(null);
@@ -569,6 +645,23 @@ onMounted(async () => {
   
   // 调用getBaziResult函数获取结果
   await getBaziResult();
+  
+  // 检查分析是否完成
+  const stillAnalyzing = Object.values(aiAnalysis.value).some(
+    value => typeof value === 'string' && value.includes('正在分析')
+  );
+  
+  if (stillAnalyzing) {
+    console.log('检测到分析仍在进行中...');
+    Toast.loading({
+      message: '正在生成八字分析结果，这可能需要30-60秒...',
+      duration: 0
+    });
+    
+    // 启动轮询
+    await pollAnalysisStatus(resultId.value);
+    Toast.success('分析完成');
+  }
   
   // 关闭加载提示
   Toast.clear();
@@ -912,15 +1005,33 @@ const checkAnalysisStatus = async (resultId) => {
     
     if (response.data.code === 200) {
       // 检查AI分析是否已经生成
-      const aiAnalysis = response.data.data.aiAnalysis || {};
+      const aiAnalysisData = response.data.data.aiAnalysis || {};
+      
+      // 统计已完成和正在分析的项目
+      let totalItems = 0;
+      let completedItems = 0;
+      
+      Object.entries(aiAnalysisData).forEach(([key, value]) => {
+        totalItems++;
+        if (!(typeof value === 'string' && value.includes('正在分析'))) {
+          completedItems++;
+        }
+      });
+      
+      // 更新进度
+      if (totalItems > 0) {
+        analyzeProgress.value = Math.floor((completedItems / totalItems) * 100);
+      }
       
       // 检查是否还有"正在分析"的内容
-      const isAnalyzing = Object.values(aiAnalysis).some(
+      const stillAnalyzing = Object.values(aiAnalysisData).some(
         value => typeof value === 'string' && value.includes('正在分析')
       );
       
-      if (isAnalyzing) {
-        console.log('分析仍在进行中...');
+      isAnalyzing.value = stillAnalyzing;
+      
+      if (stillAnalyzing) {
+        console.log('分析仍在进行中...', `完成度: ${analyzeProgress.value}%`);
         return false;
       } else {
         console.log('分析已完成');
@@ -938,6 +1049,17 @@ const checkAnalysisStatus = async (resultId) => {
 const pollAnalysisStatus = async (resultId, maxAttempts = 30) => {
   let attempts = 0;
   
+  // 显示进度条
+  isAnalyzing.value = true;
+  
+  // 创建模拟进度，即使后端没有反馈也会看到进度在增加
+  if (analyzeTimer.value) clearInterval(analyzeTimer.value);
+  analyzeTimer.value = setInterval(() => {
+    if (analyzeProgress.value < 90) {
+      analyzeProgress.value += 2;
+    }
+  }, 2000);
+  
   return new Promise((resolve) => {
     const checkInterval = setInterval(async () => {
       attempts++;
@@ -945,6 +1067,21 @@ const pollAnalysisStatus = async (resultId, maxAttempts = 30) => {
       
       if (isComplete || attempts >= maxAttempts) {
         clearInterval(checkInterval);
+        
+        // 清除模拟进度定时器
+        if (analyzeTimer.value) {
+          clearInterval(analyzeTimer.value);
+          analyzeTimer.value = null;
+        }
+        
+        if (isComplete) {
+          // 如果完成，确保进度显示100%
+          analyzeProgress.value = 100;
+          setTimeout(() => {
+            isAnalyzing.value = false;
+          }, 1000); // 短暂显示100%后隐藏进度条
+        }
+        
         await getBaziResult(); // 最后再获取一次完整结果
         Toast.clear();
         resolve(isComplete);
@@ -1050,20 +1187,7 @@ const reloadBaziData = async () => {
           hourPillar: response.data.data.baziChart?.hourPillar || null,
           fiveElements: response.data.data.baziChart?.fiveElements || null,
           flowingYears: response.data.data.baziChart?.flowingYears || [],
-          shenSha: response.data.data.baziChart?.shenSha || {
-            dayChong: "",
-            zhiShen: "",
-            pengZuGan: "",
-            pengZuZhi: "",
-            xiShen: "",
-            fuShen: "",
-            caiShen: "",
-            benMing: [],
-            yearGan: [],
-            yearZhi: [],
-            dayGan: [],
-            dayZhi: []
-          },
+          shenSha: response.data.data.baziChart?.shenSha || baziData.value.shenSha,
           daYun: response.data.data.baziChart?.daYun || baziData.value.daYun,
           birthDate: response.data.data.baziChart?.birthDate || null,
           birthTime: response.data.data.baziChart?.birthTime || null,
@@ -1086,26 +1210,22 @@ const reloadBaziData = async () => {
         };
         
         // 检查是否存在"正在分析"的内容
-        const isAnalyzing = Object.values(aiAnalysis.value).some(
+        const stillAnalyzing = Object.values(aiAnalysis.value).some(
           value => typeof value === 'string' && value.includes('正在分析')
         );
         
-        if (isAnalyzing) {
-          // 如果还在分析，开始轮询等待结果
-          Toast.loading({
-            message: '正在等待分析结果完成...',
-            duration: 0,
-            forbidClick: true
-          });
-          
-          const analysisComplete = await pollAnalysisStatus(resultId.value);
-          if (analysisComplete) {
-            Toast.success('分析已完成');
-          } else {
-            Toast.info('分析可能尚未完成，显示部分结果');
-          }
+        // 更新分析状态
+        isAnalyzing.value = stillAnalyzing;
+        
+        if (stillAnalyzing) {
+          console.log('分析仍在进行中...');
+          // 不显示Toast，因为我们已经有进度条显示
         } else {
-          Toast.success('数据加载成功');
+          // 分析完成
+          analyzeProgress.value = 100;
+          setTimeout(() => {
+            isAnalyzing.value = false;
+          }, 1000);
         }
       } else {
         Toast.fail(response.data.message || '加载失败');
@@ -1479,30 +1599,17 @@ const parseBaZiData = (data) => {
   };
 };
 
-// 在mounted或created钩子中调用
-onMounted(async () => {
-  // ... existing code ...
-  
-  try {
-    // 修改为正确的API端点
-    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
-    if (response.data.code === 200) {
-      const analysisData = response.data.data;
-      // 解析八字数据
-      const baziData = parseBaZiData(analysisData.baziChart);
-      
-      // 更新状态
-      analysisResult.value = {
-        ...analysisData,
-        baziData
-      };
-      
-      // 初始化完成
-      loading.value = false;
-    }
-  } catch (error) {
-    console.error('加载分析结果失败:', error);
-    loading.value = false;
+// 添加分析状态检测函数
+const isAnalysisItemLoading = (key) => {
+  if (!aiAnalysis.value || !aiAnalysis.value[key]) return true;
+  return aiAnalysis.value[key].includes && aiAnalysis.value[key].includes('正在分析');
+};
+
+// 清理组件时移除定时器
+onUnmounted(() => {
+  if (analyzeTimer.value) {
+    clearInterval(analyzeTimer.value);
+    analyzeTimer.value = null;
   }
 });
 </script>
@@ -1783,5 +1890,31 @@ onMounted(async () => {
 
 .custom-table tr:hover {
   background-color: #f2f3f5;
+}
+
+/* 添加分析状态相关样式 */
+.analysis-progress-notice {
+  margin: 10px 16px;
+  border-radius: 8px;
+}
+
+.analysis-progress {
+  width: 100%;
+}
+
+.analysis-progress p {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #1989fa;
+}
+
+.loading-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+  background-color: #f7f8fa;
+  border-radius: 8px;
+  margin: 10px 0;
 }
 </style>

@@ -334,6 +334,11 @@ def call_deepseek_api(prompt):
         str: AI响应
     """
     try:
+        # 记录提示词
+        logger.info("开始调用DeepSeek API进行八字分析")
+        logger.info(f"请求提示词长度: {len(prompt)} 字符")
+        logger.info(f"提示词前100字符: {prompt[:100]}...")
+        
         # 提取出生年份
         birth_year = None
         try:
@@ -454,11 +459,38 @@ def call_deepseek_api(prompt):
             "max_tokens": 1500
         }
         
+        # 记录API请求
+        logger.info(f"发送请求到DeepSeek API，系统提示长度: {len(system_prompt)} 字符")
+        logger.info(f"系统提示前100字符: {system_prompt[:100]}...")
+        
+        # 发送请求并记录时间
+        start_time = datetime.datetime.now()
+        logger.info(f"开始API请求时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
         response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data)
+        
+        end_time = datetime.datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        logger.info(f"API请求完成，耗时: {duration:.2f}秒")
+        
         result = response.json()
+        
+        # 记录API响应
+        logger.info(f"收到DeepSeek API响应: {result}")
         
         if "choices" in result and len(result["choices"]) > 0:
             content = result["choices"][0]["message"]["content"]
+            
+            # 记录返回内容
+            logger.info(f"DeepSeek返回内容长度: {len(content)} 字符")
+            logger.info(f"返回内容前500字符: {content[:500]}...")
+            logger.info(f"返回内容后500字符: {content[-500:] if len(content) > 500 else content}")
+            
+            # 分段记录内容（每1000字一段）
+            if len(content) > 1000:
+                chunks = [content[i:i+1000] for i in range(0, len(content), 1000)]
+                for i, chunk in enumerate(chunks):
+                    logger.info(f"内容片段 {i+1}/{len(chunks)}: {chunk}")
             
             # 检查内容中是否有错误的流年信息，如果有则修正
             if flowing_years and current_year:
@@ -496,6 +528,7 @@ def generate_bazi_analysis(bazi_chart, gender):
     """
     try:
         logger.info("开始生成八字分析")
+        logger.info(f"输入数据: 性别={gender}, 八字数据=四柱信息+五行分布")
         
         # 提取八字数据
         year_pillar = bazi_chart['yearPillar']
@@ -503,6 +536,14 @@ def generate_bazi_analysis(bazi_chart, gender):
         day_pillar = bazi_chart['dayPillar']
         hour_pillar = bazi_chart['hourPillar']
         five_elements = bazi_chart['fiveElements']
+        
+        # 记录八字数据
+        logger.info(f"八字四柱: 年柱={year_pillar['heavenlyStem']}{year_pillar['earthlyBranch']}, "
+                  f"月柱={month_pillar['heavenlyStem']}{month_pillar['earthlyBranch']}, "
+                  f"日柱={day_pillar['heavenlyStem']}{day_pillar['earthlyBranch']}, "
+                  f"时柱={hour_pillar['heavenlyStem']}{hour_pillar['earthlyBranch']}")
+        logger.info(f"五行分布: 金={five_elements['metal']}, 木={five_elements['wood']}, "
+                  f"水={five_elements['water']}, 火={five_elements['fire']}, 土={five_elements['earth']}")
         
         # 构建提示词
         prompt = f"""
@@ -561,11 +602,34 @@ def generate_bazi_analysis(bazi_chart, gender):
         [分析内容]
         """
         
+        # 记录完整提示词
+        logger.info(f"生成八字分析的完整提示词: \n{prompt}")
+        
         # 调用AI接口
+        logger.info("开始调用DeepSeek API生成分析...")
+        start_time = datetime.datetime.now()
         response = call_deepseek_api(prompt)
+        end_time = datetime.datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        
+        # 记录API调用时间
+        logger.info(f"DeepSeek API调用完成，总耗时: {duration:.2f}秒")
+        
+        # 记录原始响应内容
+        logger.info("开始提取分析结果")
+        if response:
+            logger.info(f"原始响应内容长度: {len(response)} 字符")
+            logger.info(f"原始响应内容前500字符: \n{response[:500]}...")
+            logger.info(f"原始响应内容后500字符: \n{response[-500:] if len(response) > 500 else response}")
+        else:
+            logger.warning("API返回内容为空")
         
         # 解析返回的文本
         analysis = extract_analysis_from_text(response)
+        
+        # 记录提取结果
+        logger.info("分析结果提取完成")
+        logger.info(f"提取的分析结果包含字段: {list(analysis.keys())}")
         
         logger.info("八字分析生成完成")
         return analysis
@@ -794,69 +858,224 @@ def extract_analysis_from_text(ai_text):
     try:
         logger.info("开始提取分析结果")
         
+        if not ai_text:
+            logger.error("AI回复内容为空，无法提取分析结果")
+            return {
+                'overall': '暂无',
+                'health': '暂无',
+                'wealth': '暂无',
+                'career': '暂无',
+                'relationship': '暂无',
+                'children': '暂无',
+                'personality': '暂无',
+                'education': '暂无',
+                'parents': '暂无',
+                'social': '暂无',
+                'future': '暂无'
+            }
+        
+        # 记录输入文本
+        logger.info(f"待提取的文本长度: {len(ai_text)} 字符")
+        logger.info(f"文本前300字符: {ai_text[:300]}...")
+        
         # 初始化结果字典
         analysis = {}
         current_section = None
         current_content = []
         
+        # 标题模式匹配，支持多种格式
+        section_patterns = [
+            r'###\s*(.*?)\s*$',  # ### 标题
+            r'^\s*(.*?)[：:]\s*$',  # 标题：
+            r'^\s*(.*?)[分析|特点|关系|发展][：:]\s*$'  # xx分析：
+        ]
+        
+        import re
+        
+        # 判断文本使用了哪种标题格式
+        format_type = None
+        if re.search(r'###\s*', ai_text):
+            format_type = "markdown"
+            logger.info("检测到Markdown格式的标题")
+        elif re.search(r'^\s*.*?[分析|特点|关系|发展][：:]\s*$', ai_text, re.MULTILINE):
+            format_type = "chinese_colon"
+            logger.info("检测到中文冒号格式的标题")
+        else:
+            format_type = "unknown"
+            logger.info("未检测到明确的标题格式，尝试多种格式提取")
+            
         # 按行处理文本
-        for line in ai_text.split('\n'):
+        lines = ai_text.split('\n')
+        logger.info(f"文本共有 {len(lines)} 行")
+        
+        detected_sections = []
+        
+        for i, line in enumerate(lines):
             line = line.strip()
             if not line:
                 continue
                 
             # 检查是否是新的部分
-            if line.endswith('分析:') or line.endswith('特点:') or line.endswith('关系:') or line.endswith('发展:'):
+            is_new_section = False
+            section_name = None
+            
+            # 尝试多种格式匹配
+            if format_type == "markdown" or format_type == "unknown":
+                match = re.search(r'###\s*(.*?)\s*$', line)
+                if match:
+                    section_name = match.group(1).strip()
+                    is_new_section = True
+                    detected_sections.append(f"行 {i+1}: Markdown格式标题 - {section_name}")
+                    
+            if (format_type == "chinese_colon" or format_type == "unknown") and not is_new_section:
+                # 尝试匹配"xxx分析:"或"xxx特点:"等格式
+                match = re.search(r'^(.*?)[分析|特点|关系|发展][：:]\s*$', line)
+                if match:
+                    section_name = match.group(1).strip()
+                    is_new_section = True
+                    detected_sections.append(f"行 {i+1}: 中文冒号格式标题 - {section_name}")
+                    
+                # 尝试直接匹配常见标题，如"健康分析"、"财运分析"等
+                elif line in ["健康分析", "财运分析", "事业发展", "婚姻感情", "子女情况", 
+                            "性格特点", "学业分析", "父母关系", "人际关系", "未来发展", 
+                            "综合建议", "整体运势"]:
+                    section_name = line
+                    is_new_section = True
+                    detected_sections.append(f"行 {i+1}: 直接匹配标题 - {section_name}")
+            
+            if is_new_section and section_name:
                 # 保存上一个部分的内容
                 if current_section and current_content:
                     analysis[current_section] = '\n'.join(current_content)
+                    logger.info(f"提取到 {current_section} 部分，内容长度: {len(analysis[current_section])} 字符")
                     current_content = []
                     
                 # 设置新的部分
-                current_section = line[:-1].lower()
-                if current_section == '总体':
-                    current_section = 'overall'
-                elif current_section == '健康':
-                    current_section = 'health'
-                elif current_section == '财运':
-                    current_section = 'wealth'
-                elif current_section == '事业':
-                    current_section = 'career'
-                elif current_section == '婚姻感情':
-                    current_section = 'relationship'
-                elif current_section == '子女缘分':
-                    current_section = 'children'
-                elif current_section == '性格特点':
-                    current_section = 'personality'
-                elif current_section == '学业发展':
-                    current_section = 'education'
-                elif current_section == '父母关系':
-                    current_section = 'parents'
-                elif current_section == '人际关系':
-                    current_section = 'social'
-                elif current_section == '未来发展':
-                    current_section = 'future'
+                current_section = map_section_name(section_name)
             elif current_section:
                 # 去掉方括号
                 if line.startswith('[') and line.endswith(']'):
                     line = line[1:-1]
                 current_content.append(line)
         
+        # 记录检测到的所有标题
+        logger.info(f"检测到的所有标题 ({len(detected_sections)}):")
+        for section_info in detected_sections:
+            logger.info(section_info)
+        
         # 保存最后一个部分的内容
         if current_section and current_content:
             analysis[current_section] = '\n'.join(current_content)
+            logger.info(f"提取到最后一部分 {current_section}，内容长度: {len(analysis[current_section])} 字符")
             
+        # 对于未找到匹配的格式，尝试进行整体分段
+        if not analysis and ai_text:
+            logger.warning("未能通过标题提取出分段内容，尝试进行整体分段处理")
+            
+            # 尝试匹配常见的章节标题
+            sections = [
+                ("性格特点", "personality"),
+                ("健康分析", "health"),
+                ("事业发展", "career"),
+                ("财运分析", "wealth"),
+                ("婚姻感情", "relationship"),
+                ("子女", "children"),
+                ("人际关系", "social"),
+                ("父母", "parents"),
+                ("学业", "education"),
+                ("近五年运势", "future"),
+                ("综合建议", "overall")
+            ]
+            
+            # 尝试直接定位各个部分
+            for zh_title, en_key in sections:
+                pattern = f".*?({zh_title}.*?)(?=健康分析|事业发展|财运分析|婚姻感情|子女|人际关系|父母|学业|近五年运势|综合建议|$)"
+                match = re.search(pattern, ai_text, re.DOTALL | re.IGNORECASE)
+                if match:
+                    content = match.group(1)
+                    # 去掉标题行
+                    content_lines = content.strip().split('\n')
+                    if len(content_lines) > 1:
+                        content = '\n'.join(content_lines[1:])
+                    analysis[en_key] = content.strip()
+                    logger.info(f"通过整体匹配提取到 {en_key} 部分，内容长度: {len(analysis[en_key])} 字符")
+        
         # 确保所有必要字段都存在
         required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
                          'personality', 'education', 'parents', 'social', 'future']
         for field in required_fields:
-            if field not in analysis:
-                analysis[field] = f"暂无{field}分析数据"
+            if field not in analysis or not analysis[field]:
+                logger.warning(f"缺少必要字段 {field}，添加默认值")
+                analysis[field] = f"暂无"
                 
+        # 记录提取结果
+        logger.info(f"最终提取到 {len(analysis)} 个部分: {list(analysis.keys())}")
+        for key, value in analysis.items():
+            logger.info(f"{key} 部分内容长度: {len(value)} 字符")
+            logger.info(f"{key} 部分内容前100字符: {value[:100]}...")
+        
         logger.info("分析结果提取完成")
         return analysis
         
     except Exception as e:
         logger.error(f"提取分析结果失败: {str(e)}")
         logger.error(traceback.format_exc())
-        return None 
+        return {
+            'overall': '分析提取过程中出错，请重试',
+            'health': '分析提取过程中出错，请重试',
+            'wealth': '分析提取过程中出错，请重试',
+            'career': '分析提取过程中出错，请重试',
+            'relationship': '分析提取过程中出错，请重试',
+            'children': '分析提取过程中出错，请重试',
+            'personality': '分析提取过程中出错，请重试',
+            'education': '分析提取过程中出错，请重试',
+            'parents': '分析提取过程中出错，请重试',
+            'social': '分析提取过程中出错，请重试',
+            'future': '分析提取过程中出错，请重试'
+        }
+
+# 添加辅助函数，映射中文标题到英文键名
+def map_section_name(section_name):
+    """将中文标题映射到英文键名"""
+    section_name = section_name.lower()
+    
+    # 记录原始标题
+    logger.info(f"映射标题: '{section_name}'")
+    
+    # 匹配总体/综合分析
+    if '总体' in section_name or '综合' in section_name or '整体' in section_name:
+        return 'overall'
+    # 匹配健康分析
+    elif '健康' in section_name:
+        return 'health'
+    # 匹配财运分析
+    elif '财运' in section_name or '财富' in section_name:
+        return 'wealth'
+    # 匹配事业分析
+    elif '事业' in section_name or '职业' in section_name or '工作' in section_name:
+        return 'career'
+    # 匹配婚姻感情
+    elif '婚姻' in section_name or '感情' in section_name or '姻缘' in section_name:
+        return 'relationship'
+    # 匹配子女分析
+    elif '子女' in section_name or '儿女' in section_name:
+        return 'children'
+    # 匹配性格特点
+    elif '性格' in section_name or '个性' in section_name or '品格' in section_name:
+        return 'personality'
+    # 匹配学业分析
+    elif '学业' in section_name or '学习' in section_name or '教育' in section_name:
+        return 'education'
+    # 匹配父母关系
+    elif '父母' in section_name or '双亲' in section_name or '长辈' in section_name:
+        return 'parents'
+    # 匹配人际关系
+    elif '人际' in section_name or '社交' in section_name or '交友' in section_name:
+        return 'social'
+    # 匹配未来发展/运势
+    elif '未来' in section_name or '运势' in section_name or '后运' in section_name or '五年' in section_name:
+        return 'future'
+    # 默认返回原名
+    else:
+        logger.warning(f"无法识别的标题: '{section_name}'，使用原名")
+        return section_name 
