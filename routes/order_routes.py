@@ -10,6 +10,7 @@ import time
 import logging
 from utils.bazi_calculator import calculate_bazi
 from utils.ai_service import analyze_bazi_with_ai, extract_analysis_from_text, generate_bazi_analysis, generate_followup_analysis
+import threading
 
 order_bp = Blueprint('order', __name__)
 
@@ -284,6 +285,65 @@ def create_followup_order():
         }
     })
 
+# 新增异步任务处理函数
+def async_task(func, *args, **kwargs):
+    """
+    创建异步任务
+    
+    Args:
+        func: 要异步执行的函数
+        *args, **kwargs: 函数参数
+    """
+    thread = threading.Thread(target=func, args=args, kwargs=kwargs)
+    thread.daemon = True
+    thread.start()
+    return thread
+
+# 异步生成八字分析
+def async_generate_analysis(result_id, bazi_chart, gender):
+    """
+    异步生成八字分析
+    
+    Args:
+        result_id: 结果ID
+        bazi_chart: 八字命盘数据
+        gender: 性别
+    """
+    try:
+        logging.info(f"开始异步生成八字分析: {result_id}")
+        # 生成AI分析
+        ai_analysis = generate_bazi_analysis(bazi_chart, gender)
+        
+        # 更新AI分析结果
+        BaziResultModel.update_ai_analysis(result_id, ai_analysis)
+        logging.info(f"八字分析异步生成完成: {result_id}")
+    except Exception as e:
+        logging.error(f"异步生成八字分析失败: {str(e)}")
+        logging.error(traceback.format_exc())
+
+# 异步生成追问分析
+def async_generate_followup(result_id, bazi_chart, area, gender):
+    """
+    异步生成追问分析
+    
+    Args:
+        result_id: 结果ID
+        bazi_chart: 八字命盘数据
+        area: 追问领域
+        gender: 性别
+    """
+    try:
+        logging.info(f"开始异步生成追问分析: {result_id}, 领域: {area}")
+        # 生成追问分析
+        analysis = generate_followup_analysis(bazi_chart, area, gender)
+        
+        # 更新追问分析结果
+        BaziResultModel.update_followup(result_id, area, analysis)
+        logging.info(f"追问分析异步生成完成: {result_id}, 领域: {area}")
+    except Exception as e:
+        logging.error(f"异步生成追问分析失败: {str(e)}")
+        logging.error(traceback.format_exc())
+
 @order_bp.route('/mock/pay/<order_id>', methods=['POST'])
 def mock_payment(order_id):
     """模拟支付接口，用于测试和开发"""
@@ -302,36 +362,30 @@ def mock_payment(order_id):
             # 更新订单状态
             OrderModel.update_status(order_id, 'paid')
             
-            # 生成追问分析
-            try:
-                # 获取原始八字数据
-                bazi_result = BaziResultModel.find_by_id(result_id)
-                if not bazi_result:
-                    return jsonify(code=404, message="未找到原始分析结果"), 404
-                
-                # 生成追问分析
-                analysis = generate_followup_analysis(
-                    bazi_result['baziChart'],
-                    area,
-                    bazi_result.get('gender', gender)
-                )
-                
-                # 更新追问分析结果
-                BaziResultModel.update_followup(result_id, area, analysis)
-                
-                return jsonify(
-                    code=200,
-                    message="追问分析已生成",
-                    data={
-                        "orderId": order_id,
-                        "resultId": result_id,
-                        "area": area
-                    }
-                )
-            except Exception as e:
-                logging.error(f"生成追问分析失败: {str(e)}")
-                logging.error(traceback.format_exc())
-                return jsonify(code=500, message=str(e)), 500
+            # 获取原始八字数据
+            bazi_result = BaziResultModel.find_by_id(result_id)
+            if not bazi_result:
+                return jsonify(code=404, message="未找到原始分析结果"), 404
+            
+            # 异步生成追问分析
+            async_task(
+                async_generate_followup,
+                result_id,
+                bazi_result['baziChart'],
+                area,
+                bazi_result.get('gender', gender)
+            )
+            
+            # 立即返回响应
+            return jsonify(
+                code=200,
+                message="支付成功，正在生成分析",
+                data={
+                    "orderId": order_id,
+                    "resultId": result_id,
+                    "area": area
+                }
+            )
         
         # 如果是普通订单
         else:
@@ -347,7 +401,7 @@ def mock_payment(order_id):
                 birth_datetime = f"{birth_date} {birth_time}"
                 logging.info(f"组合后的日期时间: {birth_datetime}")
                 
-                # 计算八字
+                # 计算八字（这个计算很快，可以同步执行）
                 try:
                     bazi_chart = calculate_bazi(birth_datetime, gender)
                 except Exception as e:
@@ -358,13 +412,10 @@ def mock_payment(order_id):
                 if not bazi_chart:
                     return jsonify(code=500, message="八字计算失败"), 500
                 
-                # 生成AI分析
-                ai_analysis = generate_bazi_analysis(bazi_chart, gender)
-                
-                # 创建或更新分析结果
+                # 创建或更新分析结果，但不包含AI分析
                 if result_id:
-                    # 更新现有结果
-                    BaziResultModel.update_analysis(result_id, bazi_chart, ai_analysis)
+                    # 更新现有结果的八字图
+                    BaziResultModel.update_bazi_chart(result_id, bazi_chart)
                     new_result_id = result_id
                 else:
                     # 创建新结果
@@ -379,20 +430,21 @@ def mock_payment(order_id):
                         None,  # area
                         bazi_chart
                     )
-                    
-                    # 更新AI分析
-                    BaziResultModel.update_ai_analysis(new_result_id, ai_analysis)
                 
+                # 异步生成AI分析
+                async_task(async_generate_analysis, new_result_id, bazi_chart, gender)
+                
+                # 立即返回响应
                 return jsonify(
                     code=200,
-                    message="分析已生成",
+                    message="支付成功，正在生成分析",
                     data={
                         "orderId": order_id,
                         "resultId": new_result_id
                     }
                 )
             except Exception as e:
-                logging.error(f"生成八字分析失败: {str(e)}")
+                logging.error(f"处理八字计算失败: {str(e)}")
                 logging.error(traceback.format_exc())
                 return jsonify(code=500, message=str(e)), 500
                 

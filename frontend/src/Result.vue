@@ -904,6 +904,56 @@ const handleLocalPDFGeneration = async () => {
   }
 };
 
+// 添加分析状态检查函数
+const checkAnalysisStatus = async (resultId) => {
+  try {
+    console.log('检查分析状态:', resultId);
+    const response = await axios.get(`/api/bazi/result/${resultId}`);
+    
+    if (response.data.code === 200) {
+      // 检查AI分析是否已经生成
+      const aiAnalysis = response.data.data.aiAnalysis || {};
+      
+      // 检查是否还有"正在分析"的内容
+      const isAnalyzing = Object.values(aiAnalysis).some(
+        value => typeof value === 'string' && value.includes('正在分析')
+      );
+      
+      if (isAnalyzing) {
+        console.log('分析仍在进行中...');
+        return false;
+      } else {
+        console.log('分析已完成');
+        return true;
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('检查分析状态出错:', error);
+    return false;
+  }
+};
+
+// 添加轮询检查函数
+const pollAnalysisStatus = async (resultId, maxAttempts = 30) => {
+  let attempts = 0;
+  
+  return new Promise((resolve) => {
+    const checkInterval = setInterval(async () => {
+      attempts++;
+      const isComplete = await checkAnalysisStatus(resultId);
+      
+      if (isComplete || attempts >= maxAttempts) {
+        clearInterval(checkInterval);
+        await getBaziResult(); // 最后再获取一次完整结果
+        Toast.clear();
+        resolve(isComplete);
+      }
+    }, 2000); // 每2秒检查一次
+  });
+};
+
+// 修改reloadBaziData函数，添加轮询逻辑
 const reloadBaziData = async () => {
   Toast.loading('正在重新加载数据...');
   
@@ -922,7 +972,7 @@ const reloadBaziData = async () => {
       
       // 显示加载提示
       Toast.loading({
-        message: '正在分析八字，AI处理通常需要30-60秒，请耐心等待...',
+        message: '正在处理支付...',
         duration: 0,
         position: 'middle',
         forbidClick: true
@@ -942,6 +992,9 @@ const reloadBaziData = async () => {
       console.log('模拟支付响应:', mockPaymentResponse.data);
       
       if (mockPaymentResponse.data.code === 200) {
+        // 支付成功，显示成功提示
+        Toast.success('支付成功');
+        
         // 使用返回的resultId重新加载数据
         if (mockPaymentResponse.data.data && mockPaymentResponse.data.data.resultId) {
           const newResultId = mockPaymentResponse.data.data.resultId;
@@ -952,62 +1005,24 @@ const reloadBaziData = async () => {
           // 还需要更新本地存储中的resultId
           localStorage.setItem('resultId', newResultId);
           
-          const response = await axios.get(`/api/bazi/result/${newResultId}`);
-          if (response.data.code === 200) {
-            // 更新八字数据，使用空值合并运算符确保数据存在
-            baziData.value = {
-              yearPillar: response.data.data.baziChart?.yearPillar || null,
-              monthPillar: response.data.data.baziChart?.monthPillar || null,
-              dayPillar: response.data.data.baziChart?.dayPillar || null,
-              hourPillar: response.data.data.baziChart?.hourPillar || null,
-              fiveElements: response.data.data.baziChart?.fiveElements || null,
-              flowingYears: response.data.data.baziChart?.flowingYears || [],
-              shenSha: response.data.data.baziChart?.shenSha || {
-                dayChong: "",
-                zhiShen: "",
-                pengZuGan: "",
-                pengZuZhi: "",
-                xiShen: "",
-                fuShen: "",
-                caiShen: "",
-                benMing: [],
-                yearGan: [],
-                yearZhi: [],
-                dayGan: [],
-                dayZhi: []
-              },
-              daYun: response.data.data.baziChart?.daYun || {
-                startAge: 1,
-                startYear: new Date().getFullYear() + 1,
-                isForward: true,
-                daYunList: []
-              },
-              birthDate: response.data.data.baziChart?.birthDate || null,
-              birthTime: response.data.data.baziChart?.birthTime || null,
-              gender: response.data.data.baziChart?.gender || null
-            };
-            
-            // 更新AI分析结果
-            aiAnalysis.value = {
-              health: response.data.data.aiAnalysis?.health || '',
-              wealth: response.data.data.aiAnalysis?.wealth || '',
-              career: response.data.data.aiAnalysis?.career || '',
-              relationship: response.data.data.aiAnalysis?.relationship || '',
-              children: response.data.data.aiAnalysis?.children || '',
-              overall: response.data.data.aiAnalysis?.overall || '',
-              personality: response.data.data.aiAnalysis?.personality || '',
-              education: response.data.data.aiAnalysis?.education || '',
-              parents: response.data.data.aiAnalysis?.parents || '',
-              social: response.data.data.aiAnalysis?.social || '',
-              future: response.data.data.aiAnalysis?.future || ''
-            };
-            
-            Toast.success('数据加载成功');
-            return;
+          // 显示正在加载分析结果
+          Toast.loading({
+            message: '正在生成八字分析结果，这可能需要30-60秒...',
+            duration: 0,
+            position: 'middle',
+            forbidClick: true
+          });
+          
+          // 轮询检查分析状态
+          const analysisComplete = await pollAnalysisStatus(newResultId);
+          
+          if (analysisComplete) {
+            Toast.success('分析已完成');
+          } else {
+            Toast.info('分析可能尚未完成，显示部分结果');
           }
-        } else {
-          console.error('响应中缺少resultId');
-          Toast.fail('响应格式不正确');
+          
+          return;
         }
       }
     } catch (mockError) {
@@ -1017,60 +1032,87 @@ const reloadBaziData = async () => {
     }
     
     // 如果模拟支付失败，尝试直接获取结果
-    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
-    
-    if (response.data.code === 200) {
-      // 更新八字数据，使用空值合并运算符确保数据存在
-      baziData.value = {
-        yearPillar: response.data.data.baziChart?.yearPillar || null,
-        monthPillar: response.data.data.baziChart?.monthPillar || null,
-        dayPillar: response.data.data.baziChart?.dayPillar || null,
-        hourPillar: response.data.data.baziChart?.hourPillar || null,
-        fiveElements: response.data.data.baziChart?.fiveElements || null,
-        flowingYears: response.data.data.baziChart?.flowingYears || [],
-        shenSha: response.data.data.baziChart?.shenSha || {
-          dayChong: "",
-          zhiShen: "",
-          pengZuGan: "",
-          pengZuZhi: "",
-          xiShen: "",
-          fuShen: "",
-          caiShen: "",
-          benMing: [],
-          yearGan: [],
-          yearZhi: [],
-          dayGan: [],
-          dayZhi: []
-        },
-        daYun: response.data.data.baziChart?.daYun || {
-          startAge: 1,
-          startYear: new Date().getFullYear() + 1,
-          isForward: true,
-          daYunList: []
-        },
-        birthDate: response.data.data.baziChart?.birthDate || null,
-        birthTime: response.data.data.baziChart?.birthTime || null,
-        gender: response.data.data.baziChart?.gender || null
-      };
+    try {
+      Toast.loading({
+        message: '正在加载现有分析结果...',
+        duration: 0,
+        forbidClick: true
+      });
       
-      // 更新AI分析结果
-      aiAnalysis.value = {
-        health: response.data.data.aiAnalysis?.health || '',
-        wealth: response.data.data.aiAnalysis?.wealth || '',
-        career: response.data.data.aiAnalysis?.career || '',
-        relationship: response.data.data.aiAnalysis?.relationship || '',
-        children: response.data.data.aiAnalysis?.children || '',
-        overall: response.data.data.aiAnalysis?.overall || '',
-        personality: response.data.data.aiAnalysis?.personality || '',
-        education: response.data.data.aiAnalysis?.education || '',
-        parents: response.data.data.aiAnalysis?.parents || '',
-        social: response.data.data.aiAnalysis?.social || '',
-        future: response.data.data.aiAnalysis?.future || ''
-      };
+      const response = await axios.get(`/api/bazi/result/${resultId.value}`);
       
-      Toast.success('数据加载成功');
-    } else {
-      Toast.fail(response.data.message || '加载失败');
+      if (response.data.code === 200) {
+        // 更新八字数据，使用空值合并运算符确保数据存在
+        baziData.value = {
+          yearPillar: response.data.data.baziChart?.yearPillar || null,
+          monthPillar: response.data.data.baziChart?.monthPillar || null,
+          dayPillar: response.data.data.baziChart?.dayPillar || null,
+          hourPillar: response.data.data.baziChart?.hourPillar || null,
+          fiveElements: response.data.data.baziChart?.fiveElements || null,
+          flowingYears: response.data.data.baziChart?.flowingYears || [],
+          shenSha: response.data.data.baziChart?.shenSha || {
+            dayChong: "",
+            zhiShen: "",
+            pengZuGan: "",
+            pengZuZhi: "",
+            xiShen: "",
+            fuShen: "",
+            caiShen: "",
+            benMing: [],
+            yearGan: [],
+            yearZhi: [],
+            dayGan: [],
+            dayZhi: []
+          },
+          daYun: response.data.data.baziChart?.daYun || baziData.value.daYun,
+          birthDate: response.data.data.baziChart?.birthDate || null,
+          birthTime: response.data.data.baziChart?.birthTime || null,
+          gender: response.data.data.baziChart?.gender || null
+        };
+        
+        // 更新AI分析结果
+        aiAnalysis.value = {
+          health: response.data.data.aiAnalysis?.health || '',
+          wealth: response.data.data.aiAnalysis?.wealth || '',
+          career: response.data.data.aiAnalysis?.career || '',
+          relationship: response.data.data.aiAnalysis?.relationship || '',
+          children: response.data.data.aiAnalysis?.children || '',
+          overall: response.data.data.aiAnalysis?.overall || '',
+          personality: response.data.data.aiAnalysis?.personality || '',
+          education: response.data.data.aiAnalysis?.education || '',
+          parents: response.data.data.aiAnalysis?.parents || '',
+          social: response.data.data.aiAnalysis?.social || '',
+          future: response.data.data.aiAnalysis?.future || ''
+        };
+        
+        // 检查是否存在"正在分析"的内容
+        const isAnalyzing = Object.values(aiAnalysis.value).some(
+          value => typeof value === 'string' && value.includes('正在分析')
+        );
+        
+        if (isAnalyzing) {
+          // 如果还在分析，开始轮询等待结果
+          Toast.loading({
+            message: '正在等待分析结果完成...',
+            duration: 0,
+            forbidClick: true
+          });
+          
+          const analysisComplete = await pollAnalysisStatus(resultId.value);
+          if (analysisComplete) {
+            Toast.success('分析已完成');
+          } else {
+            Toast.info('分析可能尚未完成，显示部分结果');
+          }
+        } else {
+          Toast.success('数据加载成功');
+        }
+      } else {
+        Toast.fail(response.data.message || '加载失败');
+      }
+    } catch (error) {
+      console.error('重新加载失败:', error);
+      Toast.fail('加载失败: ' + (error.message || '未知错误'));
     }
   } catch (error) {
     console.error('重新加载失败:', error);
@@ -1115,8 +1157,10 @@ const payForFollowup = async () => {
   
   try {
     isLoadingFollowup.value = true;
+    
+    // 第一步：创建订单
     Toast.loading({
-      message: '处理中...',
+      message: '正在创建订单...',
       forbidClick: true,
       duration: 0
     });
@@ -1134,6 +1178,13 @@ const payForFollowup = async () => {
       const followupOrderId = orderResponse.data.data.orderId;
       console.log('追问订单创建成功:', followupOrderId);
       
+      // 第二步：处理支付
+      Toast.loading({
+        message: '正在处理支付...',
+        forbidClick: true,
+        duration: 0
+      });
+      
       // 模拟支付
       const paymentResponse = await axios.post(`/api/order/mock/pay/${followupOrderId}`, {
         birthDate: baziData.value?.birthDate || urlParams.get('birthDate'),
@@ -1145,6 +1196,14 @@ const payForFollowup = async () => {
       
       if (paymentResponse.data.code === 200) {
         console.log('追问支付成功:', paymentResponse.data);
+        Toast.success('支付成功');
+        
+        // 第三步：加载分析结果
+        Toast.loading({
+          message: '正在生成分析结果，这可能需要30-60秒...',
+          forbidClick: true,
+          duration: 0
+        });
         
         // 获取并保存新的resultId（如果有的话）
         if (paymentResponse.data.data && paymentResponse.data.data.resultId) {
@@ -1156,8 +1215,50 @@ const payForFollowup = async () => {
           localStorage.setItem('resultId', newResultId);
         }
         
-        // 获取追问分析结果
-        await getFollowupAnalysis(currentFollowup.value.id);
+        // 轮询检查分析结果状态
+        const area = currentFollowup.value.id;
+        let isComplete = false;
+        let attempts = 0;
+        const maxAttempts = 30; // 最多等待60秒（30次 * 2秒）
+        
+        // 自定义轮询检查追问分析状态
+        const pollFollowupStatus = async () => {
+          while (attempts < maxAttempts && !isComplete) {
+            attempts++;
+            try {
+              // 等待2秒
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // 检查追问分析结果
+              const response = await axios.get(`/api/bazi/followup/${resultId.value}/${area}`);
+              if (response.data.code === 200 && response.data.data.analysis) {
+                // 检查分析内容是否为"正在分析"
+                const analysis = response.data.data.analysis;
+                if (typeof analysis === 'string' && !analysis.includes('正在分析')) {
+                  isComplete = true;
+                  followupAnalysis.value[area] = analysis;
+                  break;
+                }
+              }
+            } catch (error) {
+              console.error('检查追问分析状态出错:', error);
+            }
+          }
+          
+          // 无论是否完成，都获取最终结果
+          await getFollowupAnalysis(area);
+        };
+        
+        // 开始轮询
+        await pollFollowupStatus();
+        
+        // 更新UI
+        Toast.clear();
+        if (isComplete) {
+          Toast.success('分析已完成');
+        } else {
+          Toast.info('分析可能尚未完成，显示部分结果');
+        }
         
         // 标记为已支付
         const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
@@ -1166,7 +1267,6 @@ const payForFollowup = async () => {
         }
         
         showFollowupDialog.value = false;
-        Toast.success('分析完成');
       } else {
         Toast.fail('支付失败');
       }

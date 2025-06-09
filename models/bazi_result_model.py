@@ -1099,4 +1099,100 @@ class BaziResultModel:
         except Exception as e:
             logging.error(f"获取追问分析失败: {str(e)}")
             logging.error(traceback.format_exc())
-            return None 
+            return None
+    
+    @staticmethod
+    def update_bazi_chart(result_id, bazi_chart):
+        """只更新八字命盘数据，不更新AI分析
+        
+        Args:
+            result_id: 结果ID
+            bazi_chart: 八字命盘数据
+            
+        Returns:
+            bool: 是否更新成功
+        """
+        try:
+            # 记录更新内容
+            logger.info(f"更新八字命盘数据: {result_id}")
+            
+            # 确保年月日时四柱都存在
+            if bazi_chart:
+                pillars = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']
+                for pillar in pillars:
+                    if pillar not in bazi_chart or not bazi_chart[pillar]:
+                        logger.warning(f"baziChart缺少必要字段: {pillar}，添加默认值")
+                        bazi_chart[pillar] = {'heavenlyStem': '?', 'earthlyBranch': '?'}
+                
+                # 确保五行分布存在
+                if 'fiveElements' not in bazi_chart or not bazi_chart['fiveElements']:
+                    logger.warning("baziChart缺少五行分布，添加默认值")
+                    bazi_chart['fiveElements'] = {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0}
+                
+                # 确保神煞数据存在
+                if 'shenSha' not in bazi_chart:
+                    logger.warning("baziChart缺少神煞数据，添加默认值")
+                    bazi_chart['shenSha'] = {
+                        'dayChong': '',
+                        'zhiShen': '',
+                        'pengZuGan': '',
+                        'pengZuZhi': '',
+                        'xiShen': '',
+                        'fuShen': '',
+                        'caiShen': '',
+                        'benMing': [],
+                        'yearGan': [],
+                        'yearZhi': [],
+                        'dayGan': [],
+                        'dayZhi': []
+                    }
+                
+                # 确保大运数据存在
+                if 'daYun' not in bazi_chart:
+                    logger.warning("baziChart缺少大运数据，添加默认值")
+                    bazi_chart['daYun'] = {
+                        'startAge': 1,
+                        'startYear': datetime.now().year,
+                        'isForward': True,
+                        'daYunList': []
+                    }
+                
+                # 确保流年数据存在
+                if 'flowingYears' not in bazi_chart:
+                    logger.warning("baziChart缺少流年数据，添加默认值")
+                    bazi_chart['flowingYears'] = []
+            
+            # 尝试直接使用原始ID更新
+            result = results_collection.find_one_and_update(
+                {'_id': result_id},
+                {'$set': {
+                    'baziChart': bazi_chart,
+                    'updateTime': datetime.now()
+                }},
+                return_document=ReturnDocument.AFTER
+            )
+            
+            # 如果没找到，尝试添加RES前缀
+            if not result and isinstance(result_id, str) and not result_id.startswith('RES'):
+                res_id = f"RES{result_id}"
+                logger.info(f"尝试使用RES前缀更新: {res_id}")
+                result = results_collection.find_one_and_update(
+                    {'_id': res_id},
+                    {'$set': {
+                        'baziChart': bazi_chart,
+                        'updateTime': datetime.now()
+                    }},
+                    return_document=ReturnDocument.AFTER
+                )
+            
+            if result:
+                logger.info(f"成功更新八字命盘数据: {result_id}")
+                return True
+            else:
+                logger.warning(f"未找到要更新的记录: {result_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"更新八字命盘数据失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False 
