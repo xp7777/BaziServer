@@ -907,18 +907,40 @@ class BaziResultModel:
     @staticmethod
     def update_followup(result_id, area, analysis):
         """更新追问分析结果"""
-        # 创建更新字段
-        update_field = f"followups.{area}"
-        
-        # 更新结果记录
-        results_collection.update_one(
-            {"_id": result_id},
-            {"$set": {
-                update_field: analysis,
-                "updateTime": datetime.now()
-            }}
-        )
-        return True
+        try:
+            logger.info(f"更新追问分析结果: {result_id}, 领域: {area}")
+            
+            # 获取当前记录
+            result = results_collection.find_one({"_id": result_id})
+            if not result:
+                logger.warning(f"无法找到结果记录: {result_id}")
+                return False
+
+            # 获取已有的followups数据，确保其为字典格式
+            followups = result.get('followups', {})
+            if not isinstance(followups, dict):
+                # 如果不是字典，则创建一个新的字典
+                followups = {}
+                
+            # 更新指定领域的分析结果
+            followups[area] = analysis
+                
+            # 更新结果记录
+            update_result = results_collection.update_one(
+                {"_id": result_id},
+                {"$set": {
+                    "followups": followups,
+                    "updateTime": datetime.now()
+                }}
+            )
+            
+            success = update_result.modified_count > 0
+            logger.info(f"更新追问分析结果{'成功' if success else '失败'}")
+            return success
+        except Exception as e:
+            logger.error(f"更新追问分析结果失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False
     
     @staticmethod
     def create_result_with_id(result_id, user_id, order_id, birth_date, birth_time, gender, area, bazi_data=None):
@@ -1094,11 +1116,20 @@ class BaziResultModel:
                 return None
             
             # 获取追问分析结果
-            followups = result.get('followups', [])
-            for followup in followups:
-                if followup.get('area') == area:
-                    return followup
-                
+            followups = result.get('followups', {})
+            
+            # 检查followups是否是字典类型
+            if isinstance(followups, dict):
+                # 如果是字典，直接从key中获取
+                if area in followups:
+                    return {"area": area, "analysis": followups[area]}
+            elif isinstance(followups, list):
+                # 如果是列表，遍历查找
+                for followup in followups:
+                    if isinstance(followup, dict) and followup.get('area') == area:
+                        return followup
+            
+            # 没有找到对应的追问分析
             return None
         except Exception as e:
             logging.error(f"获取追问分析失败: {str(e)}")

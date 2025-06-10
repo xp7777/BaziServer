@@ -707,11 +707,11 @@ def generate_bazi_analysis(bazi_chart, gender):
 
 def generate_followup_analysis(bazi_chart, area, gender):
     """
-    生成追问分析结果
+    生成追问分析
     
     Args:
-        bazi_chart: 八字命盘数据
-        area: 追问领域
+        bazi_chart: 八字图表数据
+        area: 分析领域
         gender: 性别
         
     Returns:
@@ -720,12 +720,29 @@ def generate_followup_analysis(bazi_chart, area, gender):
     try:
         logger.info(f"开始生成追问分析: {area}")
         
-        # 提取八字数据
+        # 提取四柱信息
         year_pillar = bazi_chart['yearPillar']
         month_pillar = bazi_chart['monthPillar']
         day_pillar = bazi_chart['dayPillar']
         hour_pillar = bazi_chart['hourPillar']
+        
+        # 提取五行分布
         five_elements = bazi_chart['fiveElements']
+        
+        # 提取出生年份，默认为当年
+        birth_year = datetime.now().year
+        if 'birthDate' in bazi_chart and bazi_chart['birthDate']:
+            # 尝试从birthDate中提取年份
+            try:
+                birth_date = bazi_chart['birthDate']
+                if isinstance(birth_date, str) and len(birth_date) >= 4:
+                    # 假设birthDate格式为"YYYY-MM-DD"或"YYYY/MM/DD"等
+                    birth_year = int(birth_date[:4])
+                elif hasattr(birth_date, 'year'):
+                    # 如果是日期对象
+                    birth_year = birth_date.year
+            except Exception as e:
+                logger.warning(f"从birthDate提取年份失败: {e}, 使用当前年份")
         
         # 获取对应领域的提示词模板
         template = get_prompt_template(area)
@@ -745,7 +762,8 @@ def generate_followup_analysis(bazi_chart, area, gender):
             wood=five_elements['wood'],
             water=five_elements['water'],
             fire=five_elements['fire'],
-            earth=five_elements['earth']
+            earth=five_elements['earth'],
+            birth_year=birth_year
         )
         
         # 调用AI接口

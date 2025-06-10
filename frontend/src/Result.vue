@@ -1186,7 +1186,7 @@ const reloadBaziData = async () => {
           if (analysisComplete) {
             Toast.success('分析已完成');
           } else {
-            Toast.info('分析可能尚未完成，显示部分结果');
+            Toast.success('已完成部分分析，显示可用结果');
           }
           
           return;
@@ -1383,7 +1383,7 @@ const payForFollowup = async () => {
               
               // 检查追问分析结果
               const response = await axios.get(`/api/bazi/followup/${resultId.value}/${area}`);
-              if (response.data.code === 200 && response.data.data.analysis) {
+              if (response.data.code === 200 && response.data.data && response.data.data.analysis) {
                 // 检查分析内容是否为"正在分析"
                 const analysis = response.data.data.analysis;
                 if (typeof analysis === 'string' && !analysis.includes('正在分析')) {
@@ -1394,11 +1394,26 @@ const payForFollowup = async () => {
               }
             } catch (error) {
               console.error('检查追问分析状态出错:', error);
+              // 如果遇到404错误，可能意味着追问分析尚未创建完毕
+              // 不中断轮询，继续等待
+              if (error.response && error.response.status === 404) {
+                console.log('追问分析尚未创建完毕，继续等待...');
+              } else if (attempts >= maxAttempts / 2) {
+                // 如果尝试次数超过一半且仍然失败，退出轮询
+                Toast.fail('获取分析数据失败，请稍后重试');
+                break;
+              }
             }
           }
           
-          // 无论是否完成，都获取最终结果
-          await getFollowupAnalysis(area);
+          // 无论是否完成，都尝试获取最终结果
+          try {
+            await getFollowupAnalysis(area);
+          } catch (error) {
+            console.error('获取最终追问分析结果失败:', error);
+            // 如果分析结果仍然不可用，显示友好的错误信息
+            followupAnalysis.value[area] = "分析正在处理中，请稍后刷新页面查看。";
+          }
         };
         
         // 开始轮询
@@ -1409,7 +1424,7 @@ const payForFollowup = async () => {
         if (isComplete) {
           Toast.success('分析已完成');
         } else {
-          Toast.info('分析可能尚未完成，显示部分结果');
+          Toast.success('已完成部分分析，显示可用结果');
         }
         
         // 标记为已支付
