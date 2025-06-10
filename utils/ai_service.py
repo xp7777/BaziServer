@@ -464,6 +464,30 @@ def call_openai_api(prompt):
         logger.exception(f"调用OpenAI API异常: {str(e)}")
         return None
 
+def clean_markdown_symbols(text):
+    """
+    清理文本中的Markdown符号（* 和 #）
+    
+    Args:
+        text: 需要清理的文本
+        
+    Returns:
+        str: 清理后的文本
+    """
+    if not text:
+        return text
+        
+    # 移除文本中的 * 符号（保留加粗和斜体的效果，但去除符号）
+    text = text.replace('**', '').replace('*', '')
+    
+    # 移除文本中的 # 符号（保留标题效果但去除符号）
+    import re
+    text = re.sub(r'###\s+', '', text)  # 移除三级标题的 ###
+    text = re.sub(r'##\s+', '', text)   # 移除二级标题的 ##
+    text = re.sub(r'#\s+', '', text)    # 移除一级标题的 #
+    
+    return text
+
 def call_deepseek_api(prompt):
     """
     调用DeepSeek API
@@ -646,6 +670,10 @@ def call_deepseek_api(prompt):
                         import re
                         for pattern in wrong_patterns:
                             content = re.sub(pattern, f"{year}年{correct_ganzhi}", content)
+            
+            # 清理Markdown符号 (* 和 #)
+            content = clean_markdown_symbols(content)
+            logger.info("已清理返回内容中的Markdown符号 (* 和 #)")
             
             return content
         else:
@@ -1362,9 +1390,15 @@ def extract_analysis_from_text(ai_text):
         for key, value in analysis.items():
             logger.info(f"{key} 部分内容长度: {len(value)} 字符")
             logger.info(f"{key} 部分内容前100字符: {value[:100]}...")
+            
+        # 再次清理每个部分的Markdown符号
+        cleaned_analysis = {}
+        for key, value in analysis.items():
+            cleaned_analysis[key] = clean_markdown_symbols(value)
+            logger.info(f"清理后 {key} 部分内容长度: {len(cleaned_analysis[key])} 字符")
         
         logger.info("分析结果提取完成")
-        return analysis
+        return cleaned_analysis
         
     except Exception as e:
         logger.error(f"提取分析结果失败: {str(e)}")

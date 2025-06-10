@@ -424,52 +424,76 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
         doc = SimpleDocTemplate(
             output_path,
             pagesize=A4,
-            rightMargin=72,
-            leftMargin=72,
-            topMargin=72,
-            bottomMargin=72
+            rightMargin=60,  # 减小页边距
+            leftMargin=60,   # 减小页边距
+            topMargin=60,    # 减小页边距
+            bottomMargin=60  # 减小页边距
         )
         
         # 创建样式
         styles = getSampleStyleSheet()
         
-        # 添加中文样式
+        # 添加中文样式 - 增加字体大小
         styles.add(ParagraphStyle(
             name='Chinese',
             fontName=DEFAULT_FONT_NAME,
-            fontSize=12,
-            leading=14,
-            spaceAfter=10,
+            fontSize=16,     # 增加字体大小，从14到16
+            leading=22,      # 增加行间距，从18到22
+            spaceAfter=12,   # 保持段落后空间不变
+            spaceBefore=6,   # 保持段落前空间不变
             encoding='utf-8'
         ))
         
         styles.add(ParagraphStyle(
             name='ChineseTitle',
             fontName=DEFAULT_FONT_NAME,
-            fontSize=24,
-            leading=28,
-            alignment=1,  # 居中
-            spaceAfter=20,
+            fontSize=32,     # 增加标题字体大小，从28到32
+            leading=36,      # 增加行间距，从32到36
+            alignment=1,     # 居中
+            spaceAfter=24,   # 保持标题后空间不变
             encoding='utf-8'
         ))
         
         styles.add(ParagraphStyle(
             name='ChineseHeading1',
             fontName=DEFAULT_FONT_NAME,
-            fontSize=18,
-            leading=22,
-            spaceAfter=15,
-            spaceBefore=30,
+            fontSize=26,     # 增加一级标题字体大小，从22到26
+            leading=30,      # 增加行间距，从26到30
+            spaceAfter=18,   # 保持标题后空间不变
+            spaceBefore=36,  # 保持标题前空间不变
+            textColor=colors.blue,  # 保持颜色不变
             encoding='utf-8'
         ))
         
         styles.add(ParagraphStyle(
             name='ChineseHeading2',
             fontName=DEFAULT_FONT_NAME,
+            fontSize=22,     # 增加二级标题字体大小，从18到22
+            leading=26,      # 增加行间距，从22到26
+            spaceAfter=12,   # 保持标题后空间不变
+            spaceBefore=24,  # 保持标题前空间不变
+            textColor=colors.darkblue,  # 保持颜色不变
+            encoding='utf-8'
+        ))
+        
+        # 添加新的强调样式
+        styles.add(ParagraphStyle(
+            name='ChineseEmphasis',
+            fontName=DEFAULT_FONT_NAME,
+            fontSize=15,     # 强调文字稍大一些
+            leading=19,      
+            textColor=colors.darkred,  # 使用红色强调重要内容
+            encoding='utf-8'
+        ))
+        
+        # 添加新的段落分隔样式
+        styles.add(ParagraphStyle(
+            name='ChineseSeparator',
+            fontName=DEFAULT_FONT_NAME,
             fontSize=14,
             leading=18,
-            spaceAfter=10,
-            spaceBefore=20,
+            alignment=1,     # 居中
+            textColor=colors.gray,
             encoding='utf-8'
         ))
         
@@ -485,12 +509,12 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
             ParagraphStyle(
                 name='ChineseSubtitle',
                 fontName=DEFAULT_FONT_NAME,
-                fontSize=10,
+                fontSize=12,  # 增加字体大小，从10到12
                 alignment=1,  # 居中
                 encoding='utf-8'
             )
         ))
-        elements.append(Spacer(1, 20))
+        elements.append(Spacer(1, 30))  # 增加空间，从20到30
         
         # 打印调试信息
         try:
@@ -498,11 +522,24 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
             logger.info(f"格式化数据内容: {json.dumps(formatted_data, ensure_ascii=False, cls=DateTimeEncoder)[:500]}")
             logger.info(f"分析内容: {json.dumps(analysis, ensure_ascii=False, cls=DateTimeEncoder)[:500]}")
         except Exception as e:
-            logger.warning(f"序列化数据时出错: {str(e)}")
-            # 继续执行，不让序列化错误影响PDF生成
+            logger.warning(f"转换数据为JSON时出错: {str(e)}")
         
-        # 添加八字命盘信息（从formatted_data获取，或从baziChart获取）
+        # 添加八字命盘信息
         elements.append(Paragraph('八字命盘', styles['ChineseHeading1']))
+        
+        # 改进表格样式
+        table_style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),  # 表头背景色
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),    # 表头文字颜色
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),             # 所有单元格居中
+            ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME), # 表格字体
+            ('FONTSIZE', (0, 0), (-1, 0), 14),                 # 表头字体大小增加
+            ('FONTSIZE', (0, 1), (-1, -1), 13),                # 表格内容字体大小增加
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),            # 单元格内边距增加
+            ('TOPPADDING', (0, 0), (-1, -1), 8),               # 单元格内边距增加
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),      # 表格边框颜色改进
+            ('BOX', (0, 0), (-1, -1), 1, colors.black),        # 表格外框加粗
+        ])
         
         # 尝试从多个来源获取命盘数据
         bazi_text = ""
@@ -567,13 +604,7 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
                 ]
                 
                 table = Table(data, colWidths=[80] * 5)
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONT', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ]))
+                table.setStyle(table_style)
                 
                 elements.append(table)
             except Exception as e:
@@ -978,6 +1009,7 @@ def generate_pdf_content(result_data):
                 
                 # 创建PDF文档对象
                 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+                from reportlab.lib import colors
                 doc = SimpleDocTemplate(
                     output_buffer,
                     pagesize=A4,
@@ -987,31 +1019,48 @@ def generate_pdf_content(result_data):
                     bottomMargin=72
                 )
                 
+                # 定义表格样式
+                table_style = TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONT', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 14),  # 增加表格中的字体大小，从10到14
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),  # 增加单元格内边距，从6到8
+                    ('TOPPADDING', (0, 0), (-1, -1), 8),  # 增加单元格内边距，从6到8
+                ])
+                
                 # 创建样式
                 styles = getSampleStyleSheet()
                 styles.add(ParagraphStyle(
                     name='Chinese',
                     fontName=DEFAULT_FONT_NAME,
-                    fontSize=10,
-                    leading=14,
+                    fontSize=16,     # 增加字体大小，从14到16
+                    leading=22,      # 增加行间距，从18到22
+                    spaceAfter=12,   # 保持段落后空间不变
+                    spaceBefore=6,   # 保持段落前空间不变
                     encoding='utf-8'
                 ))
                 styles.add(ParagraphStyle(
                     name='ChineseHeading1',
                     fontName=DEFAULT_FONT_NAME,
-                    fontSize=18,
-                    leading=22,
-                    alignment=1,  # 居中
-                    spaceAfter=12,
+                    fontSize=26,     # 增加一级标题字体大小，从22到26
+                    leading=30,      # 增加行间距，从26到30
+                    spaceAfter=18,   # 保持标题后空间不变
+                    spaceBefore=36,  # 保持标题前空间不变
+                    textColor=colors.blue,  # 保持颜色不变
+                    alignment=1,     # 居中
                     encoding='utf-8'
                 ))
                 styles.add(ParagraphStyle(
                     name='ChineseHeading2',
                     fontName=DEFAULT_FONT_NAME,
-                    fontSize=14,
-                    leading=17,
-                    spaceBefore=12,
-                    spaceAfter=6,
+                    fontSize=22,     # 增加二级标题字体大小，从18到22
+                    leading=26,      # 增加行间距，从22到26
+                    spaceAfter=12,   # 保持标题后空间不变
+                    spaceBefore=24,  # 保持标题前空间不变
+                    textColor=colors.darkblue,  # 保持颜色不变
                     encoding='utf-8'
                 ))
                 
@@ -1062,19 +1111,7 @@ def generate_pdf_content(result_data):
                 
                 # 创建四柱表格
                 pillar_table = Table(pillar_data, colWidths=[80, 80, 80, 80, 80])
-                pillar_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (4, 0), colors.lightgrey),
-                    ('TEXTCOLOR', (0, 0), (4, 0), colors.black),
-                    ('ALIGN', (0, 0), (4, 0), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
-                    ('FONTSIZE', (0, 0), (4, 0), 12),
-                    ('BOTTOMPADDING', (0, 0), (4, 0), 6),
-                    ('BACKGROUND', (0, 1), (0, 5), colors.lightgrey),
-                    ('TEXTCOLOR', (0, 1), (0, 5), colors.black),
-                    ('ALIGN', (0, 1), (4, 5), 'CENTER'),
-                    ('GRID', (0, 0), (4, 5), 1, colors.black),
-                    ('VALIGN', (0, 0), (4, 5), 'MIDDLE'),
-                ]))
+                pillar_table.setStyle(table_style)
                 elements.append(pillar_table)
                 elements.append(Spacer(1, 12))
                 
@@ -1093,16 +1130,8 @@ def generate_pdf_content(result_data):
                     element_name = five_element_names.get(element, element)
                     five_element_data.append([element_name, str(count)])
                 
-                five_element_table = Table(five_element_data)
-                five_element_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (1, 0), colors.lightgrey),
-                    ('TEXTCOLOR', (0, 0), (1, 0), colors.black),
-                    ('ALIGN', (0, 0), (1, 0), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                    ('ALIGN', (0, 1), (1, -1), 'CENTER'),
-                ]))
+                five_element_table = Table(five_element_data, colWidths=[100, 100])
+                five_element_table.setStyle(table_style)
                 elements.append(five_element_table)
                 elements.append(Spacer(1, 12))
                 
@@ -1152,15 +1181,7 @@ def generate_pdf_content(result_data):
                         ])
                     
                     da_yun_table = Table(da_yun_data)
-                    da_yun_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (5, 0), colors.lightgrey),
-                        ('TEXTCOLOR', (0, 0), (5, 0), colors.black),
-                        ('ALIGN', (0, 0), (5, 0), 'CENTER'),
-                        ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                        ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
-                    ]))
+                    da_yun_table.setStyle(table_style)
                     elements.append(da_yun_table)
                     elements.append(Spacer(1, 12))
                 
@@ -1182,15 +1203,7 @@ def generate_pdf_content(result_data):
                         ])
                     
                     flowing_years_table = Table(flowing_years_data)
-                    flowing_years_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (6, 0), colors.lightgrey),
-                        ('TEXTCOLOR', (0, 0), (6, 0), colors.black),
-                        ('ALIGN', (0, 0), (6, 0), 'CENTER'),
-                        ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                        ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
-                    ]))
+                    flowing_years_table.setStyle(table_style)
                     elements.append(flowing_years_table)
                     elements.append(Spacer(1, 12))
                 
