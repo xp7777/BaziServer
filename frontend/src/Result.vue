@@ -304,7 +304,16 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.relationship }}</p>
+            <div v-else>
+              <!-- 如果有追问分析结果，优先显示追问分析 -->
+              <div v-if="followupAnalysis.relationship || followupAnalysis.marriage" class="enhanced-analysis">
+                <p>{{ followupAnalysis.relationship || followupAnalysis.marriage }}</p>
+                <div class="analysis-source">
+                  <van-tag type="primary" size="medium">深度分析</van-tag>
+                </div>
+              </div>
+              <p v-else>{{ aiAnalysis.relationship }}</p>
+            </div>
           </div>
           
           <!-- 事业财运 -->
@@ -315,7 +324,16 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.career }}</p>
+            <div v-else>
+              <!-- 如果有追问分析结果，优先显示追问分析 -->
+              <div v-if="followupAnalysis.career || followupAnalysis.work || followupAnalysis.money || followupAnalysis.wealth" class="enhanced-analysis">
+                <p>{{ followupAnalysis.career || followupAnalysis.work || followupAnalysis.money || followupAnalysis.wealth }}</p>
+                <div class="analysis-source">
+                  <van-tag type="primary" size="medium">深度分析</van-tag>
+                </div>
+              </div>
+              <p v-else>{{ aiAnalysis.career }}</p>
+            </div>
           </div>
           
           <!-- 子女情况 -->
@@ -326,7 +344,16 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.children }}</p>
+            <div v-else>
+              <!-- 如果有追问分析结果，优先显示追问分析 -->
+              <div v-if="followupAnalysis.children || followupAnalysis.family" class="enhanced-analysis">
+                <p>{{ followupAnalysis.children || followupAnalysis.family }}</p>
+                <div class="analysis-source">
+                  <van-tag type="primary" size="medium">深度分析</van-tag>
+                </div>
+              </div>
+              <p v-else>{{ aiAnalysis.children }}</p>
+            </div>
           </div>
           
           <!-- 父母情况 -->
@@ -337,7 +364,16 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.parents }}</p>
+            <div v-else>
+              <!-- 如果有追问分析结果，优先显示追问分析 -->
+              <div v-if="followupAnalysis.parents" class="enhanced-analysis">
+                <p>{{ followupAnalysis.parents }}</p>
+                <div class="analysis-source">
+                  <van-tag type="primary" size="medium">深度分析</van-tag>
+                </div>
+              </div>
+              <p v-else>{{ aiAnalysis.parents }}</p>
+            </div>
           </div>
           
           <!-- 身体健康 -->
@@ -348,7 +384,16 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.health }}</p>
+            <div v-else>
+              <!-- 如果有追问分析结果，优先显示追问分析 -->
+              <div v-if="followupAnalysis.health" class="enhanced-analysis">
+                <p>{{ followupAnalysis.health }}</p>
+                <div class="analysis-source">
+                  <van-tag type="primary" size="medium">深度分析</van-tag>
+                </div>
+              </div>
+              <p v-else>{{ aiAnalysis.health }}</p>
+            </div>
           </div>
           
           <!-- 学业 -->
@@ -359,7 +404,16 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.education }}</p>
+            <div v-else>
+              <!-- 如果有追问分析结果，优先显示追问分析 -->
+              <div v-if="followupAnalysis.education || followupAnalysis.study" class="enhanced-analysis">
+                <p>{{ followupAnalysis.education || followupAnalysis.study }}</p>
+                <div class="analysis-source">
+                  <van-tag type="primary" size="medium">深度分析</van-tag>
+                </div>
+              </div>
+              <p v-else>{{ aiAnalysis.education }}</p>
+            </div>
           </div>
           
           <!-- 人际关系 -->
@@ -370,7 +424,16 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.social }}</p>
+            <div v-else>
+              <!-- 如果有追问分析结果，优先显示追问分析 -->
+              <div v-if="followupAnalysis.social || followupAnalysis.relationship || followupAnalysis.friends" class="enhanced-analysis">
+                <p>{{ followupAnalysis.social || followupAnalysis.relationship || followupAnalysis.friends }}</p>
+                <div class="analysis-source">
+                  <van-tag type="primary" size="medium">深度分析</van-tag>
+                </div>
+              </div>
+              <p v-else>{{ aiAnalysis.social }}</p>
+            </div>
           </div>
           
           <!-- 近五年运势 -->
@@ -381,7 +444,16 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.future }}</p>
+            <div v-else>
+              <!-- 如果有追问分析结果，优先显示追问分析 -->
+              <div v-if="followupAnalysis.future || followupAnalysis.fiveYears" class="enhanced-analysis">
+                <p>{{ followupAnalysis.future || followupAnalysis.fiveYears }}</p>
+                <div class="analysis-source">
+                  <van-tag type="primary" size="medium">深度分析</van-tag>
+                </div>
+              </div>
+              <p v-else>{{ aiAnalysis.future }}</p>
+            </div>
           </div>
         </div>
       </van-tab>
@@ -1515,6 +1587,51 @@ const payForFollowup = async () => {
         Toast.clear();
         if (result) {
           Toast.success('分析已完成');
+          
+          // 支付成功且分析完成后，切换到AI分析结果标签页显示结果
+          activeTab.value = 1; // 切换到AI分析结果标签
+          
+          // 滚动到相应分析部分
+          setTimeout(() => {
+            const sectionMap = {
+              'relationship': '婚姻感情',
+              'marriage': '婚姻感情',
+              'career': '事业财运',
+              'work': '事业财运',
+              'money': '事业财运',
+              'wealth': '事业财运',
+              'children': '子女情况',
+              'family': '子女情况',
+              'parents': '父母情况',
+              'health': '身体健康',
+              'education': '学业',
+              'study': '学业',
+              'social': '人际关系',
+              'friends': '人际关系',
+              'future': '近五年运势',
+              'fiveYears': '近五年运势'
+            };
+            
+            const targetTitle = sectionMap[currentFollowup.value.id];
+            if (targetTitle) {
+              // 查找并滚动到对应的分析部分
+              const sections = document.querySelectorAll('.analysis-section h3');
+              for (let i = 0; i < sections.length; i++) {
+                if (sections[i].textContent.includes(targetTitle)) {
+                  sections[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  
+                  // 高亮显示该部分
+                  const section = sections[i].parentElement;
+                  section.classList.add('highlight-section');
+                  setTimeout(() => {
+                    section.classList.remove('highlight-section');
+                  }, 3000);
+                  
+                  break;
+                }
+              }
+            }
+          }, 500);
         } else {
           Toast.success('正在生成分析，请稍后刷新查看');
         }
@@ -2174,5 +2291,39 @@ const reloadFollowupAnalysis = async (area) => {
   background-color: #f7f8fa;
   border-radius: 8px;
   margin: 10px 0;
+}
+
+.enhanced-analysis {
+  margin-bottom: 10px;
+  padding: 10px;
+  border-left: 3px solid #1989fa;
+  background-color: #f8f9ff;
+  border-radius: 4px;
+}
+
+.enhanced-analysis p {
+  color: #333;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}
+
+.analysis-source {
+  text-align: right;
+  margin-top: 8px;
+}
+
+/* 高亮效果 */
+@keyframes highlight-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(25, 137, 250, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(25, 137, 250, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(25, 137, 250, 0); }
+}
+
+.highlight-section {
+  animation: highlight-pulse 1.5s ease-in-out;
+  background-color: rgba(25, 137, 250, 0.08);
+  border-radius: 8px;
+  transition: background-color 0.5s ease;
 }
 </style>
