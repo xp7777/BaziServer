@@ -9,7 +9,7 @@ import requests
 import json
 import time
 
-# 配置日志
+# 配置日志。
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'

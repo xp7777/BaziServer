@@ -390,7 +390,11 @@ class BaziResultModel:
                 analysis_data = {}
             
             # 确保所有必要字段都存在
-            required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children']
+            required_fields = [
+                'overall', 'health', 'wealth', 'career', 'relationship', 'children',
+                'personality', 'education', 'parents', 'social', 'future',
+                'coreAnalysis', 'fiveElements', 'shenShaAnalysis', 'keyPoints'
+            ]
             for field in required_fields:
                 if field not in analysis_data or not analysis_data[field]:
                     logger.warning(f"aiAnalysis缺少必要字段: {field}，添加默认值")

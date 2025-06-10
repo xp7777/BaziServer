@@ -237,86 +237,69 @@
             </van-notice-bar>
           </div>
           
-          <!-- 修改分析部分显示，添加加载状态 -->
+          <!-- 添加全局分析状态提示 -->
+          <van-notice-bar
+            v-if="isAnalyzing"
+            color="#1989fa"
+            background="#ecf9ff"
+            left-icon="info-o"
+            :scrollable="false"
+            class="analysis-progress-notice"
+          >
+            <div class="analysis-progress">
+              <p>AI正在生成八字分析结果，这可能需要30-60秒</p>
+              <van-progress :percentage="analyzeProgress" :show-pivot="false" color="#1989fa" />
+            </div>
+          </van-notice-bar>
+          
+          <!-- 八字命局核心分析 -->
           <div class="analysis-section">
-            <h3>身体健康</h3>
-            <template v-if="isAnalysisItemLoading('health')">
+            <h3>八字命局核心分析</h3>
+            <template v-if="!aiAnalysis.coreAnalysis || aiAnalysis.coreAnalysis === '暂无' || aiAnalysis.coreAnalysis.includes('正在分析')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.health }}</p>
+            <p v-else>{{ aiAnalysis.coreAnalysis }}</p>
           </div>
           
+          <!-- 五行旺衰与用神 -->
           <div class="analysis-section">
-            <h3>性格特点</h3>
-            <template v-if="isAnalysisItemLoading('personality')">
+            <h3>五行旺衰与用神</h3>
+            <template v-if="!aiAnalysis.fiveElements || aiAnalysis.fiveElements === '暂无' || aiAnalysis.fiveElements.includes('正在分析')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.personality || getAnalysisContent('性格特点') }}</p>
+            <p v-else>{{ aiAnalysis.fiveElements }}</p>
           </div>
           
-          <!-- 学业分析 -->
+          <!-- 神煞解析 -->
           <div class="analysis-section">
-            <h3>学业分析</h3>
-            <template v-if="isAnalysisItemLoading('education')">
+            <h3>神煞解析</h3>
+            <template v-if="!aiAnalysis.shenShaAnalysis || aiAnalysis.shenShaAnalysis === '暂无' || aiAnalysis.shenShaAnalysis.includes('正在分析')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.education || getAnalysisContent('学业分析') }}</p>
+            <p v-else>{{ aiAnalysis.shenShaAnalysis }}</p>
           </div>
           
-          <!-- 父母情况 -->
+          <!-- 大运与流年关键节点 -->
           <div class="analysis-section">
-            <h3>父母情况</h3>
-            <template v-if="isAnalysisItemLoading('parents')">
+            <h3>大运与流年关键节点</h3>
+            <template v-if="!aiAnalysis.keyPoints || aiAnalysis.keyPoints === '暂无' || aiAnalysis.keyPoints.includes('正在分析')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.parents || '暂无父母情况分析' }}</p>
-          </div>
-          
-          <!-- 人际关系 -->
-          <div class="analysis-section">
-            <h3>人际关系</h3>
-            <template v-if="isAnalysisItemLoading('social')">
-              <div class="loading-content">
-                <van-loading size="24px" vertical>分析生成中...</van-loading>
-              </div>
-            </template>
-            <p v-else>{{ aiAnalysis.social || '暂无人际关系分析' }}</p>
-          </div>
-          
-          <!-- 财运分析 -->
-          <div class="analysis-section">
-            <h3>{{ userAge !== null && userAge >= 18 ? '财运分析' : '未来财运发展' }}</h3>
-            <template v-if="isAnalysisItemLoading('wealth')">
-              <div class="loading-content">
-                <van-loading size="24px" vertical>分析生成中...</van-loading>
-              </div>
-            </template>
-            <p v-else>{{ aiAnalysis.wealth }}</p>
-          </div>
-          
-          <!-- 事业发展 -->
-          <div class="analysis-section">
-            <h3>{{ userAge !== null && userAge >= 18 ? '事业发展' : '未来事业发展' }}</h3>
-            <template v-if="isAnalysisItemLoading('career')">
-              <div class="loading-content">
-                <van-loading size="24px" vertical>分析生成中...</van-loading>
-              </div>
-            </template>
-            <p v-else>{{ aiAnalysis.career }}</p>
+            <p v-else>{{ aiAnalysis.keyPoints }}</p>
           </div>
           
           <!-- 婚姻感情 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '婚姻感情' : '未来感情发展' }}</h3>
-            <template v-if="isAnalysisItemLoading('relationship')">
+            <template v-if="!aiAnalysis.relationship || aiAnalysis.relationship === '暂无' || aiAnalysis.relationship.includes('正在分析')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -324,10 +307,21 @@
             <p v-else>{{ aiAnalysis.relationship }}</p>
           </div>
           
+          <!-- 事业财运 -->
+          <div class="analysis-section">
+            <h3>{{ userAge !== null && userAge >= 18 ? '事业财运' : '未来事业财运' }}</h3>
+            <template v-if="!aiAnalysis.career || aiAnalysis.career === '暂无' || aiAnalysis.career.includes('正在分析')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.career }}</p>
+          </div>
+          
           <!-- 子女情况 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '子女情况' : '未来子女缘分' }}</h3>
-            <template v-if="isAnalysisItemLoading('children')">
+            <template v-if="!aiAnalysis.children || aiAnalysis.children === '暂无' || aiAnalysis.children.includes('正在分析')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -335,25 +329,59 @@
             <p v-else>{{ aiAnalysis.children }}</p>
           </div>
           
+          <!-- 父母情况 -->
+          <div class="analysis-section">
+            <h3>父母情况</h3>
+            <template v-if="!aiAnalysis.parents || aiAnalysis.parents === '暂无' || aiAnalysis.parents.includes('正在分析')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.parents }}</p>
+          </div>
+          
+          <!-- 身体健康 -->
+          <div class="analysis-section">
+            <h3>身体健康</h3>
+            <template v-if="!aiAnalysis.health || aiAnalysis.health === '暂无' || aiAnalysis.health.includes('正在分析')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.health }}</p>
+          </div>
+          
+          <!-- 学业 -->
+          <div class="analysis-section">
+            <h3>学业</h3>
+            <template v-if="!aiAnalysis.education || aiAnalysis.education === '暂无' || aiAnalysis.education.includes('正在分析')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.education }}</p>
+          </div>
+          
+          <!-- 人际关系 -->
+          <div class="analysis-section">
+            <h3>人际关系</h3>
+            <template v-if="!aiAnalysis.social || aiAnalysis.social === '暂无' || aiAnalysis.social.includes('正在分析')">
+              <div class="loading-content">
+                <van-loading size="24px" vertical>分析生成中...</van-loading>
+              </div>
+            </template>
+            <p v-else>{{ aiAnalysis.social }}</p>
+          </div>
+          
           <!-- 近五年运势 -->
           <div class="analysis-section">
             <h3>近五年运势</h3>
-            <template v-if="isAnalysisItemLoading('future')">
+            <template v-if="!aiAnalysis.future || aiAnalysis.future === '暂无' || aiAnalysis.future.includes('正在分析')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.future || getAnalysisContent('近五年运势') || aiAnalysis.overall }}</p>
-          </div>
-          
-          <div class="analysis-section">
-            <h3>综合建议</h3>
-            <template v-if="isAnalysisItemLoading('overall')">
-              <div class="loading-content">
-                <van-loading size="24px" vertical>分析生成中...</van-loading>
-              </div>
-            </template>
-            <p v-else>{{ aiAnalysis.overall }}</p>
+            <p v-else>{{ aiAnalysis.future }}</p>
           </div>
         </div>
       </van-tab>
@@ -563,16 +591,18 @@ const baziData = ref({
 // 初始化分析数据
 const aiAnalysis = ref({
   health: '',
-  wealth: '',
   career: '',
   relationship: '',
   children: '',
-  overall: '',
-  personality: '',
-  education: '',
-  parents: '',
   social: '',
-  future: ''
+  future: '',
+  parents: '',
+  education: '',
+  // 新增字段
+  coreAnalysis: '',
+  fiveElements: '',
+  shenShaAnalysis: '',
+  keyPoints: ''
 });
 
 const testApiConnection = async () => {
@@ -1197,16 +1227,18 @@ const reloadBaziData = async () => {
         // 更新AI分析结果
         aiAnalysis.value = {
           health: response.data.data.aiAnalysis?.health || '',
-          wealth: response.data.data.aiAnalysis?.wealth || '',
           career: response.data.data.aiAnalysis?.career || '',
           relationship: response.data.data.aiAnalysis?.relationship || '',
           children: response.data.data.aiAnalysis?.children || '',
-          overall: response.data.data.aiAnalysis?.overall || '',
-          personality: response.data.data.aiAnalysis?.personality || '',
-          education: response.data.data.aiAnalysis?.education || '',
-          parents: response.data.data.aiAnalysis?.parents || '',
           social: response.data.data.aiAnalysis?.social || '',
-          future: response.data.data.aiAnalysis?.future || ''
+          future: response.data.data.aiAnalysis?.future || '',
+          parents: response.data.data.aiAnalysis?.parents || '',
+          education: response.data.data.aiAnalysis?.education || '',
+          // 新增字段
+          coreAnalysis: response.data.data.aiAnalysis?.coreAnalysis || '',
+          fiveElements: response.data.data.aiAnalysis?.fiveElements || '',
+          shenShaAnalysis: response.data.data.aiAnalysis?.shenShaAnalysis || '',
+          keyPoints: response.data.data.aiAnalysis?.keyPoints || ''
         };
         
         // 检查是否存在"正在分析"的内容
@@ -1480,16 +1512,18 @@ const getBaziResult = async () => {
       if (response.data.data.aiAnalysis) {
         aiAnalysis.value = {
           health: response.data.data.aiAnalysis.health || '',
-          wealth: response.data.data.aiAnalysis.wealth || '',
           career: response.data.data.aiAnalysis.career || '',
           relationship: response.data.data.aiAnalysis.relationship || '',
           children: response.data.data.aiAnalysis.children || '',
-          overall: response.data.data.aiAnalysis.overall || '',
-          personality: response.data.data.aiAnalysis.personality || '',
-          education: response.data.data.aiAnalysis.education || '',
-          parents: response.data.data.aiAnalysis.parents || '',
           social: response.data.data.aiAnalysis.social || '',
-          future: response.data.data.aiAnalysis.future || ''
+          future: response.data.data.aiAnalysis.future || '',
+          parents: response.data.data.aiAnalysis.parents || '',
+          education: response.data.data.aiAnalysis.education || '',
+          // 新增字段
+          coreAnalysis: response.data.data.aiAnalysis.coreAnalysis || '',
+          fiveElements: response.data.data.aiAnalysis.fiveElements || '',
+          shenShaAnalysis: response.data.data.aiAnalysis.shenShaAnalysis || '',
+          keyPoints: response.data.data.aiAnalysis.keyPoints || ''
         };
       }
       
@@ -1601,8 +1635,9 @@ const parseBaZiData = (data) => {
 
 // 添加分析状态检测函数
 const isAnalysisItemLoading = (key) => {
-  if (!aiAnalysis.value || !aiAnalysis.value[key]) return true;
-  return aiAnalysis.value[key].includes && aiAnalysis.value[key].includes('正在分析');
+  if (!aiAnalysis.value) return true;
+  const value = aiAnalysis.value[key];
+  return !value || value === '暂无' || (value.includes && value.includes('正在分析'));
 };
 
 // 清理组件时移除定时器

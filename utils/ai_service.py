@@ -545,12 +545,29 @@ def generate_bazi_analysis(bazi_chart, gender):
         logger.info(f"五行分布: 金={five_elements['metal']}, 木={five_elements['wood']}, "
                   f"水={five_elements['water']}, 火={five_elements['fire']}, 土={five_elements['earth']}")
         
+        # 获取神煞、大运、流年信息
+        shen_sha = bazi_chart.get('shenSha', {})
+        da_yun = bazi_chart.get('daYun', {})
+        flowing_years = bazi_chart.get('flowingYears', [])
+        
+        # 获取出生日期信息
+        birth_date = bazi_chart.get('birthDate', '')
+        birth_time = bazi_chart.get('birthTime', '')
+        
+        # 计算年龄
+        current_year = 2025  # 当前年份
+        birth_year = int(birth_date.split('-')[0]) if birth_date and '-' in birth_date else 0
+        age = current_year - birth_year if birth_year > 0 else 0
+        
         # 构建提示词
         prompt = f"""
         请作为一名专业的命理师，基于以下八字命盘数据，进行全面的人生分析和指导。
         
-        八字信息：
+        八字基本信息：
         性别：{gender}
+        出生日期：{birth_date}
+        出生时间：{birth_time}
+        当前年龄：{age}岁
         
         八字命盘：
         年柱：{year_pillar['heavenlyStem']}{year_pillar['earthlyBranch']}
@@ -565,31 +582,80 @@ def generate_bazi_analysis(bazi_chart, gender):
         火：{five_elements['fire']}
         土：{five_elements['earth']}
         
-        请从八字命理的角度进行全面分析，包括：
-        1. 性格特点和天赋才能
-        2. 健康状况和注意事项
-        3. 事业发展和职业选择
-        4. 财运分析和理财建议
-        5. 感情婚姻和家庭关系
-        6. 人际关系和社交特点
-        7. 近五年运势变化
-        8. 整体人生发展建议
+        神煞信息：
+        日冲：{shen_sha.get('dayChong', '无')}
+        值神：{shen_sha.get('zhiShen', '无')}
+        喜神：{shen_sha.get('xiShen', '无')}
+        福神：{shen_sha.get('fuShen', '无')}
+        财神：{shen_sha.get('caiShen', '无')}
+        本命神煞：{', '.join(shen_sha.get('benMing', [])) or '无'}
+        
+        大运信息：
+        起运年龄：{da_yun.get('startAge', '无')}岁
+        起运年份：{da_yun.get('startYear', '无')}年
+        大运顺序：{'顺行' if da_yun.get('isForward', True) else '逆行'}
+        大运列表：{', '.join([f"{yun.get('startAge', '')}-{yun.get('endAge', '')}岁 {yun.get('heavenlyStem', '')}{yun.get('earthlyBranch', '')}" for yun in da_yun.get('daYunList', [])[:5]]) if da_yun.get('daYunList') else '无'}
+        
+        流年信息：
+        {', '.join([f"{year.get('year', '')}年({year.get('age', '')}岁) {year.get('heavenlyStem', '')}{year.get('earthlyBranch', '')}" for year in flowing_years[:5]]) if flowing_years else '无'}
+        
+        请从八字命理的角度进行全面专业的分析，包括以下内容：
+        
+        一、八字命局核心分析
+        分析八字四柱的组合特点、日主旺衰、格局类型、命局核心特征，以及对人生的整体影响。
+        
+        二、五行旺衰与用神
+        详细分析五行的旺衰状态，确定用神、忌神，并解释它们对人生各方面的影响。
+        
+        三、神煞解析
+        解读命盘中的重要神煞，分析其对命主各方面运势的具体影响。
+        
+        四、大运与流年关键节点
+        分析当前及未来大运、流年的特点，指出人生关键转折点和需要注意的时期。
+        
+        五、人生规划建议
+        结合以上分析，为命主提供具体的人生规划建议。
+        
+        六、八个核心领域分析
+        1. 婚姻感情：分析感情特点、婚姻状况、配偶特征，以及相关吉凶。
+        2. 事业财运：分析适合的事业方向、财富来源、发展机遇与挑战。
+        3. 子女情况：分析子女缘分、教育方式、亲子关系等。
+        4. 父母情况：分析与父母的关系、对父母的影响等。
+        5. 身体健康：分析体质特点、易患疾病、保健养生建议。
+        6. 学业：分析学习能力、适合的学习领域、学业发展建议。
+        7. 人际关系：分析社交特点、人际关系模式、贵人特征等。
+        8. 近五年运势：详细分析未来五年的运势变化、机遇与挑战。
         
         请确保分析专业、全面且易于理解。将分析结果按以下格式返回：
         
-        ### 性格特点
+        ### 八字命局核心分析
         [分析内容]
         
-        ### 健康分析
+        ### 五行旺衰与用神
         [分析内容]
         
-        ### 事业发展
+        ### 神煞解析
         [分析内容]
         
-        ### 财运分析
+        ### 大运与流年关键节点
         [分析内容]
         
         ### 婚姻感情
+        [分析内容]
+        
+        ### 事业财运
+        [分析内容]
+        
+        ### 子女情况
+        [分析内容]
+        
+        ### 父母情况
+        [分析内容]
+        
+        ### 身体健康
+        [分析内容]
+        
+        ### 学业
         [分析内容]
         
         ### 人际关系
@@ -598,12 +664,12 @@ def generate_bazi_analysis(bazi_chart, gender):
         ### 近五年运势
         [分析内容]
         
-        ### 综合建议
+        ### 人生规划建议
         [分析内容]
         """
         
         # 记录完整提示词
-        logger.info(f"生成八字分析的完整提示词: \n{prompt}")
+        logger.info(f"生成八字分析的完整提示词:\n{prompt}")
         
         # 调用AI接口
         logger.info("开始调用DeepSeek API生成分析...")
@@ -846,39 +912,39 @@ def analyze_bazi_with_ai(bazi_data):
         return None
 
 def extract_analysis_from_text(ai_text):
-    """
-    从AI生成的文本中提取分析结果
+    """从AI返回的文本中提取分析结果
     
     Args:
-        ai_text: AI生成的文本
+        ai_text: AI返回的文本
         
     Returns:
-        dict: 分析结果
+        dict: 提取的分析结果
     """
     try:
-        logger.info("开始提取分析结果")
-        
         if not ai_text:
-            logger.error("AI回复内容为空，无法提取分析结果")
+            logger.warning("AI返回的文本为空")
             return {
-                'overall': '暂无',
-                'health': '暂无',
-                'wealth': '暂无',
-                'career': '暂无',
-                'relationship': '暂无',
-                'children': '暂无',
-                'personality': '暂无',
-                'education': '暂无',
-                'parents': '暂无',
-                'social': '暂无',
-                'future': '暂无'
+                'overall': '分析生成失败，请重试',
+                'health': '分析生成失败，请重试',
+                'wealth': '分析生成失败，请重试',
+                'career': '分析生成失败，请重试',
+                'relationship': '分析生成失败，请重试',
+                'children': '分析生成失败，请重试',
+                'personality': '分析生成失败，请重试',
+                'education': '分析生成失败，请重试',
+                'parents': '分析生成失败，请重试',
+                'social': '分析生成失败，请重试',
+                'future': '分析生成失败，请重试',
+                'coreAnalysis': '分析生成失败，请重试',
+                'fiveElements': '分析生成失败，请重试',
+                'shenShaAnalysis': '分析生成失败，请重试',
+                'keyPoints': '分析生成失败，请重试'
             }
         
-        # 记录输入文本
+        logger.info("开始提取分析结果")
         logger.info(f"待提取的文本长度: {len(ai_text)} 字符")
         logger.info(f"文本前300字符: {ai_text[:300]}...")
         
-        # 初始化结果字典
         analysis = {}
         current_section = None
         current_content = []
@@ -935,10 +1001,11 @@ def extract_analysis_from_text(ai_text):
                     is_new_section = True
                     detected_sections.append(f"行 {i+1}: 中文冒号格式标题 - {section_name}")
                     
-                # 尝试直接匹配常见标题，如"健康分析"、"财运分析"等
+                # 尝试直接匹配常见标题
                 elif line in ["健康分析", "财运分析", "事业发展", "婚姻感情", "子女情况", 
                             "性格特点", "学业分析", "父母关系", "人际关系", "未来发展", 
-                            "综合建议", "整体运势"]:
+                            "综合建议", "整体运势", "八字命局核心分析", "五行旺衰与用神", 
+                            "神煞解析", "大运与流年关键节点", "事业财运", "人生规划建议"]:
                     section_name = line
                     is_new_section = True
                     detected_sections.append(f"行 {i+1}: 直接匹配标题 - {section_name}")
@@ -974,35 +1041,46 @@ def extract_analysis_from_text(ai_text):
             
             # 尝试匹配常见的章节标题
             sections = [
+                ("八字命局核心分析", "coreAnalysis"),
+                ("五行旺衰与用神", "fiveElements"),
+                ("神煞解析", "shenShaAnalysis"),
+                ("大运与流年关键节点", "keyPoints"),
                 ("性格特点", "personality"),
                 ("健康分析", "health"),
                 ("事业发展", "career"),
+                ("事业财运", "career"),
                 ("财运分析", "wealth"),
                 ("婚姻感情", "relationship"),
-                ("子女", "children"),
+                ("子女情况", "children"),
+                ("父母情况", "parents"),
                 ("人际关系", "social"),
-                ("父母", "parents"),
                 ("学业", "education"),
                 ("近五年运势", "future"),
+                ("人生规划建议", "overall"),
                 ("综合建议", "overall")
             ]
             
+            # 构建匹配模式
+            section_titles = '|'.join([re.escape(title) for title, _ in sections])
+            pattern = f"(###\\s*({section_titles}).*?)(?=###\\s*({section_titles})|$)"
+            
             # 尝试直接定位各个部分
             for zh_title, en_key in sections:
-                pattern = f".*?({zh_title}.*?)(?=健康分析|事业发展|财运分析|婚姻感情|子女|人际关系|父母|学业|近五年运势|综合建议|$)"
-                match = re.search(pattern, ai_text, re.DOTALL | re.IGNORECASE)
-                if match:
-                    content = match.group(1)
-                    # 去掉标题行
-                    content_lines = content.strip().split('\n')
-                    if len(content_lines) > 1:
-                        content = '\n'.join(content_lines[1:])
-                    analysis[en_key] = content.strip()
+                # 使用更灵活的模式匹配
+                section_pattern = f"(?:###\\s*{re.escape(zh_title)}.*?|{re.escape(zh_title)}[：:])(.*?)(?=###\\s*|{section_titles}[：:]|$)"
+                matches = re.findall(section_pattern, ai_text, re.DOTALL | re.IGNORECASE)
+                
+                if matches:
+                    # 取最长匹配结果
+                    longest_match = max(matches, key=len)
+                    content = longest_match.strip()
+                    analysis[en_key] = content
                     logger.info(f"通过整体匹配提取到 {en_key} 部分，内容长度: {len(analysis[en_key])} 字符")
         
         # 确保所有必要字段都存在
         required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
-                         'personality', 'education', 'parents', 'social', 'future']
+                         'personality', 'education', 'parents', 'social', 'future',
+                         'coreAnalysis', 'fiveElements', 'shenShaAnalysis', 'keyPoints']
         for field in required_fields:
             if field not in analysis or not analysis[field]:
                 logger.warning(f"缺少必要字段 {field}，添加默认值")
@@ -1031,7 +1109,11 @@ def extract_analysis_from_text(ai_text):
             'education': '分析提取过程中出错，请重试',
             'parents': '分析提取过程中出错，请重试',
             'social': '分析提取过程中出错，请重试',
-            'future': '分析提取过程中出错，请重试'
+            'future': '分析提取过程中出错，请重试',
+            'coreAnalysis': '分析提取过程中出错，请重试',
+            'fiveElements': '分析提取过程中出错，请重试',
+            'shenShaAnalysis': '分析提取过程中出错，请重试',
+            'keyPoints': '分析提取过程中出错，请重试'
         }
 
 # 添加辅助函数，映射中文标题到英文键名
@@ -1042,8 +1124,29 @@ def map_section_name(section_name):
     # 记录原始标题
     logger.info(f"映射标题: '{section_name}'")
     
+    # 新增的映射关系
+    # 匹配八字命局核心分析
+    if '八字命局' in section_name or '命局核心' in section_name or '核心分析' in section_name:
+        return 'coreAnalysis'
+    # 匹配五行旺衰与用神
+    elif '五行旺衰' in section_name or '用神' in section_name:
+        return 'fiveElements'
+    # 匹配神煞解析
+    elif '神煞' in section_name:
+        return 'shenShaAnalysis'
+    # 匹配大运与流年关键节点
+    elif '大运' in section_name or '流年' in section_name or '关键节点' in section_name:
+        return 'keyPoints'
+    # 匹配事业财运
+    elif '事业财运' in section_name or ('事业' in section_name and '财运' in section_name):
+        return 'career'
+    # 匹配人生规划建议
+    elif '人生规划' in section_name:
+        return 'overall'
+    
+    # 原有的映射关系
     # 匹配总体/综合分析
-    if '总体' in section_name or '综合' in section_name or '整体' in section_name:
+    elif '总体' in section_name or '综合' in section_name or '整体' in section_name:
         return 'overall'
     # 匹配健康分析
     elif '健康' in section_name:
