@@ -92,19 +92,59 @@ def get_bazi_result(result_id):
 @bazi_bp.route('/pdf/<result_id>', methods=['GET'])
 def get_bazi_pdf(result_id):
     try:
-        # 检查PDF文件是否存在
-        pdf_dir = os.path.join(current_app.static_folder, 'pdfs')
-        pdf_path = os.path.join(pdf_dir, f'bazi_{result_id}.pdf')
+        logging.info(f"请求下载PDF，结果ID: {result_id}")
         
-        if not os.path.exists(pdf_path):
-            return jsonify(code=404, message="PDF文件不存在"), 404
+        # 从数据库获取分析结果
+        result = BaziResultModel.find_by_id(result_id)
+        if not result:
+            logging.error(f"未找到分析结果: {result_id}")
+            return jsonify(code=404, message="未找到分析结果"), 404
         
-        return send_file(
-            pdf_path,
+        # 检查数据库中是否已有PDF内容
+        pdf_content = BaziResultModel.get_pdf_content(result_id)
+        
+        # 如果没有PDF内容，即时生成
+        if not pdf_content:
+            logging.info(f"数据库中无PDF内容，即时生成: {result_id}")
+            
+            # 导入PDF生成器
+            from utils.pdf_generator import generate_pdf_content
+            
+            # 生成PDF内容（返回二进制数据）
+            pdf_content = generate_pdf_content(result)
+            
+            if not pdf_content:
+                logging.error(f"生成PDF内容失败: {result_id}")
+                return jsonify(code=500, message="生成PDF内容失败"), 500
+            
+            # 更新数据库，保存PDF内容
+            BaziResultModel.update_pdf_content(result_id, pdf_content)
+        
+        # 设置ASCII文件名，避免编码问题
+        ascii_filename = f'bazi_report_{result_id}.pdf'
+        
+        # 直接返回PDF文件流
+        from io import BytesIO
+        response = send_file(
+            BytesIO(pdf_content),
             mimetype='application/pdf',
             as_attachment=True,
-            download_name=f'八字命理分析_{result_id}.pdf'
+            download_name=ascii_filename
         )
+        
+        # 添加跨域头和缓存控制
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        # 只使用ASCII字符设置Content-Disposition头
+        response.headers['Content-Disposition'] = f'attachment; filename="{ascii_filename}"'
+        
+        logging.info(f"成功返回PDF内容，大小: {len(pdf_content)}字节")
+        return response
     except Exception as e:
         logging.error(f"获取PDF文件失败: {str(e)}")
         logging.error(traceback.format_exc())

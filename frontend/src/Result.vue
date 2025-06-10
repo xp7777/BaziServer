@@ -880,6 +880,7 @@ const downloadPDFAsStream = async () => {
     
     // 转换为Blob对象
     const blob = await response.blob();
+    console.log('PDF Blob大小:', blob.size, '字节');
     
     // 检查Blob大小 - 注意：当浏览器接管下载时，可能会导致blob.size为0
     // 因此，如果有Content-Disposition头部，我们应该认为下载已经开始
@@ -907,6 +908,8 @@ const downloadPDFAsStream = async () => {
         if (!headerString.startsWith('%PDF')) {
           console.error('无效的PDF文件头:', headerString);
           throw new Error('下载的不是有效的PDF文件');
+        } else {
+          console.log('PDF文件头验证通过');
         }
       } catch (e) {
         console.error('验证PDF文件失败:', e);
@@ -919,24 +922,57 @@ const downloadPDFAsStream = async () => {
       }
     }
     
-    // 如果浏览器已经接管下载（通过Content-Disposition头部），
-    // 我们不需要手动创建下载链接
-    if (!isDownloadStarted) {
+    // 不管浏览器是否已经接管下载，我们都手动创建一个下载链接
+    try {
       // 创建下载链接
       const url = window.URL.createObjectURL(blob);
+      console.log('创建Blob URL:', url);
+      
+      // 使用iframe方式下载，避免某些浏览器的下载拦截
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      
+      // 创建a标签并触发下载
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = `八字命理分析_${resultId.value}.pdf`; // 强制使用自定义文件名
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
       
-      // 触发下载
-      document.body.appendChild(a);
+      // 在iframe中添加a标签并点击
+      iframe.contentWindow.document.body.appendChild(a);
+      console.log('触发下载, 文件名:', a.download);
       a.click();
       
       // 清理
       setTimeout(() => {
         window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }, 100);
+        document.body.removeChild(iframe);
+        console.log('清理下载资源完成');
+      }, 1000); // 增加延时确保下载开始
+    } catch (e) {
+      console.error('创建下载链接失败:', e);
+      
+      // 尝试使用window.open直接打开PDF
+      try {
+        console.log('尝试使用window.open方法下载');
+        const pdfWindow = window.open(downloadUrl, '_blank');
+        if (!pdfWindow) {
+          console.warn('弹出窗口被阻止，尝试其他方法');
+          // 提示用户直接打开链接
+          Dialog.alert({
+            title: '下载提示',
+            message: '系统无法自动下载PDF，请点击确定后手动保存文件',
+            confirmButtonText: '确定',
+          }).then(() => {
+            window.open(downloadUrl, '_blank');
+          });
+        }
+      } catch (openError) {
+        console.error('使用window.open下载失败:', openError);
+        throw new Error('下载失败，请尝试使用其他浏览器');
+      }
     }
     
     Toast.clear();

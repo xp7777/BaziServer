@@ -5,6 +5,7 @@ import os
 import logging
 import json
 import traceback
+import base64
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -1310,4 +1311,105 @@ class BaziResultModel:
         except Exception as e:
             logger.error(f"更新八字命盘数据失败: {str(e)}")
             logger.error(traceback.format_exc())
-            return False 
+            return False
+    
+    @staticmethod
+    def update_pdf_content(result_id, pdf_content):
+        """更新PDF内容（存储PDF二进制内容到数据库）
+        
+        Args:
+            result_id: 结果ID
+            pdf_content: PDF二进制内容
+            
+        Returns:
+            bool: 是否更新成功
+        """
+        try:
+            if not pdf_content:
+                logging.error(f"PDF内容为空，无法更新: {result_id}")
+                return False
+            
+            # 将二进制内容转换为Base64编码字符串存储
+            encoded_content = base64.b64encode(pdf_content).decode('utf-8')
+            
+            # 更新数据库
+            result = results_collection.find_one_and_update(
+                {"_id": result_id},
+                {"$set": {
+                    "pdfContent": encoded_content,
+                    "pdfSize": len(pdf_content),
+                    "pdfUpdateTime": datetime.now()
+                }},
+                return_document=ReturnDocument.AFTER
+            )
+            
+            if not result:
+                # 尝试使用ObjectId
+                try:
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.find_one_and_update(
+                        {"_id": obj_id},
+                        {"$set": {
+                            "pdfContent": encoded_content,
+                            "pdfSize": len(pdf_content),
+                            "pdfUpdateTime": datetime.now()
+                        }},
+                        return_document=ReturnDocument.AFTER
+                    )
+                except:
+                    pass
+                
+            if result:
+                logging.info(f"成功更新PDF内容: {result_id}, 大小: {len(pdf_content)} 字节")
+                return True
+            else:
+                logging.error(f"更新PDF内容失败，未找到记录: {result_id}")
+                return False
+        except Exception as e:
+            logging.error(f"更新PDF内容失败: {str(e)}")
+            logging.error(traceback.format_exc())
+            return False
+        
+    @staticmethod
+    def get_pdf_content(result_id):
+        """获取PDF内容
+        
+        Args:
+            result_id: 结果ID
+            
+        Returns:
+            bytes: PDF二进制内容
+        """
+        try:
+            # 查询数据库
+            result = results_collection.find_one({"_id": result_id})
+            
+            if not result:
+                # 尝试使用ObjectId
+                try:
+                    obj_id = ObjectId(result_id)
+                    result = results_collection.find_one({"_id": obj_id})
+                except:
+                    pass
+                
+            if not result:
+                logging.error(f"获取PDF内容失败，未找到记录: {result_id}")
+                return None
+            
+            # 检查是否有PDF内容
+            if "pdfContent" not in result or not result["pdfContent"]:
+                logging.warning(f"记录中没有PDF内容: {result_id}")
+                return None
+            
+            # 解码Base64内容为二进制
+            try:
+                pdf_content = base64.b64decode(result["pdfContent"])
+                logging.info(f"成功获取PDF内容: {result_id}, 大小: {len(pdf_content)} 字节")
+                return pdf_content
+            except Exception as e:
+                logging.error(f"解码PDF内容失败: {str(e)}")
+                return None
+        except Exception as e:
+            logging.error(f"获取PDF内容失败: {str(e)}")
+            logging.error(traceback.format_exc())
+            return None 
