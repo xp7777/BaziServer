@@ -946,6 +946,14 @@ def generate_pdf_content(result_data):
             logger.warning("AI分析结果为空")
             ai_analysis = {}
             
+        # 获取追问分析结果
+        followups = result_data.get('followups', {})
+        if not followups:
+            logger.info("追问分析结果为空")
+            followups = {}
+        else:
+            logger.info(f"追问分析结果包含字段: {list(followups.keys())}")
+            
         # 检查并记录AI分析结果中的字段
         analysis_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
                            'personality', 'education', 'parents', 'social', 'future',
@@ -1058,7 +1066,7 @@ def generate_pdf_content(result_data):
                     ('BACKGROUND', (0, 0), (4, 0), colors.lightgrey),
                     ('TEXTCOLOR', (0, 0), (4, 0), colors.black),
                     ('ALIGN', (0, 0), (4, 0), 'CENTER'),
-                    ('FONTNAME', (0, 0), (4, 5), DEFAULT_FONT_NAME),
+                    ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
                     ('FONTSIZE', (0, 0), (4, 0), 12),
                     ('BOTTOMPADDING', (0, 0), (4, 0), 6),
                     ('BACKGROUND', (0, 1), (0, 5), colors.lightgrey),
@@ -1072,106 +1080,79 @@ def generate_pdf_content(result_data):
                 
                 # 添加五行分布
                 elements.append(Paragraph("五行分布", styles['ChineseHeading2']))
+                five_element_names = {
+                    'metal': '金',
+                    'wood': '木',
+                    'water': '水',
+                    'fire': '火',
+                    'earth': '土'
+                }
                 
-                # 五行数据
-                five_elements_data = [
-                    ['金', '木', '水', '火', '土'],
-                    [str(five_elements.get('metal', 0)), 
-                     str(five_elements.get('wood', 0)), 
-                     str(five_elements.get('water', 0)), 
-                     str(five_elements.get('fire', 0)), 
-                     str(five_elements.get('earth', 0))]
-                ]
+                five_element_data = [['五行', '数量']]
+                for element, count in five_elements.items():
+                    element_name = five_element_names.get(element, element)
+                    five_element_data.append([element_name, str(count)])
                 
-                # 创建五行表格
-                five_elements_table = Table(five_elements_data, colWidths=[80, 80, 80, 80, 80])
-                five_elements_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (4, 0), colors.lightgrey),
-                    ('TEXTCOLOR', (0, 0), (4, 0), colors.black),
-                    ('ALIGN', (0, 0), (4, 1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (4, 1), DEFAULT_FONT_NAME),
-                    ('GRID', (0, 0), (4, 1), 1, colors.black),
-                    ('VALIGN', (0, 0), (4, 1), 'MIDDLE'),
+                five_element_table = Table(five_element_data)
+                five_element_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (1, 0), colors.lightgrey),
+                    ('TEXTCOLOR', (0, 0), (1, 0), colors.black),
+                    ('ALIGN', (0, 0), (1, 0), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('ALIGN', (0, 1), (1, -1), 'CENTER'),
                 ]))
-                elements.append(five_elements_table)
-                elements.append(Spacer(1, 24))
+                elements.append(five_element_table)
+                elements.append(Spacer(1, 12))
                 
-                # 添加神煞信息
-                if bazi_chart.get('shenSha'):
-                    elements.append(Paragraph("神煞信息", styles['ChineseHeading2']))
-                    shen_sha = bazi_chart['shenSha']
-                    shen_sha_text = f"日冲: {shen_sha.get('dayChong', '')}\n"
-                    shen_sha_text += f"值神: {shen_sha.get('zhiShen', '')}\n"
-                    shen_sha_text += f"喜神: {shen_sha.get('xiShen', '')}\n"
-                    shen_sha_text += f"福神: {shen_sha.get('fuShen', '')}\n"
-                    shen_sha_text += f"财神: {shen_sha.get('caiShen', '')}\n"
-                    
-                    # 本命神煞
-                    if shen_sha.get('benMing') and isinstance(shen_sha['benMing'], list):
-                        shen_sha_text += f"本命神煞: {', '.join(shen_sha['benMing'])}"
-                    
-                    elements.append(Paragraph(shen_sha_text, styles['Chinese']))
+                # 添加八字命局核心分析
+                if 'coreAnalysis' in ai_analysis and ai_analysis['coreAnalysis']:
+                    elements.append(Paragraph("八字命局核心分析", styles['ChineseHeading2']))
+                    elements.append(Paragraph(ai_analysis['coreAnalysis'], styles['Chinese']))
+                    elements.append(Spacer(1, 12))
+                
+                # 添加五行旺衰与用神
+                if 'fiveElements' in ai_analysis and ai_analysis['fiveElements']:
+                    elements.append(Paragraph("五行旺衰与用神", styles['ChineseHeading2']))
+                    elements.append(Paragraph(ai_analysis['fiveElements'], styles['Chinese']))
+                    elements.append(Spacer(1, 12))
+                
+                # 添加神煞解析
+                if 'shenShaAnalysis' in ai_analysis and ai_analysis['shenShaAnalysis']:
+                    elements.append(Paragraph("神煞解析", styles['ChineseHeading2']))
+                    elements.append(Paragraph(ai_analysis['shenShaAnalysis'], styles['Chinese']))
+                    elements.append(Spacer(1, 12))
+                
+                # 添加大运与流年关键节点
+                if 'keyPoints' in ai_analysis and ai_analysis['keyPoints']:
+                    elements.append(Paragraph("大运与流年关键节点", styles['ChineseHeading2']))
+                    elements.append(Paragraph(ai_analysis['keyPoints'], styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
                 # 添加大运信息
-                if bazi_chart.get('daYun'):
+                da_yun = bazi_chart.get('daYun', {})
+                if da_yun and da_yun.get('daYunList'):
                     elements.append(Paragraph("大运信息", styles['ChineseHeading2']))
-                    da_yun = bazi_chart['daYun']
-                    da_yun_text = f"起运年龄: {da_yun.get('startAge', '')}岁\n"
-                    da_yun_text += f"起运年份: {da_yun.get('startYear', '')}年\n"
-                    da_yun_text += f"大运顺序: {('顺行' if da_yun.get('isForward') else '逆行')}\n"
+                    elements.append(Paragraph(f"起运年龄: {da_yun.get('startAge', '')}岁", styles['Chinese']))
+                    elements.append(Paragraph(f"起运年份: {da_yun.get('startYear', '')}年", styles['Chinese']))
+                    elements.append(Paragraph(f"大运顺序: {'顺行' if da_yun.get('isForward', True) else '逆行'}", styles['Chinese']))
+                    elements.append(Spacer(1, 12))
                     
-                    elements.append(Paragraph(da_yun_text, styles['Chinese']))
-                    elements.append(Spacer(1, 6))
+                    da_yun_data = [['年龄', '年份', '天干', '地支', '纳音', '吉凶']]
                     
-                    # 大运列表
-                    if da_yun.get('daYunList') and isinstance(da_yun['daYunList'], list):
-                        da_yun_data = [['年龄', '年份', '天干', '地支', '纳音', '吉凶']]
-                        
-                        for yun in da_yun['daYunList']:
-                            da_yun_data.append([
-                                f"{yun.get('startAge', '')}-{yun.get('endAge', '')}", 
-                                f"{yun.get('startYear', '')}-{yun.get('endYear', '')}", 
-                                yun.get('heavenlyStem', ''), 
-                                yun.get('earthlyBranch', ''), 
-                                yun.get('naYin', ''),
-                                yun.get('jiXiong', '')
-                            ])
-                        
-                        da_yun_table = Table(da_yun_data)
-                        da_yun_table.setStyle(TableStyle([
-                            ('BACKGROUND', (0, 0), (5, 0), colors.lightgrey),
-                            ('TEXTCOLOR', (0, 0), (5, 0), colors.black),
-                            ('ALIGN', (0, 0), (5, 0), 'CENTER'),
-                            ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
-                            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
-                        ]))
-                        elements.append(da_yun_table)
-                        elements.append(Spacer(1, 12))
-                
-                # 添加流年信息
-                if bazi_chart.get('flowingYears') and isinstance(bazi_chart['flowingYears'], list) and bazi_chart['flowingYears']:
-                    elements.append(Paragraph("流年信息", styles['ChineseHeading2']))
-                    
-                    flowing_years = bazi_chart['flowingYears'][:10]  # 限制显示的流年数量
-                    flowing_years_data = [['年份', '年龄', '天干', '地支', '五行', '吉凶']]
-                    
-                    for year in flowing_years:
-                        gan_element = year.get('ganElement', '')
-                        zhi_element = year.get('zhiElement', '')
-                        flowing_years_data.append([
-                            year.get('year', ''), 
-                            year.get('age', ''), 
-                            year.get('heavenlyStem', ''), 
-                            year.get('earthlyBranch', ''),
-                            f"{gan_element}/{zhi_element}",
-                            year.get('jiXiong', '')
+                    for yun in da_yun['daYunList']:
+                        da_yun_data.append([
+                            f"{yun.get('startAge', '')}-{yun.get('endAge', '')}", 
+                            f"{yun.get('startYear', '')}-{yun.get('endYear', '')}", 
+                            yun.get('heavenlyStem', ''), 
+                            yun.get('earthlyBranch', ''), 
+                            yun.get('naYin', ''),
+                            yun.get('jiXiong', '')
                         ])
                     
-                    flowing_years_table = Table(flowing_years_data)
-                    flowing_years_table.setStyle(TableStyle([
+                    da_yun_table = Table(da_yun_data)
+                    da_yun_table.setStyle(TableStyle([
                         ('BACKGROUND', (0, 0), (5, 0), colors.lightgrey),
                         ('TEXTCOLOR', (0, 0), (5, 0), colors.black),
                         ('ALIGN', (0, 0), (5, 0), 'CENTER'),
@@ -1180,89 +1161,123 @@ def generate_pdf_content(result_data):
                         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                         ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
                     ]))
+                    elements.append(da_yun_table)
+                    elements.append(Spacer(1, 12))
+                
+                # 添加流年信息
+                flowing_years = bazi_chart.get('flowingYears', [])
+                if flowing_years:
+                    elements.append(Paragraph("流年信息", styles['ChineseHeading2']))
+                    flowing_years_data = [['年份', '年龄', '天干', '地支', '五行', '神煞', '吉凶']]
+                    
+                    for year in flowing_years[:10]:  # 只显示前10年
+                        flowing_years_data.append([
+                            year.get('year', ''),
+                            year.get('age', ''),
+                            year.get('heavenlyStem', ''),
+                            year.get('earthlyBranch', ''),
+                            f"{five_element_names.get(year.get('ganElement', ''), '')}/{five_element_names.get(year.get('zhiElement', ''), '')}",
+                            ', '.join(year.get('shenSha', [])) if isinstance(year.get('shenSha', []), list) else year.get('shenSha', ''),
+                            year.get('jiXiong', '')
+                        ])
+                    
+                    flowing_years_table = Table(flowing_years_data)
+                    flowing_years_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (6, 0), colors.lightgrey),
+                        ('TEXTCOLOR', (0, 0), (6, 0), colors.black),
+                        ('ALIGN', (0, 0), (6, 0), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, -1), DEFAULT_FONT_NAME),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                        ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+                    ]))
                     elements.append(flowing_years_table)
-                    elements.append(Spacer(1, 24))
-                
-                # 添加AI分析结果
-                elements.append(Paragraph("AI分析结果", styles['ChineseHeading2']))
-                elements.append(Spacer(1, 6))
-                
-                # 八字命局核心分析
-                if 'coreAnalysis' in ai_analysis and ai_analysis['coreAnalysis']:
-                    elements.append(Paragraph("八字命局核心分析", styles['ChineseHeading2']))
-                    elements.append(Paragraph(ai_analysis['coreAnalysis'], styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
-                # 五行旺衰与用神
-                if 'fiveElements' in ai_analysis and ai_analysis['fiveElements']:
-                    elements.append(Paragraph("五行旺衰与用神", styles['ChineseHeading2']))
-                    elements.append(Paragraph(ai_analysis['fiveElements'], styles['Chinese']))
-                    elements.append(Spacer(1, 12))
-                
-                # 神煞解析
-                if 'shenShaAnalysis' in ai_analysis and ai_analysis['shenShaAnalysis']:
-                    elements.append(Paragraph("神煞解析", styles['ChineseHeading2']))
-                    elements.append(Paragraph(ai_analysis['shenShaAnalysis'], styles['Chinese']))
-                    elements.append(Spacer(1, 12))
-                
-                # 大运与流年关键节点
-                if 'keyPoints' in ai_analysis and ai_analysis['keyPoints']:
-                    elements.append(Paragraph("大运与流年关键节点", styles['ChineseHeading2']))
-                    elements.append(Paragraph(ai_analysis['keyPoints'], styles['Chinese']))
-                    elements.append(Spacer(1, 12))
-                
-                # 健康分析
+                # 添加健康分析
                 if 'health' in ai_analysis and ai_analysis['health']:
                     elements.append(Paragraph("健康分析", styles['ChineseHeading2']))
                     elements.append(Paragraph(ai_analysis['health'], styles['Chinese']))
+                    # 添加健康追问分析（如果存在）
+                    if 'health' in followups and followups['health']:
+                        elements.append(Paragraph("健康深度分析", styles['ChineseHeading2']))
+                        elements.append(Paragraph(followups['health'], styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
-                # 财富分析
-                if 'wealth' in ai_analysis and ai_analysis['wealth']:
-                    elements.append(Paragraph("财富分析", styles['ChineseHeading2']))
-                    elements.append(Paragraph(ai_analysis['wealth'], styles['Chinese']))
-                    elements.append(Spacer(1, 12))
-                
-                # 事业分析
+                # 添加事业财运分析
                 if 'career' in ai_analysis and ai_analysis['career']:
-                    elements.append(Paragraph("事业分析", styles['ChineseHeading2']))
+                    elements.append(Paragraph("事业财运分析", styles['ChineseHeading2']))
                     elements.append(Paragraph(ai_analysis['career'], styles['Chinese']))
+                    # 添加事业财运追问分析（如果存在）
+                    career_followup = followups.get('career') or followups.get('work') or followups.get('money') or followups.get('wealth')
+                    if career_followup:
+                        elements.append(Paragraph("事业财运深度分析", styles['ChineseHeading2']))
+                        elements.append(Paragraph(career_followup, styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
-                # 婚姻感情分析
+                # 添加婚姻感情分析
                 if 'relationship' in ai_analysis and ai_analysis['relationship']:
                     elements.append(Paragraph("婚姻感情分析", styles['ChineseHeading2']))
                     elements.append(Paragraph(ai_analysis['relationship'], styles['Chinese']))
+                    # 添加婚姻感情追问分析（如果存在）
+                    relationship_followup = followups.get('relationship') or followups.get('marriage')
+                    if relationship_followup:
+                        elements.append(Paragraph("婚姻感情深度分析", styles['ChineseHeading2']))
+                        elements.append(Paragraph(relationship_followup, styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
-                # 子女分析
+                # 添加子女分析
                 if 'children' in ai_analysis and ai_analysis['children']:
                     elements.append(Paragraph("子女分析", styles['ChineseHeading2']))
                     elements.append(Paragraph(ai_analysis['children'], styles['Chinese']))
+                    # 添加子女追问分析（如果存在）
+                    children_followup = followups.get('children') or followups.get('family')
+                    if children_followup:
+                        elements.append(Paragraph("子女深度分析", styles['ChineseHeading2']))
+                        elements.append(Paragraph(children_followup, styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
-                # 学业分析
-                if 'education' in ai_analysis and ai_analysis['education']:
-                    elements.append(Paragraph("学业分析", styles['ChineseHeading2']))
-                    elements.append(Paragraph(ai_analysis['education'], styles['Chinese']))
-                    elements.append(Spacer(1, 12))
-                
-                # 父母分析
+                # 添加父母分析
                 if 'parents' in ai_analysis and ai_analysis['parents']:
                     elements.append(Paragraph("父母分析", styles['ChineseHeading2']))
                     elements.append(Paragraph(ai_analysis['parents'], styles['Chinese']))
+                    # 添加父母追问分析（如果存在）
+                    if 'parents' in followups and followups['parents']:
+                        elements.append(Paragraph("父母深度分析", styles['ChineseHeading2']))
+                        elements.append(Paragraph(followups['parents'], styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
-                # 人际关系分析
+                # 添加人际关系分析
                 if 'social' in ai_analysis and ai_analysis['social']:
                     elements.append(Paragraph("人际关系分析", styles['ChineseHeading2']))
                     elements.append(Paragraph(ai_analysis['social'], styles['Chinese']))
+                    # 添加人际关系追问分析（如果存在）
+                    social_followup = followups.get('social') or followups.get('relationship') or followups.get('friends')
+                    if social_followup:
+                        elements.append(Paragraph("人际关系深度分析", styles['ChineseHeading2']))
+                        elements.append(Paragraph(social_followup, styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
-                # 近五年运势
+                # 添加学业分析
+                if 'education' in ai_analysis and ai_analysis['education']:
+                    elements.append(Paragraph("学业分析", styles['ChineseHeading2']))
+                    elements.append(Paragraph(ai_analysis['education'], styles['Chinese']))
+                    # 添加学业追问分析（如果存在）
+                    education_followup = followups.get('education') or followups.get('study')
+                    if education_followup:
+                        elements.append(Paragraph("学业深度分析", styles['ChineseHeading2']))
+                        elements.append(Paragraph(education_followup, styles['Chinese']))
+                    elements.append(Spacer(1, 12))
+                
+                # 添加近五年运势
                 if 'future' in ai_analysis and ai_analysis['future']:
                     elements.append(Paragraph("近五年运势", styles['ChineseHeading2']))
                     elements.append(Paragraph(ai_analysis['future'], styles['Chinese']))
+                    # 添加近五年运势追问分析（如果存在）
+                    future_followup = followups.get('future') or followups.get('fiveYears')
+                    if future_followup:
+                        elements.append(Paragraph("近五年运势深度分析", styles['ChineseHeading2']))
+                        elements.append(Paragraph(future_followup, styles['Chinese']))
                     elements.append(Spacer(1, 12))
                 
                 # 添加页脚
