@@ -103,6 +103,10 @@ def get_bazi_pdf(result_id):
         # 检查URL参数是否要求强制重新生成
         force_regenerate = request.args.get('force', 'false').lower() == 'true'
         
+        # 检查是否需要解析Markdown，默认为true
+        parse_markdown = request.args.get('parseMarkdown', 'true').lower() == 'true'
+        logging.info(f"是否解析Markdown: {parse_markdown}")
+        
         # 获取PDF内容（如果force_regenerate为True，则跳过缓存）
         pdf_content = None
         if not force_regenerate:
@@ -110,13 +114,13 @@ def get_bazi_pdf(result_id):
         
         # 如果没有PDF内容或强制重新生成，即时生成
         if not pdf_content or force_regenerate:
-            logging.info(f"正在重新生成PDF内容: {result_id}, force={force_regenerate}")
+            logging.info(f"正在重新生成PDF内容: {result_id}, force={force_regenerate}, parseMarkdown={parse_markdown}")
             
             # 导入PDF生成器
             from utils.pdf_generator import generate_pdf_content
             
-            # 生成PDF内容（返回二进制数据）
-            pdf_content = generate_pdf_content(result)
+            # 生成PDF内容（返回二进制数据），传递parse_md参数
+            pdf_content = generate_pdf_content(result, parse_md=parse_markdown)
             
             if not pdf_content:
                 logging.error(f"生成PDF内容失败: {result_id}")

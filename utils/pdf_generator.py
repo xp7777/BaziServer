@@ -14,16 +14,25 @@ import shutil
 import pdfkit
 from jinja2 import Template
 
+# 设置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 导入Markdown处理模块
+try:
+    from utils.markdown_handler import parse_markdown, parse_analysis_data
+    markdown_support = True
+    logger.info("Markdown解析支持已启用")
+except ImportError:
+    markdown_support = False
+    logger.warning("未找到markdown_handler模块，Markdown解析将不可用")
+
 # 添加一个自定义JSON编码器处理datetime对象
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super(DateTimeEncoder, self).default(obj)
-
-# 设置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # 字体全局变量
 FONT_REGISTERED = False
@@ -175,6 +184,58 @@ HTML_TEMPLATE = """
         th {
             background-color: #f2f2f2;
         }
+        /* 增加Markdown样式支持 */
+        .markdown-content h1, 
+        .markdown-content h2, 
+        .markdown-content h3, 
+        .markdown-content h4, 
+        .markdown-content h5, 
+        .markdown-content h6 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            font-weight: bold;
+        }
+        .markdown-content ul, 
+        .markdown-content ol {
+            margin-left: 2em;
+            margin-bottom: 1em;
+        }
+        .markdown-content ul {
+            list-style-type: disc;
+        }
+        .markdown-content ol {
+            list-style-type: decimal;
+        }
+        .markdown-content li {
+            margin-bottom: 0.5em;
+        }
+        .markdown-content p {
+            margin-bottom: 1em;
+        }
+        .markdown-content strong {
+            font-weight: bold;
+        }
+        .markdown-content em {
+            font-style: italic;
+        }
+        .markdown-content blockquote {
+            border-left: 4px solid #ddd;
+            padding-left: 1em;
+            margin-left: 0;
+            color: #666;
+        }
+        .markdown-content hr {
+            height: 1px;
+            background-color: #ddd;
+            border: none;
+            margin: 1.5em 0;
+        }
+        .markdown-content code {
+            font-family: monospace;
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body>
@@ -230,62 +291,72 @@ HTML_TEMPLATE = """
     <h2>AI分析结果</h2>
     
     <div class="section">
-        <h3>总体分析</h3>
-        <p>{{ ai_analysis.overall|default('暂无综合分析数据') }}</p>
+        <h3>八字命局核心分析</h3>
+        <div class="markdown-content">{{ ai_analysis.coreAnalysis|safe }}</div>
+    </div>
+    
+    <div class="section">
+        <h3>五行旺衰与用神</h3>
+        <div class="markdown-content">{{ ai_analysis.fiveElements|safe }}</div>
+    </div>
+    
+    <div class="section">
+        <h3>神煞解析</h3>
+        <div class="markdown-content">{{ ai_analysis.shenShaAnalysis|safe }}</div>
+    </div>
+    
+    <div class="section">
+        <h3>大运与流年关键节点</h3>
+        <div class="markdown-content">{{ ai_analysis.keyPoints|safe }}</div>
     </div>
     
     <div class="section">
         <h3>健康分析</h3>
-        <p>{{ ai_analysis.health|default('暂无健康分析数据') }}</p>
+        <div class="markdown-content">{{ ai_analysis.health|safe }}</div>
     </div>
     
     <div class="section">
         <h3>财富分析</h3>
-        <p>{{ ai_analysis.wealth|default('暂无财富分析数据') }}</p>
+        <div class="markdown-content">{{ ai_analysis.wealth|safe }}</div>
     </div>
     
     <div class="section">
         <h3>事业分析</h3>
-        <p>{{ ai_analysis.career|default('暂无事业分析数据') }}</p>
+        <div class="markdown-content">{{ ai_analysis.career|safe }}</div>
     </div>
     
     <div class="section">
-        <h3>婚姻感情分析</h3>
-        <p>{{ ai_analysis.relationship|default('暂无婚姻感情分析数据') }}</p>
+        <h3>婚姻感情</h3>
+        <div class="markdown-content">{{ ai_analysis.relationship|safe }}</div>
     </div>
     
     <div class="section">
-        <h3>子女分析</h3>
-        <p>{{ ai_analysis.children|default('暂无子女分析数据') }}</p>
+        <h3>子女情况</h3>
+        <div class="markdown-content">{{ ai_analysis.children|safe }}</div>
     </div>
-
-    <div class="section">
-        <h3>性格特点</h3>
-        <p>{{ ai_analysis.personality|default('暂无性格特点分析数据') }}</p>
-    </div>
-
-    <div class="section">
-        <h3>学业分析</h3>
-        <p>{{ ai_analysis.education|default('暂无学业发展分析数据') }}</p>
-    </div>
-
+    
     <div class="section">
         <h3>父母情况</h3>
-        <p>{{ ai_analysis.parents|default('暂无父母情况分析数据') }}</p>
-    </div>
-
-    <div class="section">
-        <h3>人际关系</h3>
-        <p>{{ ai_analysis.social|default('暂无人际关系分析数据') }}</p>
-    </div>
-
-    <div class="section">
-        <h3>近五年运势</h3>
-        <p>{{ ai_analysis.future|default('暂无近五年运势分析数据') }}</p>
+        <div class="markdown-content">{{ ai_analysis.parents|safe }}</div>
     </div>
     
+    <div class="section">
+        <h3>学业分析</h3>
+        <div class="markdown-content">{{ ai_analysis.education|safe }}</div>
+    </div>
+    
+    <div class="section">
+        <h3>人际关系</h3>
+        <div class="markdown-content">{{ ai_analysis.social|safe }}</div>
+    </div>
+    
+    <div class="section">
+        <h3>近五年运势</h3>
+        <div class="markdown-content">{{ ai_analysis.future|safe }}</div>
+    </div>
+
     <div class="footer">
-        <p>© 2025 八字命理AI人生指导系统 - 本报告由AI生成，仅供参考</p>
+        © {{ generate_time.split('年')[0] }} 八字命理AI指导系统
     </div>
 </body>
 </html>
@@ -721,11 +792,12 @@ def generate_bazi_pdf(analysis_id, formatted_data, analysis, title=None, output_
         logger.exception(f"生成八字分析PDF失败: {str(e)}")
         return None
 
-def generate_pdf(result_data):
+def generate_pdf(result_data, parse_md=False):
     """生成PDF文件
     
     Args:
         result_data: 分析结果数据
+        parse_md: 是否解析Markdown内容
         
     Returns:
         生成的PDF文件URL
@@ -759,9 +831,22 @@ def generate_pdf(result_data):
             logger.warning("AI分析结果为空")
             ai_analysis = {}
             
+        # 如果需要解析Markdown
+        if parse_md and markdown_support:
+            logger.info("解析Markdown内容")
+            try:
+                # 解析整个分析数据对象中的Markdown内容
+                ai_analysis = parse_analysis_data(ai_analysis)
+                logger.info("Markdown解析完成")
+            except Exception as e:
+                logger.error(f"解析Markdown内容时出错: {str(e)}")
+        else:
+            logger.info("跳过Markdown解析")
+            
         # 检查并记录AI分析结果中的字段
         analysis_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
-                           'personality', 'education', 'parents', 'social', 'future']
+                           'personality', 'education', 'parents', 'social', 'future', 
+                           'coreAnalysis', 'fiveElements', 'shenShaAnalysis', 'keyPoints']
         for field in analysis_fields:
             if field in ai_analysis:
                 logger.info(f"AI分析结果包含字段: {field}")
@@ -939,11 +1024,12 @@ def generate_pdf(result_data):
         logger.error(traceback.format_exc())
         return None 
 
-def generate_pdf_content(result_data):
+def generate_pdf_content(result_data, parse_md=False):
     """生成PDF内容并返回二进制数据，不保存到文件系统
     
     Args:
         result_data: 分析结果数据
+        parse_md: 是否解析Markdown内容
         
     Returns:
         bytes: PDF文件的二进制内容
@@ -977,6 +1063,18 @@ def generate_pdf_content(result_data):
             logger.warning("AI分析结果为空")
             ai_analysis = {}
             
+        # 如果需要解析Markdown
+        if parse_md and markdown_support:
+            logger.info("解析Markdown内容")
+            try:
+                # 解析整个分析数据对象中的Markdown内容
+                ai_analysis = parse_analysis_data(ai_analysis)
+                logger.info("Markdown解析完成")
+            except Exception as e:
+                logger.error(f"解析Markdown内容时出错: {str(e)}")
+        else:
+            logger.info("跳过Markdown解析")
+            
         # 获取追问分析结果
         followups = result_data.get('followups', {})
         if not followups:
@@ -984,7 +1082,15 @@ def generate_pdf_content(result_data):
             followups = {}
         else:
             logger.info(f"追问分析结果包含字段: {list(followups.keys())}")
-            
+            # 如果需要解析Markdown并且启用了markdown支持
+            if parse_md and markdown_support and followups:
+                try:
+                    # 解析追问分析结果中的Markdown
+                    followups = parse_analysis_data(followups)
+                    logger.info("追问分析Markdown解析完成")
+                except Exception as e:
+                    logger.error(f"解析追问分析Markdown内容时出错: {str(e)}")
+        
         # 检查并记录AI分析结果中的字段
         analysis_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
                            'personality', 'education', 'parents', 'social', 'future',

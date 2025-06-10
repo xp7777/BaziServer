@@ -260,7 +260,7 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.coreAnalysis }}</p>
+            <div v-else v-html="renderMarkdown(aiAnalysis.coreAnalysis)" class="markdown-content"></div>
           </div>
           
           <!-- 五行旺衰与用神 -->
@@ -271,7 +271,7 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.fiveElements }}</p>
+            <div v-else v-html="renderMarkdown(aiAnalysis.fiveElements)" class="markdown-content"></div>
           </div>
           
           <!-- 神煞解析 -->
@@ -282,7 +282,7 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.shenShaAnalysis }}</p>
+            <div v-else v-html="renderMarkdown(aiAnalysis.shenShaAnalysis)" class="markdown-content"></div>
           </div>
           
           <!-- 大运与流年关键节点 -->
@@ -293,7 +293,7 @@
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
             </template>
-            <p v-else>{{ aiAnalysis.keyPoints }}</p>
+            <div v-else v-html="renderMarkdown(aiAnalysis.keyPoints)" class="markdown-content"></div>
           </div>
           
           <!-- 婚姻感情 -->
@@ -307,12 +307,12 @@
             <div v-else>
               <!-- 如果有追问分析结果，优先显示追问分析 -->
               <div v-if="followupAnalysis.relationship || followupAnalysis.marriage" class="enhanced-analysis">
-                <p>{{ followupAnalysis.relationship || followupAnalysis.marriage }}</p>
+                <div v-html="renderMarkdown(followupAnalysis.relationship || followupAnalysis.marriage)" class="markdown-content"></div>
                 <div class="analysis-source">
                   <van-tag type="primary" size="medium">深度分析</van-tag>
                 </div>
               </div>
-              <p v-else>{{ aiAnalysis.relationship }}</p>
+              <div v-else v-html="renderMarkdown(aiAnalysis.relationship)" class="markdown-content"></div>
             </div>
           </div>
           
@@ -327,12 +327,12 @@
             <div v-else>
               <!-- 如果有追问分析结果，优先显示追问分析 -->
               <div v-if="followupAnalysis.career || followupAnalysis.work || followupAnalysis.money || followupAnalysis.wealth" class="enhanced-analysis">
-                <p>{{ followupAnalysis.career || followupAnalysis.work || followupAnalysis.money || followupAnalysis.wealth }}</p>
+                <div v-html="renderMarkdown(followupAnalysis.career || followupAnalysis.work || followupAnalysis.money || followupAnalysis.wealth)" class="markdown-content"></div>
                 <div class="analysis-source">
                   <van-tag type="primary" size="medium">深度分析</van-tag>
                 </div>
               </div>
-              <p v-else>{{ aiAnalysis.career }}</p>
+              <div v-else v-html="renderMarkdown(aiAnalysis.career)" class="markdown-content"></div>
             </div>
           </div>
           
@@ -347,12 +347,12 @@
             <div v-else>
               <!-- 如果有追问分析结果，优先显示追问分析 -->
               <div v-if="followupAnalysis.children || followupAnalysis.family" class="enhanced-analysis">
-                <p>{{ followupAnalysis.children || followupAnalysis.family }}</p>
+                <div v-html="renderMarkdown(followupAnalysis.children || followupAnalysis.family)" class="markdown-content"></div>
                 <div class="analysis-source">
                   <van-tag type="primary" size="medium">深度分析</van-tag>
                 </div>
               </div>
-              <p v-else>{{ aiAnalysis.children }}</p>
+              <div v-else v-html="renderMarkdown(aiAnalysis.children)" class="markdown-content"></div>
             </div>
           </div>
           
@@ -367,12 +367,12 @@
             <div v-else>
               <!-- 如果有追问分析结果，优先显示追问分析 -->
               <div v-if="followupAnalysis.parents" class="enhanced-analysis">
-                <p>{{ followupAnalysis.parents }}</p>
+                <div v-html="renderMarkdown(followupAnalysis.parents)" class="markdown-content"></div>
                 <div class="analysis-source">
                   <van-tag type="primary" size="medium">深度分析</van-tag>
                 </div>
               </div>
-              <p v-else>{{ aiAnalysis.parents }}</p>
+              <div v-else v-html="renderMarkdown(aiAnalysis.parents)" class="markdown-content"></div>
             </div>
           </div>
           
@@ -387,12 +387,12 @@
             <div v-else>
               <!-- 如果有追问分析结果，优先显示追问分析 -->
               <div v-if="followupAnalysis.health" class="enhanced-analysis">
-                <p>{{ followupAnalysis.health }}</p>
+                <div v-html="renderMarkdown(followupAnalysis.health)" class="markdown-content"></div>
                 <div class="analysis-source">
                   <van-tag type="primary" size="medium">深度分析</van-tag>
                 </div>
               </div>
-              <p v-else>{{ aiAnalysis.health }}</p>
+              <div v-else v-html="renderMarkdown(aiAnalysis.health)" class="markdown-content"></div>
             </div>
           </div>
           
@@ -407,12 +407,12 @@
             <div v-else>
               <!-- 如果有追问分析结果，优先显示追问分析 -->
               <div v-if="followupAnalysis.education || followupAnalysis.study" class="enhanced-analysis">
-                <p>{{ followupAnalysis.education || followupAnalysis.study }}</p>
+                <div v-html="renderMarkdown(followupAnalysis.education || followupAnalysis.study)" class="markdown-content"></div>
                 <div class="analysis-source">
                   <van-tag type="primary" size="medium">深度分析</van-tag>
                 </div>
               </div>
-              <p v-else>{{ aiAnalysis.education }}</p>
+              <div v-else v-html="renderMarkdown(aiAnalysis.education)" class="markdown-content"></div>
             </div>
           </div>
           
@@ -427,12 +427,12 @@
             <div v-else>
               <!-- 如果有追问分析结果，优先显示追问分析 -->
               <div v-if="followupAnalysis.social || followupAnalysis.relationship || followupAnalysis.friends" class="enhanced-analysis">
-                <p>{{ followupAnalysis.social || followupAnalysis.relationship || followupAnalysis.friends }}</p>
+                <div v-html="renderMarkdown(followupAnalysis.social || followupAnalysis.relationship || followupAnalysis.friends)" class="markdown-content"></div>
                 <div class="analysis-source">
                   <van-tag type="primary" size="medium">深度分析</van-tag>
                 </div>
               </div>
-              <p v-else>{{ aiAnalysis.social }}</p>
+              <div v-else v-html="renderMarkdown(aiAnalysis.social)" class="markdown-content"></div>
             </div>
           </div>
           
@@ -447,12 +447,12 @@
             <div v-else>
               <!-- 如果有追问分析结果，优先显示追问分析 -->
               <div v-if="followupAnalysis.future || followupAnalysis.fiveYears" class="enhanced-analysis">
-                <p>{{ followupAnalysis.future || followupAnalysis.fiveYears }}</p>
+                <div v-html="renderMarkdown(followupAnalysis.future || followupAnalysis.fiveYears)" class="markdown-content"></div>
                 <div class="analysis-source">
                   <van-tag type="primary" size="medium">深度分析</van-tag>
                 </div>
               </div>
-              <p v-else>{{ aiAnalysis.future }}</p>
+              <div v-else v-html="renderMarkdown(aiAnalysis.future)" class="markdown-content"></div>
             </div>
           </div>
         </div>
@@ -517,9 +517,7 @@
             刷新分析
           </van-button>
         </div>
-        <div v-else class="analysis-content">
-          {{ followupAnalysis[currentFollowup.id] }}
-        </div>
+        <div v-else class="analysis-content" v-html="renderMarkdown(followupAnalysis[currentFollowup.id])"></div>
       </div>
     </div>
     
@@ -546,6 +544,15 @@ import { Toast, Dialog } from 'vant';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import axios from 'axios';
+import MarkdownIt from 'markdown-it';  // 添加markdown-it导入
+
+// 创建markdown解析器实例
+const md = new MarkdownIt({
+  html: true,
+  breaks: true,
+  linkify: true,
+  typographer: true
+});
 
 const route = useRoute();
 const router = useRouter();
@@ -557,6 +564,67 @@ const loading = ref(false);
 const isAnalyzing = ref(false);
 const analyzeProgress = ref(0);
 const analyzeTimer = ref(null);
+
+// 渲染Markdown内容
+const renderMarkdown = (content) => {
+  if (!content) return '';
+  try {
+    // 检查内容是否已经是HTML
+    if (content.includes('<') && content.includes('>') && content.includes('<div') || content.includes('<p>')) {
+      // 如果已经含有HTML标签，可能已经被渲染过，直接返回
+      return content;
+    }
+
+    // 预处理八字分析特殊格式
+    let processedContent = content;
+    
+    // 处理加粗文本 **文本**
+    processedContent = processedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // 处理分隔符 --
+    processedContent = processedContent.replace(/\s*--\s*/g, '<hr>');
+    
+    // 处理标题（以#开头的行）
+    processedContent = processedContent.replace(/^(#+)\s+(.*?)$/gm, (match, hashes, text) => {
+      const level = Math.min(hashes.length, 6);
+      return `<h${level}>${text}</h${level}>`;
+    });
+    
+    // 处理列表（以-或数字开头的行）
+    processedContent = processedContent.replace(/^- (.*?)$/gm, '<li>$1</li>');
+    processedContent = processedContent.replace(/^(\d+)\. (.*?)$/gm, '<li>$1. $2</li>');
+    
+    // 将连续的<li>元素包装在<ul>或<ol>中
+    if (processedContent.includes('<li>')) {
+      // 简单检测是否含有数字列表
+      const hasNumberList = /^<li>\d+\./.test(processedContent);
+      const listTag = hasNumberList ? 'ol' : 'ul';
+      
+      // 将连续的<li>元素包装在列表标签中
+      processedContent = processedContent.replace(/(<li>.*?<\/li>\n*)+/g, match => {
+        return `<${listTag}>${match}</${listTag}>`;
+      });
+    }
+    
+    // 处理段落
+    if (!processedContent.includes('<p>')) {
+      const paragraphs = processedContent.split('\n\n');
+      processedContent = paragraphs.map(p => {
+        // 如果段落不是以HTML标签开头，则添加<p>标签
+        if (p.trim() && !p.trim().startsWith('<')) {
+          return `<p>${p}</p>`;
+        }
+        return p;
+      }).join('\n');
+    }
+    
+    // 最后使用markdown-it处理任何剩余的Markdown标记
+    return md.render(processedContent);
+  } catch (e) {
+    console.error('Markdown渲染失败:', e);
+    return content; // 如果渲染失败，返回原始内容
+  }
+};
 
 // 用户年龄，从URL参数或localStorage获取
 const userAge = ref(null);
@@ -821,7 +889,8 @@ const downloadPDFAsStream = async () => {
     
     // 创建下载链接，添加时间戳避免缓存问题和force参数强制重新生成
     const timestamp = new Date().getTime();
-    const downloadUrl = `/api/bazi/pdf/${resultId.value}?t=${timestamp}&force=true`;
+    // 默认启用markdown解析
+    const downloadUrl = `/api/bazi/pdf/${resultId.value}?t=${timestamp}&force=true&parseMarkdown=true`;
     console.log('下载URL:', downloadUrl);
     
     // 使用fetch API获取文件流
@@ -1087,6 +1156,30 @@ const generatePDFLocally = async () => {
   });
   
   try {
+    // 在捕获内容前先应用Markdown格式（临时）
+    const sections = document.querySelectorAll('.analysis-section');
+    const originalContents = [];
+    
+    // 确保所有Markdown内容都已经被渲染为HTML
+    sections.forEach((section, index) => {
+      const contentElement = section.querySelector('p, .markdown-content');
+      if (contentElement && !contentElement.classList.contains('markdown-content')) {
+        originalContents.push({
+          element: contentElement,
+          content: contentElement.innerHTML
+        });
+        
+        // 如果内容中有Markdown语法但尚未渲染，则渲染它
+        if (contentElement.textContent.includes('**') || 
+            contentElement.textContent.includes('##') ||
+            contentElement.textContent.includes('--') ||
+            contentElement.textContent.includes('- ')) {
+          contentElement.innerHTML = md.render(contentElement.textContent);
+          contentElement.classList.add('markdown-content-temp');
+        }
+      }
+    });
+    
     // 使用html2canvas捕获内容
     const canvas = await html2canvas(element, {
       scale: 1,
@@ -1133,6 +1226,14 @@ const generatePDFLocally = async () => {
       pdf.text(`八字命理AI分析报告 - 页 ${i} / ${pageCount}`, pdf.internal.pageSize.getWidth() / 2, pdf.internal.pageSize.getHeight() - 10, { align: 'center' });
     }
     
+    // 恢复原始内容
+    originalContents.forEach(item => {
+      if (item && item.element) {
+        item.element.innerHTML = item.content;
+        item.element.classList.remove('markdown-content-temp');
+      }
+    });
+    
     // 保存PDF
     pdf.save(`八字命理分析_${resultId.value}.pdf`);
     
@@ -1156,7 +1257,59 @@ const handleLocalPDFGeneration = async () => {
       forbidClick: true
     });
     
+    // 确保所有内容都已经渲染Markdown
+    const sections = document.querySelectorAll('.analysis-section');
+    const originalContents = [];
+    let needsRendering = false;
+    
+    // 检查是否有内容需要渲染
+    sections.forEach((section) => {
+      const contentElement = section.querySelector('p:not(.markdown-content)');
+      if (contentElement) {
+        needsRendering = true;
+      }
+    });
+    
+    // 如果需要渲染，先将所有内容进行Markdown渲染
+    if (needsRendering) {
+      console.log('检测到需要渲染Markdown内容');
+      sections.forEach((section) => {
+        const contentElements = section.querySelectorAll('p:not(.markdown-content)');
+        contentElements.forEach((element) => {
+          const text = element.textContent;
+          if (text && (
+            text.includes('**') || 
+            text.includes('#') || 
+            text.includes('-') || 
+            text.includes('1.') ||
+            text.includes('\n')
+          )) {
+            originalContents.push({
+              element: element,
+              content: element.innerHTML
+            });
+            element.innerHTML = md.render(text);
+            element.classList.add('markdown-content');
+            element.classList.add('temp-rendered');
+          }
+        });
+      });
+    }
+    
+    // 生成PDF
     await generatePDFLocally();
+    
+    // 恢复原始内容
+    if (needsRendering) {
+      document.querySelectorAll('.temp-rendered').forEach((element) => {
+        const original = originalContents.find(item => item.element === element);
+        if (original) {
+          element.innerHTML = original.content;
+          element.classList.remove('markdown-content');
+          element.classList.remove('temp-rendered');
+        }
+      });
+    }
     
     Toast.clear();
     Toast.success('本地PDF生成成功');
@@ -2384,5 +2537,84 @@ const reloadFollowupAnalysis = async (area) => {
   background-color: rgba(25, 137, 250, 0.08);
   border-radius: 8px;
   transition: background-color 0.5s ease;
+}
+
+.markdown-content {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-size: 14px;
+  color: #333;
+}
+
+.markdown-content h1, 
+.markdown-content h2, 
+.markdown-content h3, 
+.markdown-content h4, 
+.markdown-content h5, 
+.markdown-content h6 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: bold;
+  color: #333;
+}
+
+.markdown-content h1 {
+  font-size: 1.8em;
+}
+
+.markdown-content h2 {
+  font-size: 1.5em;
+}
+
+.markdown-content h3 {
+  font-size: 1.3em;
+}
+
+.markdown-content h4 {
+  font-size: 1.1em;
+}
+
+.markdown-content p {
+  margin-bottom: 1em;
+}
+
+.markdown-content ul, 
+.markdown-content ol {
+  margin-left: 2em;
+  margin-bottom: 1em;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+}
+
+.markdown-content li {
+  margin-bottom: 0.5em;
+}
+
+.markdown-content strong {
+  font-weight: bold;
+}
+
+.markdown-content em {
+  font-style: italic;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #ddd;
+  padding-left: 1em;
+  margin-left: 0;
+  color: #666;
+}
+
+.markdown-content hr {
+  height: 1px;
+  background-color: #ddd;
+  border: none;
+  margin: 1.5em 0;
 }
 </style>
