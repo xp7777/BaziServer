@@ -163,4 +163,57 @@ class OrderModel:
     def insert(order):
         """插入订单"""
         orders_collection.insert_one(order)
-        return order 
+        return order
+    
+    @staticmethod
+    def get_order(order_id):
+        """通过订单ID获取订单信息"""
+        try:
+            logging.info(f"获取订单: {order_id}")
+            order = orders_collection.find_one({"_id": order_id})
+            if order:
+                # 如果_id是ObjectId，转换为字符串
+                if isinstance(order['_id'], ObjectId):
+                    order['_id'] = str(order['_id'])
+                return order
+            else:
+                logging.warning(f"未找到订单: {order_id}")
+                return None
+        except Exception as e:
+            logging.error(f"获取订单失败: {str(e)}")
+            return None
+    
+    @staticmethod
+    def update_order_status(order_id, status):
+        """更新订单状态"""
+        try:
+            logging.info(f"更新订单状态: {order_id} -> {status}")
+            update_data = {
+                "status": status
+            }
+            
+            if status == "paid":
+                update_data["payTime"] = datetime.now()
+            
+            result = orders_collection.update_one(
+                {"_id": order_id},
+                {"$set": update_data}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logging.error(f"更新订单状态失败: {str(e)}")
+            return False
+    
+    @staticmethod
+    def update_order_result_id(order_id, result_id):
+        """更新订单关联的结果ID"""
+        try:
+            logging.info(f"更新订单结果ID: {order_id} -> {result_id}")
+            result = orders_collection.update_one(
+                {"_id": order_id},
+                {"$set": {"resultId": result_id, "updateTime": datetime.now()}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logging.error(f"更新订单结果ID失败: {str(e)}")
+            return False 

@@ -436,8 +436,17 @@
       <!-- 已支付的追问分析结果展示 -->
       <div v-if="currentFollowup && currentFollowup.paid" class="followup-result">
         <h3>{{ currentFollowup.name }}分析</h3>
-        <div class="analysis-content">
-          {{ followupAnalysis[currentFollowup.id] || '暂无分析结果' }}
+        <div v-if="isLoadingFollowup" class="loading-content">
+          <van-loading size="24px" vertical>分析加载中...</van-loading>
+        </div>
+        <div v-else-if="!followupAnalysis[currentFollowup.id]" class="loading-content">
+          <van-empty description="分析结果尚未生成，请稍后刷新页面" />
+          <van-button type="primary" size="small" @click="reloadFollowupAnalysis(currentFollowup.id)">
+            刷新分析
+          </van-button>
+        </div>
+        <div v-else class="analysis-content">
+          {{ followupAnalysis[currentFollowup.id] }}
         </div>
       </div>
     </div>
@@ -1130,6 +1139,8 @@ const reloadBaziData = async () => {
       return;
     }
     
+    console.log(`重新加载数据，结果ID: ${resultId.value}`);
+    
     // 获取URL参数
     const urlParams = new URLSearchParams(window.location.search);
     
@@ -1188,6 +1199,9 @@ const reloadBaziData = async () => {
           } else {
             Toast.success('已完成部分分析，显示可用结果');
           }
+          
+          // 重新加载追问分析结果
+          await loadFollowupResults();
           
           return;
         }
@@ -1259,6 +1273,21 @@ const reloadBaziData = async () => {
             isAnalyzing.value = false;
           }, 1000);
         }
+        
+        // 重新加载追问分析结果
+        console.log('重新加载追问分析结果...');
+        await loadFollowupResults();
+        
+        // 遍历所有已支付的追问选项，强制重新获取分析结果
+        const paidOptions = followupOptions.value.filter(option => option.paid);
+        if (paidOptions.length > 0) {
+          console.log('发现已支付的追问选项，强制重新获取:', paidOptions.map(o => o.id));
+          for (const option of paidOptions) {
+            await getFollowupAnalysis(option.id);
+          }
+        }
+        
+        Toast.success('数据刷新成功');
       } else {
         Toast.fail(response.data.message || '加载失败');
       }
@@ -1290,16 +1319,48 @@ const followupAnalysis = ref({});
 const isLoadingFollowup = ref(false);
 
 // 选择追问选项
-const selectFollowupOption = (option) => {
+const selectFollowupOption = async (option) => {
+  // 设置当前选择的追问选项
+  currentFollowup.value = option;
+  
   // 如果已经支付过，直接显示结果
   if (option.paid) {
-    // 显示已支付的分析结果
-    currentFollowup.value = option;
+    console.log(`选择已支付的追问: ${option.id}`);
+    
+    // 如果已有分析结果，直接显示
+    if (followupAnalysis.value[option.id]) {
+      console.log(`已有${option.id}分析结果，直接显示`);
+      return;
+    }
+    
+    // 如果没有分析结果，尝试获取
+    console.log(`尝试获取${option.id}分析结果`);
+    Toast.loading({
+      message: '正在加载分析结果...',
+      duration: 0
+    });
+    
+    try {
+      // 尝试获取分析结果
+      const analysis = await getFollowupAnalysis(option.id);
+      if (analysis && typeof analysis === 'string' && analysis.length > 0) {
+        Toast.success('加载成功');
+        console.log(`成功获取${option.id}分析结果，长度: ${analysis.length}`);
+      } else {
+        Toast.fail('分析结果尚未生成完成，请稍后再试');
+        console.warn(`获取${option.id}分析结果失败或为空`);
+      }
+    } catch (error) {
+      console.error(`获取${option.id}分析失败:`, error);
+      Toast.fail('获取分析失败，请重试');
+    } finally {
+      Toast.clear();
+    }
+    
     return;
   }
   
-  // 否则设置当前选择的追问选项
-  currentFollowup.value = option;
+  // 否则显示支付对话框
   showFollowupDialog.value = true;
 };
 
@@ -1350,6 +1411,13 @@ const payForFollowup = async () => {
         console.log('追问支付成功:', paymentResponse.data);
         Toast.success('支付成功');
         
+        // 立即更新UI状态，将当前追问标记为已付费
+        const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
+        if (index !== -1) {
+          followupOptions.value[index].paid = true;
+          followupOptions.value = [...followupOptions.value]; // 强制Vue更新
+        }
+        
         // 第三步：加载分析结果
         Toast.loading({
           message: '正在生成分析结果，这可能需要30-60秒...',
@@ -1371,69 +1439,96 @@ const payForFollowup = async () => {
         const area = currentFollowup.value.id;
         let isComplete = false;
         let attempts = 0;
-        const maxAttempts = 30; // 最多等待60秒（30次 * 2秒）
+        const maxAttempts = 60; // 最多等待120秒（60次 * 2秒）
         
         // 自定义轮询检查追问分析状态
         const pollFollowupStatus = async () => {
+          console.log(`开始轮询追问分析状态: ${area}`);
+          
+          // 开始计时
+          const startTime = new Date().getTime();
+          const timeoutMs = 120000; // 120秒超时
+          
           while (attempts < maxAttempts && !isComplete) {
             attempts++;
             try {
               // 等待2秒
               await new Promise(resolve => setTimeout(resolve, 2000));
               
+              // 检查是否超时
+              const currentTime = new Date().getTime();
+              if (currentTime - startTime > timeoutMs) {
+                console.warn(`轮询追问分析状态超时: ${area}`);
+                break;
+              }
+              
               // 检查追问分析结果
+              console.log(`尝试第${attempts}次获取追问分析: ${area}`);
               const response = await axios.get(`/api/bazi/followup/${resultId.value}/${area}`);
+              
               if (response.data.code === 200 && response.data.data && response.data.data.analysis) {
                 // 检查分析内容是否为"正在分析"
                 const analysis = response.data.data.analysis;
                 if (typeof analysis === 'string' && !analysis.includes('正在分析')) {
+                  console.log(`成功获取追问分析结果: ${area}`);
                   isComplete = true;
                   followupAnalysis.value[area] = analysis;
                   break;
+                } else {
+                  console.log(`追问分析结果还在生成中: ${area}`);
                 }
               }
             } catch (error) {
-              console.error('检查追问分析状态出错:', error);
-              // 如果遇到404错误，可能意味着追问分析尚未创建完毕
-              // 不中断轮询，继续等待
+              // 只有非404错误才打印详细信息
+              if (!error.response || error.response.status !== 404) {
+                console.error('检查追问分析状态出错:', error);
+              }
+              
+              // 如果遇到404错误，表示追问分析尚未创建完毕
               if (error.response && error.response.status === 404) {
                 console.log('追问分析尚未创建完毕，继续等待...');
               } else if (attempts >= maxAttempts / 2) {
-                // 如果尝试次数超过一半且仍然失败，退出轮询
-                Toast.fail('获取分析数据失败，请稍后重试');
-                break;
+                // 如果尝试次数超过一半且仍然失败，不要退出轮询，但记录错误
+                console.warn(`获取分析数据失败(${attempts}/${maxAttempts})，继续尝试...`);
               }
             }
           }
           
           // 无论是否完成，都尝试获取最终结果
+          console.log(`轮询完成，最终尝试获取追问分析: ${area}`);
           try {
-            await getFollowupAnalysis(area);
+            const finalResult = await getFollowupAnalysis(area);
+            console.log(`最终获取追问分析结果: ${finalResult ? '成功' : '失败'}`);
+            return finalResult;
           } catch (error) {
             console.error('获取最终追问分析结果失败:', error);
             // 如果分析结果仍然不可用，显示友好的错误信息
             followupAnalysis.value[area] = "分析正在处理中，请稍后刷新页面查看。";
+            return null;
           }
         };
         
         // 开始轮询
-        await pollFollowupStatus();
+        const result = await pollFollowupStatus();
         
         // 更新UI
         Toast.clear();
-        if (isComplete) {
+        if (result) {
           Toast.success('分析已完成');
         } else {
-          Toast.success('已完成部分分析，显示可用结果');
-        }
-        
-        // 标记为已支付
-        const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
-        if (index !== -1) {
-          followupOptions.value[index].paid = true;
+          Toast.success('正在生成分析，请稍后刷新查看');
         }
         
         showFollowupDialog.value = false;
+        
+        // 确保界面刷新显示分析结果
+        setTimeout(() => {
+          const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
+          if (index !== -1) {
+            // 强制更新
+            followupOptions.value = [...followupOptions.value];
+          }
+        }, 500);
       } else {
         Toast.fail('支付失败');
       }
@@ -1453,19 +1548,83 @@ const payForFollowup = async () => {
 const getFollowupAnalysis = async (area) => {
   loading.value = true;
   try {
+    console.log(`开始获取[${area}]追问分析，结果ID: ${resultId.value}`);
     const response = await axios.get(`/api/bazi/followup/${resultId.value}/${area}`);
     
     if (response.data.code === 200) {
-      console.log('获取追问分析成功:', response.data);
-      followupAnalysis.value[area] = response.data.data.analysis;
-      return response.data.data.analysis;
+      console.log('获取追问分析成功，响应数据:', response.data);
+      console.log('响应data字段详情:', JSON.stringify(response.data.data));
+      
+      // 处理分析结果为null或空的情况
+      if (!response.data.data) {
+        console.warn(`追问分析结果data为空: ${area}`);
+        const defaultMessage = `${followupOptions.value.find(o => o.id === area)?.name || area}分析正在生成中，请稍后刷新页面查看。`;
+        followupAnalysis.value[area] = defaultMessage;
+        return defaultMessage;
+      }
+      
+      // 提取分析内容，处理不同的响应格式
+      let analysisContent = null;
+      
+      if (response.data.data.analysis) {
+        // 标准格式：{area, analysis}
+        analysisContent = response.data.data.analysis;
+        console.log(`获取到标准格式分析结果, 类型: ${typeof analysisContent}, 长度: ${analysisContent ? analysisContent.length : 0}`);
+      } else if (typeof response.data.data === 'string') {
+        // 直接字符串格式
+        analysisContent = response.data.data;
+        console.log(`获取到字符串格式分析结果, 长度: ${analysisContent.length}`);
+      } else if (response.data.data[area]) {
+        // 对象格式：{area1: "分析1", area2: "分析2"}
+        analysisContent = response.data.data[area];
+        console.log(`获取到对象格式分析结果, 长度: ${analysisContent ? analysisContent.length : 0}`);
+      } else {
+        // 尝试遍历所有属性，看是否有匹配的内容
+        console.log('尝试查找匹配内容，data的所有键:', Object.keys(response.data.data));
+        for (const key in response.data.data) {
+          if (key.toLowerCase() === area.toLowerCase() || 
+             (area === 'fiveYears' && key === 'future') ||
+             (area === 'future' && key === 'fiveYears')) {
+            analysisContent = response.data.data[key];
+            console.log(`找到匹配的键[${key}]，内容长度: ${analysisContent ? analysisContent.length : 0}`);
+            break;
+          }
+        }
+      }
+      
+      // 检查分析结果是否为null或空
+      if (!analysisContent) {
+        console.warn(`无法从响应中提取有效分析内容: ${area}`);
+        const defaultMessage = `${followupOptions.value.find(o => o.id === area)?.name || area}分析尚未生成，请稍后刷新页面查看。`;
+        followupAnalysis.value[area] = defaultMessage;
+        return defaultMessage;
+      }
+      
+      // 检查分析结果是否是空字符串
+      if (typeof analysisContent === 'string' && analysisContent.trim() === '') {
+        console.warn(`追问分析结果为空字符串: ${area}`);
+        const defaultMessage = `${followupOptions.value.find(o => o.id === area)?.name || area}分析正在生成中，请稍后刷新页面查看。`;
+        followupAnalysis.value[area] = defaultMessage;
+        return defaultMessage;
+      }
+      
+      // 记录有效的分析结果
+      console.log(`获取到有效的[${area}]分析结果，长度: ${analysisContent.length}`);
+      
+      // 存储并返回分析结果
+      followupAnalysis.value[area] = analysisContent;
+      return analysisContent;
     } else {
       console.error('获取追问分析失败:', response.data);
-      return null;
+      const errorMessage = `获取分析失败: ${response.data.message || '未知错误'}`;
+      followupAnalysis.value[area] = errorMessage;
+      return errorMessage;
     }
   } catch (error) {
     console.error('获取追问分析出错:', error);
-    return null;
+    const errorMessage = `获取分析出错: ${error.message || '请稍后重试'}`;
+    followupAnalysis.value[area] = errorMessage;
+    return errorMessage;
   } finally {
     loading.value = false;
   }
@@ -1591,23 +1750,42 @@ const loadFollowupResults = async () => {
       return;
     }
     
+    console.log('开始加载追问分析结果列表:', resultId.value);
+    
     // 调用API获取已支付的追问列表
     const response = await axios.get(`/api/bazi/followup/list/${resultId.value}`);
     
     if (response.data.code === 200 && response.data.data.followups) {
       const paidFollowups = response.data.data.followups;
+      console.log('获取到的追问列表:', paidFollowups);
       
       // 更新已支付的追问选项
       followupOptions.value = followupOptions.value.map(option => {
-        const isPaid = paidFollowups.some(f => f.area === option.id);
+        // 检查是否有匹配的追问分析
+        const isPaid = paidFollowups.some(f => {
+          // 尝试多种匹配方式
+          if (typeof f === 'object') {
+            // 对象格式：检查area字段
+            return f.area === option.id;
+          } else if (typeof f === 'string') {
+            // 字符串格式：直接比较
+            return f === option.id;
+          }
+          return false;
+        });
+        
         if (isPaid) {
+          console.log(`发现已支付的追问: ${option.id}`);
           // 如果已支付，获取分析结果
           getFollowupAnalysis(option.id);
         }
+        
         return { ...option, paid: isPaid };
       });
       
-      console.log('已加载追问分析结果:', paidFollowups);
+      console.log('更新后的追问选项:', followupOptions.value);
+    } else {
+      console.warn('获取追问列表失败或返回空列表');
     }
   } catch (error) {
     console.error('加载追问分析结果出错:', error);
@@ -1662,6 +1840,36 @@ onUnmounted(() => {
     analyzeTimer.value = null;
   }
 });
+
+// 刷新特定追问的分析结果
+const reloadFollowupAnalysis = async (area) => {
+  if (!area) return;
+  
+  try {
+    isLoadingFollowup.value = true;
+    Toast.loading({
+      message: '正在刷新分析结果...',
+      duration: 0
+    });
+    
+    console.log(`刷新${area}分析结果`);
+    const analysis = await getFollowupAnalysis(area);
+    
+    if (analysis && typeof analysis === 'string' && analysis.length > 0) {
+      Toast.success('刷新成功');
+      console.log(`成功刷新${area}分析结果，长度: ${analysis.length}`);
+    } else {
+      Toast.fail('分析结果尚未生成完成');
+      console.warn(`刷新${area}分析结果失败或为空`);
+    }
+  } catch (error) {
+    console.error(`刷新${area}分析失败:`, error);
+    Toast.fail('刷新失败，请重试');
+  } finally {
+    isLoadingFollowup.value = false;
+    Toast.clear();
+  }
+};
 </script>
 
 <style scoped>

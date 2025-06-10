@@ -322,19 +322,53 @@ def async_generate_analysis(result_id, bazi_chart, gender):
         logging.error(traceback.format_exc())
 
 # 异步生成追问分析
-def async_generate_followup(result_id, bazi_chart, area, gender):
+def async_generate_followup(result_id, area, birth_date=None, birth_time=None, gender=None):
     """
     异步生成追问分析
     
     Args:
         result_id: 结果ID
-        bazi_chart: 八字命盘数据
         area: 追问领域
-        gender: 性别
+        birth_date: 出生日期（可选）
+        birth_time: 出生时间（可选）
+        gender: 性别（可选）
     """
     try:
         logging.info(f"开始异步生成追问分析: {result_id}, 领域: {area}")
+        
+        # 获取完整的结果记录，包括八字命盘和AI分析结果
+        full_result = BaziResultModel.get_result(result_id)
+        if not full_result:
+            logging.error(f"找不到结果记录: {result_id}")
+            error_message = f"找不到{result_id}的分析结果"
+            BaziResultModel.update_followup(result_id, area, error_message)
+            return
+            
+        # 获取八字命盘数据
+        bazi_chart = full_result.get('baziChart')
+        if not bazi_chart:
+            logging.error(f"结果记录中没有八字命盘数据: {result_id}")
+            error_message = f"八字命盘数据不完整，无法生成{area}分析"
+            BaziResultModel.update_followup(result_id, area, error_message)
+            return
+            
+        # 获取性别信息，优先使用参数传入的，其次是八字命盘中的
+        if not gender:
+            gender = bazi_chart.get('gender')
+            if not gender:
+                logging.warning(f"未提供性别信息，使用默认值'male'")
+                gender = 'male'
+                
+        # 将AI分析结果添加到命盘数据中，作为上下文
+        ai_analysis = full_result.get('aiAnalysis')
+        if ai_analysis:
+            bazi_chart['aiAnalysis'] = ai_analysis
+            logging.info(f"已添加AI分析结果作为上下文")
+        else:
+            logging.warning(f"没有找到AI分析结果作为上下文")
+        
         # 生成追问分析
+        from utils.ai_service import generate_followup_analysis
         analysis = generate_followup_analysis(bazi_chart, area, gender)
         
         # 更新追问分析结果
@@ -343,111 +377,107 @@ def async_generate_followup(result_id, bazi_chart, area, gender):
     except Exception as e:
         logging.error(f"异步生成追问分析失败: {str(e)}")
         logging.error(traceback.format_exc())
+        # 确保即使出错也有友好的错误消息保存到数据库
+        error_message = f"生成{area}分析时出错: {str(e)}"
+        try:
+            BaziResultModel.update_followup(result_id, area, error_message)
+        except Exception as save_error:
+            logging.error(f"保存错误消息到数据库失败: {str(save_error)}")
 
 @order_bp.route('/mock/pay/<order_id>', methods=['POST'])
-def mock_payment(order_id):
-    """模拟支付接口，用于测试和开发"""
+def mock_pay(order_id):
+    """模拟支付接口"""
     try:
+        logging.info(f"模拟支付请求: {order_id}")
         data = request.json
-        birth_date = data.get('birthDate')
-        birth_time = data.get('birthTime')
-        gender = data.get('gender')
-        area = data.get('area')
-        result_id = data.get('resultId')
+        logging.info(f"请求数据: {data}")
+
+        # 查询订单
+        order = OrderModel.get_order(order_id)
+        if not order:
+            logging.error(f"未找到订单: {order_id}")
+            return jsonify(code=404, message="未找到订单"), 404
         
-        logging.info(f"模拟支付请求: order_id={order_id}, birth_date={birth_date}, birth_time={birth_time}, gender={gender}, area={area}, result_id={result_id}")
-        
-        # 如果是追问订单
-        if area and result_id:
-            # 更新订单状态
-            OrderModel.update_status(order_id, 'paid')
+        # 检查订单状态
+        if order.get('status') == 'paid':
+            logging.info(f"订单已支付: {order_id}")
+            # 返回该订单对应的结果ID
+            result_id = order.get('resultId')
+            return jsonify(code=200, message="订单已支付", data={"resultId": result_id})
             
-            # 获取原始八字数据
-            bazi_result = BaziResultModel.find_by_id(result_id)
-            if not bazi_result:
-                return jsonify(code=404, message="未找到原始分析结果"), 404
+        # 更新订单状态为已支付
+        OrderModel.update_order_status(order_id, 'paid')
+        
+        # 获取订单类型
+        order_type = order.get('orderType', 'analysis')
+        
+        # 如果是基础八字分析订单
+        if order_type == 'analysis':
+            # 异步生成八字分析
+            result_id = order.get('resultId')
+            if not result_id:
+                # 创建新的结果记录
+                result_id = f"RESBZ{int(time.time())}"
+                OrderModel.update_order_result_id(order_id, result_id)
+            
+            # 准备生成参数
+            birth_date = data.get('birthDate')
+            birth_time = data.get('birthTime')
+            gender = data.get('gender')
+            
+            # 异步生成分析
+            threading.Thread(
+                target=async_generate_analysis, 
+                args=(result_id, birth_date, birth_time, gender)
+            ).start()
+            
+            return jsonify(code=200, message="支付成功，正在生成分析", data={"resultId": result_id})
+        
+        # 如果是追问分析订单
+        elif order_type == 'followup':
+            result_id = order.get('resultId')
+            area = order.get('area')
+            
+            if not result_id or not area:
+                logging.error(f"缺少必要参数: resultId={result_id}, area={area}")
+                return jsonify(code=400, message="缺少必要参数"), 400
+            
+            logging.info(f"准备生成追问分析: resultId={result_id}, area={area}")
+            
+            # 先立即更新数据库中的标记，表示该领域已支付
+            # 这样前端轮询时可以立即看到已支付状态
+            try:
+                # 获取当前的追问列表
+                result = BaziResultModel.get_result(result_id)
+                if result:
+                    # 确保followups字段存在
+                    if 'followupPaid' not in result:
+                        BaziResultModel.update_field(result_id, 'followupPaid', [area])
+                    else:
+                        # 添加到已付费领域列表中
+                        paid_areas = result.get('followupPaid', [])
+                        if area not in paid_areas:
+                            paid_areas.append(area)
+                            BaziResultModel.update_field(result_id, 'followupPaid', paid_areas)
+                    
+                    logging.info(f"已将 {area} 标记为已支付")
+                else:
+                    logging.warning(f"找不到结果记录: {result_id}")
+            except Exception as e:
+                logging.error(f"更新已支付追问状态失败: {str(e)}")
             
             # 异步生成追问分析
-            async_task(
-                async_generate_followup,
-                result_id,
-                bazi_result['baziChart'],
-                area,
-                bazi_result.get('gender', gender)
-            )
+            threading.Thread(
+                target=async_generate_followup,
+                args=(result_id, area, data.get('birthDate'), data.get('birthTime'), data.get('gender'))
+            ).start()
             
-            # 立即返回响应
-            return jsonify(
-                code=200,
-                message="支付成功，正在生成分析",
-                data={
-                    "orderId": order_id,
-                    "resultId": result_id,
-                    "area": area
-                }
-            )
+            return jsonify(code=200, message="支付成功，正在生成分析", data={"resultId": result_id})
         
-        # 如果是普通订单
         else:
-            # 更新订单状态
-            OrderModel.update_status(order_id, 'paid')
+            logging.error(f"未知订单类型: {order_type}")
+            return jsonify(code=400, message="未知订单类型"), 400
             
-            try:
-                # 检查日期和时间格式
-                if not birth_date or not birth_time:
-                    return jsonify(code=400, message="缺少出生日期或时间"), 400
-                
-                # 组合日期和时间
-                birth_datetime = f"{birth_date} {birth_time}"
-                logging.info(f"组合后的日期时间: {birth_datetime}")
-                
-                # 计算八字（这个计算很快，可以同步执行）
-                try:
-                    bazi_chart = calculate_bazi(birth_datetime, gender)
-                except Exception as e:
-                    logging.error(f"八字计算失败: {str(e)}")
-                    logging.error(traceback.format_exc())
-                    return jsonify(code=500, message=f"八字计算失败: {str(e)}"), 500
-                
-                if not bazi_chart:
-                    return jsonify(code=500, message="八字计算失败"), 500
-                
-                # 创建或更新分析结果，但不包含AI分析
-                if result_id:
-                    # 更新现有结果的八字图
-                    BaziResultModel.update_bazi_chart(result_id, bazi_chart)
-                    new_result_id = result_id
-                else:
-                    # 创建新结果
-                    new_result_id = f"RES{order_id}"
-                    success = BaziResultModel.create_result_with_id(
-                        new_result_id,
-                        None,  # user_id
-                        order_id,
-                        birth_date,
-                        birth_time,
-                        gender,
-                        None,  # area
-                        bazi_chart
-                    )
-                
-                # 异步生成AI分析
-                async_task(async_generate_analysis, new_result_id, bazi_chart, gender)
-                
-                # 立即返回响应
-                return jsonify(
-                    code=200,
-                    message="支付成功，正在生成分析",
-                    data={
-                        "orderId": order_id,
-                        "resultId": new_result_id
-                    }
-                )
-            except Exception as e:
-                logging.error(f"处理八字计算失败: {str(e)}")
-                logging.error(traceback.format_exc())
-                return jsonify(code=500, message=str(e)), 500
-                
     except Exception as e:
         logging.error(f"模拟支付失败: {str(e)}")
         logging.error(traceback.format_exc())

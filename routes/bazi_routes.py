@@ -113,10 +113,17 @@ def get_bazi_pdf(result_id):
 @bazi_bp.route('/followup/<result_id>/<area>', methods=['GET'])
 def get_followup_analysis(result_id, area):
     try:
+        # 记录请求的原始area值
+        logging.info(f"请求追问分析: 结果ID={result_id}, 领域={area}")
+        
         # 从数据库获取追问分析结果
         result = BaziResultModel.get_followup_analysis(result_id, area)
         if not result:
+            logging.warning(f"未找到追问分析结果: {result_id}, {area}")
             return jsonify(code=404, message="未找到追问分析结果"), 404
+        
+        # 记录返回的结果结构
+        logging.info(f"成功获取追问分析: 结果={result.get('area')}, 分析长度={len(result.get('analysis', '')) if result.get('analysis') else 0}")
             
         return jsonify(code=200, data=result)
     except Exception as e:
@@ -127,8 +134,17 @@ def get_followup_analysis(result_id, area):
 @bazi_bp.route('/followup/list/<result_id>', methods=['GET'])
 def get_followup_list(result_id):
     try:
+        logging.info(f"获取追问列表: {result_id}")
+        
         # 从数据库获取已支付的追问列表
         followups = BaziResultModel.get_followup_list(result_id)
+        
+        # 记录返回结果
+        if followups:
+            logging.info(f"找到{len(followups)}个追问分析，领域: {[f.get('area') for f in followups if isinstance(f, dict)]}")
+        else:
+            logging.info(f"未找到任何追问分析")
+            
         return jsonify(code=200, data={"followups": followups})
     except Exception as e:
         logging.error(f"获取追问列表失败: {str(e)}")

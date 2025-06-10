@@ -910,6 +910,9 @@ class BaziResultModel:
         try:
             logger.info(f"更新追问分析结果: {result_id}, 领域: {area}")
             
+            # 记录原始area值，用于前端匹配
+            original_area = area
+            
             # 获取当前记录
             result = results_collection.find_one({"_id": result_id})
             if not result:
@@ -923,7 +926,7 @@ class BaziResultModel:
                 followups = {}
                 
             # 更新指定领域的分析结果
-            followups[area] = analysis
+            followups[original_area] = analysis
                 
             # 更新结果记录
             update_result = results_collection.update_one(
@@ -1090,50 +1093,127 @@ class BaziResultModel:
             return False
     
     @staticmethod
+    def update_field(result_id, field_name, field_value):
+        """更新结果记录的特定字段"""
+        try:
+            logger.info(f"更新结果字段: {result_id}, 字段: {field_name}")
+            
+            # 更新结果记录
+            update_result = results_collection.update_one(
+                {"_id": result_id},
+                {"$set": {
+                    field_name: field_value,
+                    "updateTime": datetime.now()
+                }}
+            )
+            
+            success = update_result.modified_count > 0
+            logger.info(f"更新结果字段{'成功' if success else '失败'}")
+            return success
+        except Exception as e:
+            logger.error(f"更新结果字段失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False
+            
+    @staticmethod
+    def get_result(result_id):
+        """获取完整的结果记录"""
+        try:
+            logger.info(f"获取结果记录: {result_id}")
+            return results_collection.find_one({"_id": result_id})
+        except Exception as e:
+            logger.error(f"获取结果记录失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return None
+
+    @staticmethod
     def get_followup_list(result_id):
         """获取已支付的追问列表"""
         try:
-            # 从数据库获取结果
+            logger.info(f"获取追问列表: {result_id}")
+            
+            # 从数据库获取结果记录
             result = results_collection.find_one({"_id": result_id})
             if not result:
+                logger.warning(f"找不到结果记录: {result_id}")
                 return []
-            
-            # 获取已支付的追问列表
-            followups = result.get('followups', [])
-            return followups
+                
+            # 首先检查是否有新的followupPaid字段
+            paid_areas = result.get('followupPaid', [])
+            if paid_areas and isinstance(paid_areas, list):
+                logger.info(f"从followupPaid字段找到已支付领域: {paid_areas}")
+                # 格式化为前端需要的格式
+                return [{"area": area} for area in paid_areas]
+                
+            # 如果没有找到followupPaid字段，尝试从followups中获取
+            followups = result.get('followups', {})
+            if not followups:
+                logger.info(f"结果记录中没有追问数据")
+                return []
+                
+            # 检查followups是否是字典类型
+            if isinstance(followups, dict):
+                # 如果是字典，将其转换为列表格式
+                logger.info(f"从followups字典中提取领域: {list(followups.keys())}")
+                return [{"area": area} for area in followups.keys()]
+            elif isinstance(followups, list):
+                # 如果已经是列表，直接返回
+                logger.info(f"followups已经是列表格式")
+                return followups
+                
+            # 如果无法处理，返回空列表
+            logger.warning(f"无法处理的followups格式: {type(followups)}")
+            return []
         except Exception as e:
-            logging.error(f"获取追问列表失败: {str(e)}")
-            logging.error(traceback.format_exc())
+            logger.error(f"获取追问列表失败: {str(e)}")
+            logger.error(traceback.format_exc())
             return []
     
     @staticmethod
     def get_followup_analysis(result_id, area):
-        """获取特定领域的追问分析结果"""
+        """获取特定追问分析结果"""
         try:
-            # 从数据库获取结果
+            logger.info(f"查询追问分析: {result_id}, 领域: {area}")
+            
+            # 获取结果记录
             result = results_collection.find_one({"_id": result_id})
             if not result:
+                logger.warning(f"找不到结果记录: {result_id}")
                 return None
             
             # 获取追问分析结果
             followups = result.get('followups', {})
+            if not isinstance(followups, dict):
+                logger.warning(f"追问分析结果不是字典格式: {type(followups)}")
+                return None
+                
+            # 尝试直接匹配
+            if area in followups:
+                logger.info(f"找到精确匹配的追问分析: {area}")
+                return {"area": area, "analysis": followups[area]}
+                
+            # 尝试键名映射
+            key_mappings = {
+                "fiveYears": "future", 
+                "future": "fiveYears"
+            }
             
-            # 检查followups是否是字典类型
-            if isinstance(followups, dict):
-                # 如果是字典，直接从key中获取
-                if area in followups:
-                    return {"area": area, "analysis": followups[area]}
-            elif isinstance(followups, list):
-                # 如果是列表，遍历查找
-                for followup in followups:
-                    if isinstance(followup, dict) and followup.get('area') == area:
-                        return followup
-            
-            # 没有找到对应的追问分析
+            if area in key_mappings and key_mappings[area] in followups:
+                mapped_key = key_mappings[area]
+                logger.info(f"找到键名映射的追问分析: {area} -> {mapped_key}")
+                return {"area": area, "analysis": followups[mapped_key]}
+                
+            # 最后尝试大小写不敏感匹配
+            for key in followups:
+                if key.lower() == area.lower():
+                    logger.info(f"找到大小写不敏感匹配的追问分析: {key}")
+                    return {"area": area, "analysis": followups[key]}
+                    
+            logger.warning(f"未找到追问分析: {area}, 可用键: {list(followups.keys())}")
             return None
         except Exception as e:
-            logging.error(f"获取追问分析失败: {str(e)}")
-            logging.error(traceback.format_exc())
+            logger.error(f"获取追问分析失败: {str(e)}")
+            logger.error(traceback.format_exc())
             return None
     
     @staticmethod

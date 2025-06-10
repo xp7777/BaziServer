@@ -4,7 +4,7 @@ import logging
 import requests
 import openai
 import time
-import datetime
+from datetime import datetime
 import traceback
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def get_prompt_template(focus_area):
     """
     templates = {
         "health": """
-        请作为一名专业的命理师，基于下面的八字命盘数据，分析此人的健康状况和潜在健康风险。
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人的健康状况和潜在健康风险。
         
         八字信息：
         性别：{gender}
@@ -47,7 +47,7 @@ def get_prompt_template(focus_area):
         火：{fire}
         土：{earth}
         
-        请从五行平衡的角度分析其健康状况，包括：
+        请从五行平衡的角度专门分析其健康状况，包括：
         1. 整体健康状况评估
         2. 潜在的健康风险点
         3. 容易出现的健康问题
@@ -58,7 +58,7 @@ def get_prompt_template(focus_area):
         """,
         
         "wealth": """
-        请作为一名专业的命理师，基于下面的八字命盘数据，分析此人的财运和发财机遇。
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人的财运和发财机遇。
         
         八字信息：
         性别：{gender}
@@ -77,7 +77,7 @@ def get_prompt_template(focus_area):
         火：{fire}
         土：{earth}
         
-        请从八字命理的角度分析其财运状况，包括：
+        请从八字命理的角度专门分析其财运状况，包括：
         1. 整体财运评估
         2. 财富来源和积累方式
         3. 适合从事的财富相关行业
@@ -88,7 +88,7 @@ def get_prompt_template(focus_area):
         """,
         
         "career": """
-        请作为一名专业的命理师，基于下面的八字命盘数据，分析此人的事业发展和职业选择。
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人的事业发展和职业选择。
         
         八字信息：
         性别：{gender}
@@ -107,7 +107,7 @@ def get_prompt_template(focus_area):
         火：{fire}
         土：{earth}
         
-        请从八字命理的角度分析其事业状况，包括：
+        请从八字命理的角度专门分析其事业状况，包括：
         1. 事业发展总体趋势
         2. 适合从事的行业和职业
         3. 事业发展中的优势和障碍
@@ -118,7 +118,7 @@ def get_prompt_template(focus_area):
         """,
         
         "relationship": """
-        请作为一名专业的命理师，基于下面的八字命盘数据，分析此人的婚姻感情状况。
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人的婚姻感情状况。
         
         八字信息：
         性别：{gender}
@@ -137,7 +137,7 @@ def get_prompt_template(focus_area):
         火：{fire}
         土：{earth}
         
-        请从八字命理的角度分析其婚姻感情状况，包括：
+        请从八字命理的角度专门分析其婚姻感情状况，包括：
         1. 感情和婚姻总体运势
         2. 适合的伴侣类型和特征
         3. 婚姻中可能面临的挑战
@@ -148,7 +148,7 @@ def get_prompt_template(focus_area):
         """,
         
         "children": """
-        请作为一名专业的命理师，基于下面的八字命盘数据，分析此人的子女缘分和家庭关系。
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人的子女缘分和家庭关系。
         
         八字信息：
         性别：{gender}
@@ -167,7 +167,7 @@ def get_prompt_template(focus_area):
         火：{fire}
         土：{earth}
         
-        请从八字命理的角度分析其子女缘分，包括：
+        请从八字命理的角度专门分析其子女缘分，包括：
         1. 子女缘分总体评估
         2. 可能的子女数量和性别
         3. 与子女的关系特点
@@ -175,6 +175,126 @@ def get_prompt_template(focus_area):
         5. 提升家庭和谐的具体建议
         
         请在回答中使用专业的五行理论，同时确保答案通俗易懂，给予实用的家庭关系建议。
+        """,
+
+        "parents": """
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人与父母的关系和孝道情况。
+        
+        八字信息：
+        性别：{gender}
+        出生日期：{birth_year}年{birth_month}月{birth_day}日{birth_hour}时
+        
+        八字命盘：
+        年柱：{year_pillar_stem}{year_pillar_branch}
+        月柱：{month_pillar_stem}{month_pillar_branch}
+        日柱：{day_pillar_stem}{day_pillar_branch}
+        时柱：{hour_pillar_stem}{hour_pillar_branch}
+        
+        五行分布：
+        金：{metal}
+        木：{wood}
+        水：{water}
+        火：{fire}
+        土：{earth}
+        
+        请从八字命理的角度专门分析其与父母的关系，包括：
+        1. 与父母关系的总体状况
+        2. 与父亲的关系特点和发展
+        3. 与母亲的关系特点和发展
+        4. 如何改善与父母的关系
+        5. 孝道方面的建议和注意事项
+        
+        请在回答中使用专业的五行理论，同时确保答案通俗易懂，给予实用的亲子关系建议。
+        """,
+
+        "education": """
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人的学业发展和学习能力。
+        
+        八字信息：
+        性别：{gender}
+        出生日期：{birth_year}年{birth_month}月{birth_day}日{birth_hour}时
+        
+        八字命盘：
+        年柱：{year_pillar_stem}{year_pillar_branch}
+        月柱：{month_pillar_stem}{month_pillar_branch}
+        日柱：{day_pillar_stem}{day_pillar_branch}
+        时柱：{hour_pillar_stem}{hour_pillar_branch}
+        
+        五行分布：
+        金：{metal}
+        木：{wood}
+        水：{water}
+        火：{fire}
+        土：{earth}
+        
+        请从八字命理的角度专门分析其学业情况，包括：
+        1. 学习能力和思维方式
+        2. 适合的学习领域和学科
+        3. 学业中的优势和挑战
+        4. 大运流年中的关键学习阶段
+        5. 提升学业成绩的具体建议
+        
+        请在回答中使用专业的五行理论，同时确保答案通俗易懂，给予实用的学业发展建议。
+        """,
+
+        "social": """
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人的人际关系和社交能力。
+        
+        八字信息：
+        性别：{gender}
+        出生日期：{birth_year}年{birth_month}月{birth_day}日{birth_hour}时
+        
+        八字命盘：
+        年柱：{year_pillar_stem}{year_pillar_branch}
+        月柱：{month_pillar_stem}{month_pillar_branch}
+        日柱：{day_pillar_stem}{day_pillar_branch}
+        时柱：{hour_pillar_stem}{hour_pillar_branch}
+        
+        五行分布：
+        金：{metal}
+        木：{wood}
+        水：{water}
+        火：{fire}
+        土：{earth}
+        
+        请从八字命理的角度专门分析其人际关系状况，包括：
+        1. 社交能力和人际交往特点
+        2. 朋友关系和人脉资源
+        3. 人际关系中的优势和挑战
+        4. 大运流年中的社交发展阶段
+        5. 提升人际关系的具体建议
+        
+        请在回答中使用专业的五行理论，同时确保答案通俗易懂，给予实用的社交能力提升建议。
+        """,
+
+        "future": """
+        请作为一名专业的命理师，基于下面的八字命盘数据，专门分析此人未来五年的运势发展。
+        
+        八字信息：
+        性别：{gender}
+        出生日期：{birth_year}年{birth_month}月{birth_day}日{birth_hour}时
+        
+        八字命盘：
+        年柱：{year_pillar_stem}{year_pillar_branch}
+        月柱：{month_pillar_stem}{month_pillar_branch}
+        日柱：{day_pillar_stem}{day_pillar_branch}
+        时柱：{hour_pillar_stem}{hour_pillar_branch}
+        
+        五行分布：
+        金：{metal}
+        木：{wood}
+        水：{water}
+        火：{fire}
+        土：{earth}
+        
+        请从八字命理的角度专门分析其未来五年运势，包括：
+        1. 未来五年总体运势
+        2. 每年的具体运势变化
+        3. 事业、财运、感情、健康等方面的发展
+        4. 未来五年中的关键时间点
+        5. 把握机遇和规避风险的具体建议
+        
+        请在回答中使用专业的五行理论，同时确保答案通俗易懂，给予实用的未来规划建议。
         """,
         
         "overall": """
@@ -207,6 +327,27 @@ def get_prompt_template(focus_area):
         请在回答中使用专业的五行理论，同时确保答案通俗易懂，给予实用的人生指导建议。
         """
     }
+    
+    # 如果找不到特定领域的模板，返回最接近的领域模板
+    if focus_area not in templates:
+        # 映射别名
+        aliases = {
+            "marriage": "relationship",
+            "work": "career",
+            "money": "wealth",
+            "family": "children",
+            "study": "education",
+            "friends": "social",
+            "fiveYears": "future"  # 保持这个映射，因为模板名叫future
+        }
+        # 使用映射的键名查找模板
+        template_key = aliases.get(focus_area, "overall")
+        
+        # 如果用的是fiveYears，记录映射关系
+        if focus_area == "fiveYears":
+            logger.info(f"将fiveYears映射到future模板")
+        
+        return templates.get(template_key, templates["overall"])
     
     return templates.get(focus_area, templates["overall"])
 
@@ -291,7 +432,7 @@ def format_prompt(bazi_data, gender, birth_time, focus_area):
         prompt += "\n\n" + flowing_years_text
     
     # 添加当前年份提示，确保AI使用正确的信息
-    current_year = datetime.datetime.now().year
+    current_year = datetime.now().year
     prompt += f"\n\n重要说明：当前年份是{current_year}年。请使用上述提供的流年信息进行分析，不要自行计算流年。"
     
     return prompt
@@ -379,7 +520,7 @@ def call_deepseek_api(prompt):
             logging.warning(f"无法提取出生年份: {e}")
         
         # 计算当前年龄
-        current_year = datetime.datetime.now().year
+        current_year = datetime.now().year
         age = current_year - birth_year if birth_year else None
         
         # 记录年龄信息
@@ -464,12 +605,12 @@ def call_deepseek_api(prompt):
         logger.info(f"系统提示前100字符: {system_prompt[:100]}...")
         
         # 发送请求并记录时间
-        start_time = datetime.datetime.now()
+        start_time = datetime.now()
         logger.info(f"开始API请求时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         
         response = requests.post(DEEPSEEK_API_URL, headers=headers, json=data)
         
-        end_time = datetime.datetime.now()
+        end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
         logger.info(f"API请求完成，耗时: {duration:.2f}秒")
         
@@ -585,10 +726,10 @@ def generate_bazi_analysis(bazi_chart, gender):
         神煞信息：
         日冲：{shen_sha.get('dayChong', '无')}
         值神：{shen_sha.get('zhiShen', '无')}
+        彭祖百忌: {shen_sha.get('pengZuGan', '')} {shen_sha.get('pengZuZhi', '')}
         喜神：{shen_sha.get('xiShen', '无')}
         福神：{shen_sha.get('fuShen', '无')}
         财神：{shen_sha.get('caiShen', '无')}
-        本命神煞：{', '.join(shen_sha.get('benMing', [])) or '无'}
         
         大运信息：
         起运年龄：{da_yun.get('startAge', '无')}岁
@@ -673,9 +814,9 @@ def generate_bazi_analysis(bazi_chart, gender):
         
         # 调用AI接口
         logger.info("开始调用DeepSeek API生成分析...")
-        start_time = datetime.datetime.now()
+        start_time = datetime.now()
         response = call_deepseek_api(prompt)
-        end_time = datetime.datetime.now()
+        end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
         
         # 记录API调用时间
@@ -705,7 +846,7 @@ def generate_bazi_analysis(bazi_chart, gender):
         logger.error(traceback.format_exc())
         return None
 
-def generate_followup_analysis(bazi_chart, area, gender):
+def generate_followup_analysis(bazi_chart, area, gender, previous_analysis=None):
     """
     生成追问分析
     
@@ -713,6 +854,7 @@ def generate_followup_analysis(bazi_chart, area, gender):
         bazi_chart: 八字图表数据
         area: 分析领域
         gender: 性别
+        previous_analysis: 之前的整体分析结果(可选)
         
     Returns:
         str: 分析结果
@@ -729,25 +871,120 @@ def generate_followup_analysis(bazi_chart, area, gender):
         # 提取五行分布
         five_elements = bazi_chart['fiveElements']
         
-        # 提取出生年份，默认为当年
-        birth_year = datetime.now().year
+        # 提取出生信息
+        birth_year = None
+        birth_month = None
+        birth_day = None
+        birth_hour = None
+        
+        # 从birthDate中提取年月日
         if 'birthDate' in bazi_chart and bazi_chart['birthDate']:
-            # 尝试从birthDate中提取年份
             try:
                 birth_date = bazi_chart['birthDate']
-                if isinstance(birth_date, str) and len(birth_date) >= 4:
-                    # 假设birthDate格式为"YYYY-MM-DD"或"YYYY/MM/DD"等
-                    birth_year = int(birth_date[:4])
-                elif hasattr(birth_date, 'year'):
-                    # 如果是日期对象
-                    birth_year = birth_date.year
+                if isinstance(birth_date, str):
+                    # 尝试解析不同的日期格式
+                    if "-" in birth_date:
+                        parts = birth_date.split("-")
+                        if len(parts) >= 3:
+                            birth_year = int(parts[0])
+                            birth_month = int(parts[1])
+                            birth_day = int(parts[2])
+                    elif "/" in birth_date:
+                        parts = birth_date.split("/")
+                        if len(parts) >= 3:
+                            birth_year = int(parts[0])
+                            birth_month = int(parts[1])
+                            birth_day = int(parts[2])
+                    elif len(birth_date) >= 8:  # 可能是YYYYMMDD格式
+                        birth_year = int(birth_date[:4])
+                        birth_month = int(birth_date[4:6])
+                        birth_day = int(birth_date[6:8])
             except Exception as e:
-                logger.warning(f"从birthDate提取年份失败: {e}, 使用当前年份")
+                logger.warning(f"从birthDate提取日期失败: {e}")
+        
+        # 从birthTime中提取时辰
+        if 'birthTime' in bazi_chart and bazi_chart['birthTime']:
+            birth_hour = bazi_chart['birthTime']
+        
+        # 如果没有获取到年月日，使用当前日期
+        current_date = datetime.now()
+        if not birth_year:
+            birth_year = current_date.year
+        if not birth_month:
+            birth_month = current_date.month
+        if not birth_day:
+            birth_day = current_date.day
+        if not birth_hour:
+            birth_hour = "未知时辰"
+            
+        logger.info(f"解析的出生信息: 年={birth_year}, 月={birth_month}, 日={birth_day}, 时={birth_hour}")
         
         # 获取对应领域的提示词模板
         template = get_prompt_template(area)
         
-        # 填充提示词
+        # 调整提示词，添加之前的分析信息作为参考
+        context = ""
+        if 'aiAnalysis' in bazi_chart and bazi_chart['aiAnalysis']:
+            # 如果有之前的分析，添加与当前追问领域相关的内容
+            ai_analysis = bazi_chart['aiAnalysis']
+            
+            # 获取领域映射
+            related_fields = {
+                "health": ["health", "coreAnalysis", "fiveElements"],
+                "wealth": ["wealth", "career", "fiveElements"],
+                "career": ["career", "wealth", "fiveElements"],
+                "relationship": ["relationship", "coreAnalysis"],
+                "children": ["children", "relationship"],
+                "parents": ["parents", "coreAnalysis"],
+                "education": ["education", "coreAnalysis"],
+                "social": ["social", "coreAnalysis"],
+                "future": ["future", "keyPoints"]
+            }
+            
+            # 默认相关字段
+            related = related_fields.get(area, [area, "coreAnalysis"])
+            
+            # 添加相关的分析内容作为上下文
+            context += "\n\n之前的分析概要（仅供参考）：\n"
+            for field in related:
+                if field in ai_analysis and ai_analysis[field]:
+                    context += f"\n{field}分析：{ai_analysis[field][:300]}...\n"
+        
+        # 添加神煞和大运信息
+        shen_sha_info = ""
+        if 'shenSha' in bazi_chart and bazi_chart['shenSha']:
+            shen_sha = bazi_chart['shenSha']
+            shen_sha_info = "\n\n神煞信息：\n"
+            if 'benMing' in shen_sha and shen_sha['benMing']:
+                shen_sha_info += f"本命神煞：{', '.join(shen_sha['benMing']) or '无'}\n"
+            
+        da_yun_info = ""
+        if 'daYun' in bazi_chart and bazi_chart['daYun']:
+            da_yun = bazi_chart['daYun']
+            da_yun_info = "\n\n大运信息：\n"
+            da_yun_info += f"起运年龄：{da_yun.get('startAge', 0)}岁\n"
+            da_yun_info += f"起运年份：{da_yun.get('startYear', birth_year)}年\n"
+            da_yun_info += f"大运顺序：{'顺行' if da_yun.get('isForward', True) else '逆行'}\n"
+        
+        # 添加流年信息
+        liu_nian_info = ""
+        if 'flowingYears' in bazi_chart and bazi_chart['flowingYears']:
+            liu_nian = bazi_chart['flowingYears']
+            current_year = datetime.now().year
+            liu_nian_info = "\n\n流年信息：\n"
+            
+            # 只显示当前年份和未来4年的流年
+            relevant_years = [year for year in liu_nian if isinstance(year, dict) and year.get('year', 0) >= current_year]
+            relevant_years = sorted(relevant_years, key=lambda x: x.get('year', 0))[:5]
+            
+            for year_data in relevant_years:
+                year = year_data.get('year', '')
+                age = year_data.get('age', '')
+                heavenly_stem = year_data.get('heavenlyStem', '')
+                earthly_branch = year_data.get('earthlyBranch', '')
+                liu_nian_info += f"{year}年({age}岁): {heavenly_stem}{earthly_branch}\n"
+        
+        # 填充最终的提示词
         prompt = template.format(
             gender=gender,
             year_pillar_stem=year_pillar['heavenlyStem'],
@@ -763,19 +1000,35 @@ def generate_followup_analysis(bazi_chart, area, gender):
             water=five_elements['water'],
             fire=five_elements['fire'],
             earth=five_elements['earth'],
-            birth_year=birth_year
+            birth_year=birth_year,
+            birth_month=birth_month,
+            birth_day=birth_day,
+            birth_hour=birth_hour
         )
+        
+        # 添加上下文信息
+        prompt += context + shen_sha_info + da_yun_info + liu_nian_info
+        
+        # 添加追问的明确目的
+        prompt += f"\n\n请专注于{area}领域的深入分析，提供更具体、实用的建议。请确保分析内容符合被测人的年龄和实际情况。"
         
         # 调用AI接口
         response = call_deepseek_api(prompt)
         
-        logger.info("追问分析生成完成")
-        return response
+        # 检查并格式化返回结果
+        if response:
+            logger.info("追问分析生成完成")
+            return response
+        else:
+            logger.error("追问分析生成失败，API返回为空")
+            return f"很抱歉，{area}分析生成失败，请稍后重试。"
         
     except Exception as e:
         logger.error(f"生成追问分析失败: {str(e)}")
         logger.error(traceback.format_exc())
-        return None
+        
+        # 返回默认错误信息而不是None，确保用户得到反馈
+        return f"很抱歉，生成{area}分析时遇到了技术问题，请稍后重试。错误信息：{str(e)}"
 
 def analyze_bazi_with_ai(bazi_data):
     """
