@@ -100,12 +100,17 @@ def get_bazi_pdf(result_id):
             logging.error(f"未找到分析结果: {result_id}")
             return jsonify(code=404, message="未找到分析结果"), 404
         
-        # 检查数据库中是否已有PDF内容
-        pdf_content = BaziResultModel.get_pdf_content(result_id)
+        # 检查URL参数是否要求强制重新生成
+        force_regenerate = request.args.get('force', 'false').lower() == 'true'
         
-        # 如果没有PDF内容，即时生成
-        if not pdf_content:
-            logging.info(f"数据库中无PDF内容，即时生成: {result_id}")
+        # 获取PDF内容（如果force_regenerate为True，则跳过缓存）
+        pdf_content = None
+        if not force_regenerate:
+            pdf_content = BaziResultModel.get_pdf_content(result_id)
+        
+        # 如果没有PDF内容或强制重新生成，即时生成
+        if not pdf_content or force_regenerate:
+            logging.info(f"正在重新生成PDF内容: {result_id}, force={force_regenerate}")
             
             # 导入PDF生成器
             from utils.pdf_generator import generate_pdf_content

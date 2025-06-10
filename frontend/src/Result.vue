@@ -819,9 +819,9 @@ const downloadPDFAsStream = async () => {
   try {
     console.log('直接下载报告, 结果ID:', resultId.value);
     
-    // 创建下载链接，添加时间戳避免缓存问题
+    // 创建下载链接，添加时间戳避免缓存问题和force参数强制重新生成
     const timestamp = new Date().getTime();
-    const downloadUrl = `/api/bazi/pdf/${resultId.value}?t=${timestamp}`;
+    const downloadUrl = `/api/bazi/pdf/${resultId.value}?t=${timestamp}&force=true`;
     console.log('下载URL:', downloadUrl);
     
     // 使用fetch API获取文件流
@@ -1002,7 +1002,7 @@ const downloadPDFAsStream = async () => {
 // 修改主下载函数，添加重试逻辑
 const downloadPDF = async () => {
   Toast.loading({
-    message: '正在生成并下载PDF报告...',
+    message: '正在准备生成PDF报告...',
     duration: 5000,
     position: 'middle'
   });
@@ -1012,39 +1012,62 @@ const downloadPDF = async () => {
     return;
   }
   
-  // 最多尝试3次下载
-  let attempts = 0;
-  let success = false;
-  
-  while (attempts < 3 && !success) {
-    attempts++;
-    
-    if (attempts > 1) {
-      console.log(`尝试第${attempts}次下载...`);
-      Toast.loading({
-        message: `尝试第${attempts}次下载...`,
-        duration: 2000
-      });
-      // 在重试之前等待一段时间
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-    
-    // 使用流式下载模式，并处理返回值
-    success = await downloadPDFAsStream();
-    
-    // 如果流式下载成功，直接返回，不再尝试其他方法
-    if (success === true) {
-      return;
-    }
-  }
-  
-  // 如果多次尝试后仍然失败，提示用户
-  if (!success) {
-    Toast.clear();
-    Dialog.alert({
-      title: 'PDF下载失败',
-      message: '下载PDF报告失败，请稍后再试。如果问题持续存在，请联系客服。',
+  try {
+    // 先重新加载最新的数据，确保PDF包含最新的追问分析结果
+    Toast.loading({
+      message: '正在同步最新数据...',
+      duration: 5000
     });
+    
+    // 获取最新的基础分析结果
+    await getBaziResult();
+    
+    // 获取最新的追问分析结果
+    await loadFollowupResults();
+    
+    Toast.loading({
+      message: '正在生成并下载PDF报告...',
+      duration: 5000
+    });
+    
+    // 最多尝试3次下载
+    let attempts = 0;
+    let success = false;
+    
+    while (attempts < 3 && !success) {
+      attempts++;
+      
+      if (attempts > 1) {
+        console.log(`尝试第${attempts}次下载...`);
+        Toast.loading({
+          message: `尝试第${attempts}次下载...`,
+          duration: 2000
+        });
+        // 在重试之前等待一段时间
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      // 使用流式下载模式，并处理返回值
+      success = await downloadPDFAsStream();
+      
+      // 如果流式下载成功，直接返回，不再尝试其他方法
+      if (success === true) {
+        return;
+      }
+    }
+    
+    // 如果多次尝试后仍然失败，提示用户
+    if (!success) {
+      Toast.clear();
+      Dialog.alert({
+        title: 'PDF下载失败',
+        message: '下载PDF报告失败，请稍后再试。如果问题持续存在，请联系客服。',
+      });
+    }
+  } catch (error) {
+    console.error('下载PDF过程中发生错误:', error);
+    Toast.clear();
+    Toast.fail('生成PDF报告失败: ' + (error.message || '未知错误'));
   }
 };
 
