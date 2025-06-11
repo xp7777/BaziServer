@@ -403,6 +403,14 @@ def mock_pay(order_id):
             logging.info(f"订单已支付: {order_id}")
             # 返回该订单对应的结果ID
             result_id = order.get('resultId')
+            
+            # 如果订单没有关联的resultId，创建一个新的
+            if not result_id:
+                logging.warning(f"已支付订单没有resultId，创建新的resultId: {order_id}")
+                result_id = f"RESBZ{int(time.time())}"
+                OrderModel.update_order_result_id(order_id, result_id)
+                logging.info(f"为已支付订单创建resultId: {result_id}")
+                
             return jsonify(code=200, message="订单已支付", data={"resultId": result_id})
             
         # 更新订单状态为已支付
@@ -425,10 +433,17 @@ def mock_pay(order_id):
             birth_time = data.get('birthTime')
             gender = data.get('gender')
             
+            # 构建八字命盘数据
+            bazi_chart = {
+                'birthDate': birth_date,
+                'birthTime': birth_time,
+                'gender': gender
+            }
+            
             # 异步生成分析
             threading.Thread(
                 target=async_generate_analysis, 
-                args=(result_id, birth_date, birth_time, gender)
+                args=(result_id, bazi_chart, gender)
             ).start()
             
             return jsonify(code=200, message="支付成功，正在生成分析", data={"resultId": result_id})
