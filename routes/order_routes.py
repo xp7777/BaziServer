@@ -11,6 +11,7 @@ import logging
 from utils.bazi_calculator import calculate_bazi
 from utils.ai_service import analyze_bazi_with_ai, extract_analysis_from_text, generate_bazi_analysis, generate_followup_analysis
 import threading
+from pymongo import MongoClient
 
 order_bp = Blueprint('order', __name__)
 
@@ -407,10 +408,138 @@ def mock_pay(order_id):
             # 如果订单没有关联的resultId，创建一个新的
             if not result_id:
                 logging.warning(f"已支付订单没有resultId，创建新的resultId: {order_id}")
-                result_id = f"RESBZ{int(time.time())}"
-                OrderModel.update_order_result_id(order_id, result_id)
-                logging.info(f"为已支付订单创建resultId: {result_id}")
                 
+                # 使用一个固定的算法生成resultId，确保多次调用返回相同的ID
+                # 使用订单ID的哈希值，更加稳定
+                import hashlib
+                hash_obj = hashlib.md5(order_id.encode())
+                hash_hex = hash_obj.hexdigest()
+                result_id = f"RESBZ{hash_hex[:8]}"
+                
+                logging.info(f"为已支付订单创建固定的resultId: {result_id}")
+                OrderModel.update_order_result_id(order_id, result_id)
+                
+                # 从请求数据中获取必要的参数
+                birth_date = data.get('birthDate')
+                birth_time = data.get('birthTime')
+                gender = data.get('gender')
+                focus_areas = data.get('focusAreas', [])
+                
+                # 构建八字命盘数据
+                bazi_chart = {
+                    'birthDate': birth_date,
+                    'birthTime': birth_time,
+                    'gender': gender
+                }
+                
+                # 创建初始的八字分析结果记录
+                initial_result = {
+                    "_id": result_id,
+                    "orderId": order_id,
+                    "gender": gender,
+                    "birthTime": birth_time,
+                    "birthDate": birth_date, 
+                    "focusAreas": focus_areas,
+                    "baziChart": {
+                        'yearPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'monthPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'dayPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'hourPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'fiveElements': {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0},
+                        'gender': gender,
+                        'birthDate': birth_date,
+                        'birthTime': birth_time
+                    },
+                    "aiAnalysis": {
+                        'overall': '正在分析整体运势...',
+                        'health': '正在分析健康运势...',
+                        'wealth': '正在分析财运...',
+                        'career': '正在分析事业运势...',
+                        'relationship': '正在分析感情运势...',
+                        'children': '正在分析子女运势...'
+                    },
+                    "status": "processing",
+                    "createTime": datetime.now()
+                }
+                
+                # 首先检查该结果ID是否已存在
+                existing = BaziResultModel.find_by_id(result_id)
+                if existing:
+                    logging.info(f"结果ID {result_id} 已存在，无需重复创建")
+                else:
+                    # 创建结果记录
+                    try:
+                        # 直接使用insert_one而不是create方法，确保_id字段被正确使用
+                        mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+                        client = MongoClient(mongo_uri)
+                        db = client.get_database()
+                        results_collection = db.bazi_results
+                        
+                        results_collection.insert_one(initial_result)
+                        logging.info(f"成功直接插入初始八字分析记录: {result_id}")
+                        
+                        # 异步生成分析
+                        threading.Thread(
+                            target=async_generate_analysis, 
+                            args=(result_id, bazi_chart, gender)
+                        ).start()
+                    except Exception as e:
+                        logging.error(f"创建初始八字分析记录失败: {str(e)}")
+                        logging.error(traceback.format_exc())
+                
+            # 确认结果记录存在
+            bazi_result = BaziResultModel.find_by_id(result_id)
+            if not bazi_result:
+                logging.warning(f"结果记录 {result_id} 不存在，创建一个基本记录")
+                
+                # 从请求数据中获取必要的参数
+                birth_date = data.get('birthDate')
+                birth_time = data.get('birthTime')
+                gender = data.get('gender')
+                focus_areas = data.get('focusAreas', [])
+                
+                # 创建初始的八字分析结果记录
+                initial_result = {
+                    "_id": result_id,
+                    "orderId": order_id,
+                    "gender": gender,
+                    "birthTime": birth_time,
+                    "birthDate": birth_date, 
+                    "focusAreas": focus_areas,
+                    "baziChart": {
+                        'yearPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'monthPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'dayPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'hourPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                        'fiveElements': {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0},
+                        'gender': gender,
+                        'birthDate': birth_date,
+                        'birthTime': birth_time
+                    },
+                    "aiAnalysis": {
+                        'overall': '正在分析整体运势...',
+                        'health': '正在分析健康运势...',
+                        'wealth': '正在分析财运...',
+                        'career': '正在分析事业运势...',
+                        'relationship': '正在分析感情运势...',
+                        'children': '正在分析子女运势...'
+                    },
+                    "status": "processing",
+                    "createTime": datetime.now()
+                }
+                
+                # 直接使用insert_one插入记录
+                mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+                client = MongoClient(mongo_uri)
+                db = client.get_database()
+                results_collection = db.bazi_results
+                
+                try:
+                    results_collection.insert_one(initial_result)
+                    logging.info(f"紧急创建了初始八字分析记录: {result_id}")
+                except Exception as e:
+                    logging.error(f"紧急创建八字分析记录失败: {str(e)}")
+                    
             return jsonify(code=200, message="订单已支付", data={"resultId": result_id})
             
         # 更新订单状态为已支付
