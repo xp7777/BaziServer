@@ -2013,21 +2013,36 @@ const getBaziResult = async () => {
       
       // 更新AI分析结果
       if (response.data.data.aiAnalysis) {
+        // 直接从response.data.data.analysis获取分析结果
+        const analysis = response.data.data.analysis || {};
+        
+        // 更新aiAnalysis对象
         aiAnalysis.value = {
-          health: response.data.data.aiAnalysis.health || '',
-          career: response.data.data.aiAnalysis.career || '',
-          relationship: response.data.data.aiAnalysis.relationship || '',
-          children: response.data.data.aiAnalysis.children || '',
-          social: response.data.data.aiAnalysis.social || '',
-          future: response.data.data.aiAnalysis.future || '',
-          parents: response.data.data.aiAnalysis.parents || '',
-          education: response.data.data.aiAnalysis.education || '',
+          health: analysis.health || response.data.data.aiAnalysis.health || '',
+          career: analysis.career || response.data.data.aiAnalysis.career || '',
+          relationship: analysis.relationship || response.data.data.aiAnalysis.relationship || '',
+          children: analysis.children || response.data.data.aiAnalysis.children || '',
+          social: analysis.social || response.data.data.aiAnalysis.social || '',
+          future: analysis.future || response.data.data.aiAnalysis.future || '',
+          parents: analysis.parents || response.data.data.aiAnalysis.parents || '',
+          education: analysis.education || response.data.data.aiAnalysis.education || '',
           // 新增字段
-          coreAnalysis: response.data.data.aiAnalysis.coreAnalysis || '',
-          fiveElements: response.data.data.aiAnalysis.fiveElements || '',
-          shenShaAnalysis: response.data.data.aiAnalysis.shenShaAnalysis || '',
-          keyPoints: response.data.data.aiAnalysis.keyPoints || ''
+          coreAnalysis: analysis.coreAnalysis || response.data.data.aiAnalysis.coreAnalysis || '',
+          fiveElements: analysis.fiveElements || response.data.data.aiAnalysis.fiveElements || '',
+          shenShaAnalysis: analysis.shenShaAnalysis || response.data.data.aiAnalysis.shenShaAnalysis || '',
+          keyPoints: analysis.keyPoints || response.data.data.aiAnalysis.keyPoints || ''
         };
+        
+        // 检查分析状态和进度
+        const analysisStatus = response.data.data.analysisStatus || 'completed';
+        const analysisProgress = response.data.data.analysisProgress || 0;
+        
+        // 更新分析状态
+        isAnalyzing.value = analysisStatus === 'pending';
+        analyzeProgress.value = analysisProgress;
+        
+        console.log('分析状态:', analysisStatus, '分析进度:', analysisProgress);
+        console.log('AI分析结果更新:', aiAnalysis.value);
       }
       
       // 初始化追问选项

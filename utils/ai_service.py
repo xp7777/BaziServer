@@ -1304,7 +1304,8 @@ def extract_analysis_from_text(ai_text):
                 elif line in ["健康分析", "财运分析", "事业发展", "婚姻感情", "子女情况", 
                             "性格特点", "学业分析", "父母关系", "人际关系", "未来发展", 
                             "综合建议", "整体运势", "八字命局核心分析", "五行旺衰与用神", 
-                            "神煞解析", "大运与流年关键节点", "事业财运", "人生规划建议"]:
+                            "神煞解析", "大运与流年关键节点", "事业财运", "人生规划建议",
+                            "父母情况", "身体健康", "学业", "近五年运势"]:
                     section_name = line
                     is_new_section = True
                     detected_sections.append(f"行 {i+1}: 直接匹配标题 - {section_name}")
@@ -1356,7 +1357,8 @@ def extract_analysis_from_text(ai_text):
                 ("学业", "education"),
                 ("近五年运势", "future"),
                 ("人生规划建议", "overall"),
-                ("综合建议", "overall")
+                ("综合建议", "overall"),
+                ("身体健康", "health")
             ]
             
             # 构建匹配模式
@@ -1375,6 +1377,36 @@ def extract_analysis_from_text(ai_text):
                     content = longest_match.strip()
                     analysis[en_key] = content
                     logger.info(f"通过整体匹配提取到 {en_key} 部分，内容长度: {len(analysis[en_key])} 字符")
+        
+        # 特殊处理：提取父母情况和身体健康
+        if "children" in analysis and "父母情况" in analysis["children"]:
+            # 从子女情况中提取父母情况部分
+            parts = analysis["children"].split("父母情况")
+            if len(parts) > 1:
+                # 将第二部分作为父母情况
+                parent_parts = parts[1].split("身体健康") if "身体健康" in parts[1] else [parts[1]]
+                analysis["parents"] = parent_parts[0].strip()
+                logger.info(f"从children字段中提取到parents部分，内容长度: {len(analysis['parents'])} 字符")
+                
+                # 更新子女情况
+                analysis["children"] = parts[0].strip()
+                
+                # 如果有身体健康部分，也提取出来
+                if "身体健康" in parts[1]:
+                    health_parts = parts[1].split("身体健康")
+                    if len(health_parts) > 1:
+                        analysis["health"] = health_parts[1].strip()
+                        logger.info(f"从children字段中提取到health部分，内容长度: {len(analysis['health'])} 字符")
+        
+        # 特殊处理：从social字段中提取近五年运势
+        if "social" in analysis and "近五年运势" in analysis["social"]:
+            parts = analysis["social"].split("近五年运势")
+            if len(parts) > 1:
+                # 将第一部分保留为social
+                analysis["social"] = parts[0].strip()
+                # 将第二部分作为future
+                analysis["future"] = parts[1].strip()
+                logger.info(f"从social字段中提取到future部分，内容长度: {len(analysis['future'])} 字符")
         
         # 确保所有必要字段都存在
         required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
@@ -1423,67 +1455,113 @@ def extract_analysis_from_text(ai_text):
 
 # 添加辅助函数，映射中文标题到英文键名
 def map_section_name(section_name):
-    """将中文标题映射到英文键名"""
-    section_name = section_name.lower()
+    """映射章节名称到标准字段名
     
-    # 记录原始标题
-    logger.info(f"映射标题: '{section_name}'")
+    Args:
+        section_name: 章节名称
+        
+    Returns:
+        str: 标准字段名
+    """
+    # 去除前后空格
+    section_name = section_name.strip()
     
-    # 新增的映射关系
-    # 匹配八字命局核心分析
-    if '八字命局' in section_name or '命局核心' in section_name or '核心分析' in section_name:
-        return 'coreAnalysis'
-    # 匹配五行旺衰与用神
-    elif '五行旺衰' in section_name or '用神' in section_name:
-        return 'fiveElements'
-    # 匹配神煞解析
-    elif '神煞' in section_name:
-        return 'shenShaAnalysis'
-    # 匹配大运与流年关键节点
-    elif '大运' in section_name or '流年' in section_name or '关键节点' in section_name:
-        return 'keyPoints'
-    # 匹配事业财运
-    elif '事业财运' in section_name or ('事业' in section_name and '财运' in section_name):
-        return 'career'
-    # 匹配人生规划建议
-    elif '人生规划' in section_name:
-        return 'overall'
+    # 映射表
+    mapping = {
+        # 核心分析
+        "八字命局核心分析": "coreAnalysis",
+        "命局核心分析": "coreAnalysis",
+        "八字核心": "coreAnalysis",
+        
+        # 五行分析
+        "五行旺衰与用神": "fiveElements",
+        "五行分析": "fiveElements",
+        "五行": "fiveElements",
+        "用神分析": "fiveElements",
+        
+        # 神煞分析
+        "神煞解析": "shenShaAnalysis",
+        "神煞分析": "shenShaAnalysis",
+        
+        # 大运流年
+        "大运与流年关键节点": "keyPoints",
+        "大运流年": "keyPoints",
+        "流年大运": "keyPoints",
+        "大运分析": "keyPoints",
+        "流年分析": "keyPoints",
+        
+        # 婚姻感情
+        "婚姻感情": "relationship",
+        "婚姻": "relationship",
+        "感情": "relationship",
+        "婚恋": "relationship",
+        "未来感情发展": "relationship",
+        
+        # 事业财运
+        "事业财运": "career",
+        "事业": "career",
+        "事业发展": "career",
+        "未来事业财运": "career",
+        
+        # 财运
+        "财运": "wealth",
+        "财运分析": "wealth",
+        "财富": "wealth",
+        
+        # 子女
+        "子女情况": "children",
+        "子女": "children",
+        "未来子女缘分": "children",
+        
+        # 父母
+        "父母情况": "parents",
+        "父母关系": "parents",
+        "父母": "parents",
+        
+        # 健康
+        "身体健康": "health",
+        "健康": "health",
+        "健康分析": "health",
+        
+        # 学业
+        "学业": "education",
+        "学业分析": "education",
+        "教育": "education",
+        
+        # 人际关系
+        "人际关系": "social",
+        "社交": "social",
+        "人际": "social",
+        
+        # 未来运势
+        "近五年运势": "future",
+        "未来运势": "future",
+        "运势": "future",
+        "未来发展": "future",
+        "未来五年": "future",
+        
+        # 综合建议
+        "人生规划建议": "overall",
+        "综合建议": "overall",
+        "整体运势": "overall",
+        "总结建议": "overall",
+        
+        # 性格特点
+        "性格特点": "personality",
+        "性格": "personality",
+        "个性": "personality"
+    }
     
-    # 原有的映射关系
-    # 匹配总体/综合分析
-    elif '总体' in section_name or '综合' in section_name or '整体' in section_name:
-        return 'overall'
-    # 匹配健康分析
-    elif '健康' in section_name:
-        return 'health'
-    # 匹配财运分析
-    elif '财运' in section_name or '财富' in section_name:
-        return 'wealth'
-    # 匹配事业分析
-    elif '事业' in section_name or '职业' in section_name or '工作' in section_name:
-        return 'career'
-    # 匹配婚姻感情
-    elif '婚姻' in section_name or '感情' in section_name or '姻缘' in section_name:
-        return 'relationship'
-    # 匹配子女分析
-    elif '子女' in section_name or '儿女' in section_name:
-        return 'children'
-    # 匹配性格特点
-    elif '性格' in section_name or '个性' in section_name or '品格' in section_name:
-        return 'personality'
-    # 匹配学业分析
-    elif '学业' in section_name or '学习' in section_name or '教育' in section_name:
-        return 'education'
-    # 匹配父母关系
-    elif '父母' in section_name or '双亲' in section_name or '长辈' in section_name:
-        return 'parents'
-    # 匹配人际关系
-    elif '人际' in section_name or '社交' in section_name or '交友' in section_name:
-        return 'social'
-    # 匹配未来发展/运势
-    elif '未来' in section_name or '运势' in section_name or '后运' in section_name or '五年' in section_name:
-        return 'future'
-    # 默认返回原名
-    else:
-        logger.warning(f"无法识别的标题: '{section_name}'，使用原名")
-        return section_name 
+    # 尝试直接匹配
+    if section_name in mapping:
+        return mapping[section_name]
+    
+    # 尝试部分匹配
+    for key, value in mapping.items():
+        if key in section_name or section_name in key:
+            logger.info(f"映射标题: '{section_name}' -> '{value}'")
+            return value
+    
+    # 如果没有匹配项，使用原名
+    logger.warning(f"无法识别的标题: '{section_name}'，使用原名")
+    return section_name

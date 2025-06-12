@@ -265,6 +265,10 @@ def process_deepseek_analysis(result_id, result):
             del analyzing_results[result_id]
             return
         
+        # 获取性别信息
+        gender = result.get('gender', 'male')
+        logging.info(f"使用性别信息: {gender}")
+        
         # 更新分析进度
         result['analysisProgress'] = 20
         success = BaziResultModel.update(result_id, result)
@@ -274,7 +278,7 @@ def process_deepseek_analysis(result_id, result):
         # 调用DeepSeek API进行分析
         try:
             # 准备分析请求
-            analysis = generate_bazi_analysis(bazi_chart)
+            analysis = generate_bazi_analysis(bazi_chart, gender)
             logging.info(f"DeepSeek API分析完成: {result_id}")
             
             # 更新结果
