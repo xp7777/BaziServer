@@ -146,7 +146,7 @@ export default {
     
     const onPaymentSuccess = async () => {
       if (isProcessing.value) {
-        return; // 防止重复点击
+        return false;
       }
       
       isProcessing.value = true;
@@ -163,7 +163,11 @@ export default {
           birthDate,
           birthTime,
           gender,
-          focusAreas
+          focusAreas,
+          calendarType,
+          birthPlace,
+          livingPlace,
+          forceRecalculate: true  // 强制重新计算所有数据
         };
         
         const response = await axios.post(`http://localhost:5000/api/order/mock/pay/${orderId.value}`, paymentData, {
@@ -188,6 +192,59 @@ export default {
           }
           
           console.log('获取到结果ID:', resultId);
+          
+          // 请求立即计算完整的命盘数据
+          try {
+            Toast.loading({
+              message: '正在生成八字命盘...',
+              duration: 0,
+              forbidClick: true
+            });
+            
+            // 修改：使用正确的update API端点
+            console.log('正在请求更新八字数据:', resultId);
+            const updateResponse = await axios.post(`http://localhost:5000/api/bazi/update/${resultId}`, {
+              birthDate,
+              birthTime,
+              gender,
+              calendarType,
+              birthPlace,
+              livingPlace,
+              focusAreas,
+              forceRecalculate: true,        // 强制重新计算基础数据
+              generateShenshaData: true,     // 生成神煞数据
+              generateDayunData: true,       // 生成大运数据 
+              generateLiunianData: true,     // 生成流年数据
+              useDeepseekAPI: true           // 使用DeepSeek API进行分析
+            });
+            
+            console.log('八字数据更新响应:', updateResponse.data);
+            
+            if (updateResponse.data.code === 200) {
+              Toast.success('命盘数据生成中');
+              
+              // 确保延迟足够长，以便后端完成八字数据处理
+              setTimeout(async () => {
+                try {
+                  console.log('正在请求八字深度分析:', resultId);
+                  const analyzeResponse = await axios.post(`http://localhost:5000/api/bazi/analyze/${resultId}`, {
+                    useDeepseekAPI: true
+                  });
+                  console.log('八字深度分析响应:', analyzeResponse.data);
+                  Toast.success('命盘分析已开始，请稍后刷新查看结果');
+                } catch (analyzeError) {
+                  console.error('深度分析请求失败:', analyzeError);
+                  Toast.fail('命盘分析请求失败');
+                }
+              }, 3000); // 延长等待时间到3秒
+            } else {
+              console.error('八字数据更新失败:', updateResponse.data.message);
+              Toast.fail('命盘计算请求失败: ' + (updateResponse.data.message || '未知错误'));
+            }
+          } catch (calcError) {
+            console.error('命盘计算请求失败:', calcError);
+            Toast.fail('命盘计算请求失败: ' + (calcError.message || '未知错误'));
+          }
           
           // 跳转到结果页面，传递必要参数
           router.push({

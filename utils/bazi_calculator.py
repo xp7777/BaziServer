@@ -22,17 +22,19 @@ HEAVENLY_STEMS = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬",
 EARTHLY_BRANCHES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
 # 五行
 FIVE_ELEMENTS = {
-    "甲": "木", "乙": "木",
-    "丙": "火", "丁": "火",
-    "戊": "土", "己": "土",
-    "庚": "金", "辛": "金",
-    "壬": "水", "癸": "水",
-    "子": "水", "丑": "土",
-    "寅": "木", "卯": "木",
-    "辰": "土", "巳": "火",
-    "午": "火", "未": "土",
-    "申": "金", "酉": "金",
-    "戌": "土", "亥": "水"
+    # 天干五行
+    "甲": "wood", "乙": "wood",
+    "丙": "fire", "丁": "fire",
+    "戊": "earth", "己": "earth",
+    "庚": "metal", "辛": "metal",
+    "壬": "water", "癸": "water",
+    # 地支五行
+    "子": "water", "丑": "earth",
+    "寅": "wood", "卯": "wood",
+    "辰": "earth", "巳": "fire",
+    "午": "fire", "未": "earth",
+    "申": "metal", "酉": "metal",
+    "戌": "earth", "亥": "water"
 }
 
 # 阴阳
@@ -127,11 +129,11 @@ DI_ZHI = "子丑寅卯辰巳午未申酉戌亥"
 
 # 五行属性
 FIVE_ELEMENTS = {
-    "甲": "木", "乙": "木",
-    "丙": "火", "丁": "火",
-    "戊": "土", "己": "土",
-    "庚": "金", "辛": "金",
-    "壬": "水", "癸": "水"
+    "甲": "wood", "乙": "wood",
+    "丙": "fire", "丁": "fire",
+    "戊": "earth", "己": "earth",
+    "庚": "metal", "辛": "metal",
+    "壬": "water", "癸": "water"
 }
 
 # 纳音五行对照表
@@ -573,104 +575,91 @@ def calculate_flowing_years(gender, bazi_data):
     # 开始年份为今年或出生年份，取较大值
     start_year = max(birth_year, datetime.now().year)
     
-    for i in range(10):  # 计算未来10年
-        year = start_year + i
-        
-        if USING_LUNAR_PYTHON:
-            # 使用lunar-python库计算
-            solar = Solar.fromYmd(year, 5, 1)  # 使用5月1日作为参考日期
-            lunar = solar.getLunar()
-            year_gan = lunar.getYearGan()
-            year_zhi = lunar.getYearZhi()
+    try:
+        for i in range(10):  # 计算未来10年
+            year = start_year + i
             
-            logging.info(f"流年计算(lunar-python): {year}年 - {year_gan}{year_zhi}")
-            
-            # 计算流年五行
-            gan_element = FIVE_ELEMENTS[year_gan]
-            zhi_element = FIVE_ELEMENTS[year_zhi]
-            
-            # 计算流年十神
-            gan_index = TIAN_GAN.index(year_gan)
-            shi_shen = calculate_shi_shen(year_gan)
-            
-            # 计算旺衰
-            wang_shuai = calculate_wang_shuai(year_zhi)
-            
-            # 计算纳音
-            na_yin = calculate_na_yin(year_gan + year_zhi)
-            
-            # 计算流年神煞
-            liu_nian_shen_sha = []
-            
-            # 天乙贵人
-            if LunarUtil.TIAN_YI_YANG.get(day_gan) == year_zhi or \
-               LunarUtil.TIAN_YI_YIN.get(day_gan) == year_zhi:
-                liu_nian_shen_sha.append("天乙贵人")
-            
-            # 太极贵人
-            if LunarUtil.TAI_JI_YANG.get(day_gan) == year_zhi or \
-               LunarUtil.TAI_JI_YIN.get(day_gan) == year_zhi:
-                liu_nian_shen_sha.append("太极贵人")
-            
-            # 文昌贵人
-            if LunarUtil.WEN_CHANG.get(year_zhi):
-                liu_nian_shen_sha.append("文昌贵人")
-            
-            # 金舆
-            if LunarUtil.JIN_YU.get(year_gan) == year_zhi:
-                liu_nian_shen_sha.append("金舆")
-            
-            # 岁破
-            if LunarUtil.SUI_PO.get(year_zhi):
-                liu_nian_shen_sha.append("岁破")
-            
-            # 灾煞
-            if LunarUtil.ZAI_SHA.get(year_zhi):
-                liu_nian_shen_sha.append("灾煞")
-            
-            # 天罗
-            if LunarUtil.TIAN_LUO.get(year_zhi):
-                liu_nian_shen_sha.append("天罗")
-            
-            # 地网
-            if LunarUtil.DI_WANG.get(year_zhi):
-                liu_nian_shen_sha.append("地网")
-            
-            # 计算流年吉凶
-            ji_xiong = calculate_ji_xiong(year_gan + year_zhi)
-            
-            # 计算与出生年的年龄差
-            age = year - birth_year + 1  # 虚岁
-            
-            # 添加流年信息
-            flowing_years.append({
-                "year": year,
-                "age": age,
-                "heavenlyStem": year_gan,
-                "earthlyBranch": year_zhi,
-                "ganElement": gan_element,
-                "zhiElement": zhi_element,
-                "shiShen": shi_shen,
-                "wangShuai": wang_shuai,
-                "naYin": na_yin,
-                "shenSha": liu_nian_shen_sha,
-                "jiXiong": ji_xiong
-            })
-        else:
-            # 如果没有lunar-python库，返回基本信息
-            flowing_years.append({
-                "year": year,
-                "age": year - birth_year + 1,
-                "heavenlyStem": "",
-                "earthlyBranch": "",
-                "ganElement": "",
-                "zhiElement": "",
-                "shiShen": "",
-                "wangShuai": "",
-                "naYin": "",
-                "shenSha": [],
-                "jiXiong": ""
-            })
+            if USING_LUNAR_PYTHON:
+                # 使用lunar-python库计算
+                solar = Solar.fromYmd(year, 5, 1)  # 使用5月1日作为参考日期
+                lunar = solar.getLunar()
+                year_gan = lunar.getYearGan()
+                year_zhi = lunar.getYearZhi()
+                
+                logging.info(f"流年计算(lunar-python): {year}年 - {year_gan}{year_zhi}")
+                
+                # 天干地支五行映射字典
+                element_map = {
+                    # 天干五行
+                    "甲": "wood", "乙": "wood", 
+                    "丙": "fire", "丁": "fire",
+                    "戊": "earth", "己": "earth",
+                    "庚": "metal", "辛": "metal",
+                    "壬": "water", "癸": "water",
+                    # 地支五行
+                    "子": "water", "丑": "earth",
+                    "寅": "wood", "卯": "wood",
+                    "辰": "earth", "巳": "fire",
+                    "午": "fire", "未": "earth",
+                    "申": "metal", "酉": "metal",
+                    "戌": "earth", "亥": "water"
+                }
+                
+                # 计算流年五行
+                gan_element = element_map.get(year_gan, "unknown")
+                zhi_element = element_map.get(year_zhi, "unknown")
+                
+                # 计算流年十神
+                gan_index = TIAN_GAN.index(year_gan) if year_gan in TIAN_GAN else 0
+                shi_shen = get_shi_shen_name(day_gan, year_gan)
+                
+                # 计算旺衰
+                wang_shuai = calculate_wang_shuai(year_zhi)
+                
+                # 计算纳音
+                na_yin = get_na_yin(year_gan + year_zhi)
+                
+                # 计算流年神煞
+                liu_nian_shen_sha = []
+                
+                # 计算流年吉凶 - 使用适当的函数版本
+                ji_xiong = calculate_ji_xiong(year_gan + year_zhi)  # 使用接受单个gan_zhi参数的版本
+                
+                # 计算与出生年的年龄差
+                age = year - birth_year + 1  # 虚岁
+                
+                # 添加流年信息
+                flowing_years.append({
+                    "year": year,
+                    "age": age,
+                    "heavenlyStem": year_gan,
+                    "earthlyBranch": year_zhi,
+                    "ganElement": gan_element,
+                    "zhiElement": zhi_element,
+                    "shiShen": shi_shen,
+                    "wangShuai": wang_shuai,
+                    "naYin": na_yin,
+                    "shenSha": liu_nian_shen_sha,
+                    "jiXiong": ji_xiong
+                })
+            else:
+                # 如果没有lunar-python库，返回基本信息
+                flowing_years.append({
+                    "year": year,
+                    "age": year - birth_year + 1,
+                    "heavenlyStem": "",
+                    "earthlyBranch": "",
+                    "ganElement": "",
+                    "zhiElement": "",
+                    "shiShen": "",
+                    "wangShuai": "",
+                    "naYin": "",
+                    "shenSha": [],
+                    "jiXiong": ""
+                })
+    except Exception as e:
+        logging.error(f"计算流年出错: {str(e)}")
+        logging.error(traceback.format_exc())
     
     return flowing_years
 
@@ -879,18 +868,18 @@ def get_five_element(gan_or_zhi):
     """根据天干或地支获取五行属性"""
     FIVE_ELEMENTS = {
         # 天干五行
-        "甲": "木", "乙": "木",
-        "丙": "火", "丁": "火",
-        "戊": "土", "己": "土",
-        "庚": "金", "辛": "金",
-        "壬": "水", "癸": "水",
+        "甲": "wood", "乙": "wood",
+        "丙": "fire", "丁": "fire",
+        "戊": "earth", "己": "earth",
+        "庚": "metal", "辛": "metal",
+        "壬": "water", "癸": "water",
         # 地支五行
-        "子": "水", "丑": "土",
-        "寅": "木", "卯": "木",
-        "辰": "土", "巳": "火",
-        "午": "火", "未": "土",
-        "申": "金", "酉": "金",
-        "戌": "土", "亥": "水"
+        "子": "water", "丑": "earth",
+        "寅": "wood", "卯": "wood",
+        "辰": "earth", "巳": "fire",
+        "午": "fire", "未": "earth",
+        "申": "metal", "酉": "metal",
+        "戌": "earth", "亥": "water"
     }
     return FIVE_ELEMENTS.get(gan_or_zhi, "未知")
 

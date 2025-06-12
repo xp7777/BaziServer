@@ -1412,4 +1412,58 @@ class BaziResultModel:
         except Exception as e:
             logging.error(f"获取PDF内容失败: {str(e)}")
             logging.error(traceback.format_exc())
-            return None 
+            return None
+
+    @staticmethod
+    def update(result_id, result):
+        """更新整个结果对象
+        
+        Args:
+            result_id: 结果ID
+            result: 结果对象
+            
+        Returns:
+            bool: 是否更新成功
+        """
+        try:
+            logger.info(f"更新结果对象: {result_id}")
+            
+            # 确保结果对象包含必要字段
+            if not result:
+                logger.warning(f"提供的结果对象为空: {result_id}")
+                return False
+            
+            # 尝试直接使用原始ID更新
+            update_result = results_collection.replace_one(
+                {'_id': result_id},
+                result,
+                upsert=False  # 不插入新记录
+            )
+            
+            # 如果没有匹配到记录，尝试将ID转换为ObjectId再更新
+            if update_result.matched_count == 0:
+                try:
+                    # 尝试添加RES前缀
+                    if isinstance(result_id, str) and not result_id.startswith('RES'):
+                        res_id = f"RES{result_id}"
+                        logger.info(f"尝试使用RES前缀更新: {res_id}")
+                        update_result = results_collection.replace_one(
+                            {'_id': res_id},
+                            result,
+                            upsert=False
+                        )
+                except Exception as e:
+                    logger.error(f"使用RES前缀更新失败: {str(e)}")
+                    return False
+                
+            if update_result.matched_count > 0:
+                logger.info(f"成功更新结果对象: {result_id}, 修改计数: {update_result.modified_count}")
+                return True
+            else:
+                logger.warning(f"未找到要更新的记录: {result_id}")
+                return False
+            
+        except Exception as e:
+            logger.error(f"更新结果对象失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False 

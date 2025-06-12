@@ -8,6 +8,8 @@ from models.bazi_result_model import BaziResultModel
 from models.order_model import OrderModel
 from utils.bazi_calculator import calculate_bazi, calculate_flowing_years
 from utils.ai_service import generate_bazi_analysis
+from datetime import datetime
+from flask_cors import cross_origin
 
 # 确保DeepSeek API密钥被设置
 if not os.environ.get('DEEPSEEK_API_KEY'):
@@ -51,7 +53,7 @@ def get_bazi_result(result_id):
             
         # 检查神煞数据
         if not result['baziChart'].get('shenSha'):
-            logging.error(f"神煞数据缺失: {result_id}")
+            logging.warning(f"神煞数据不存在，初始化空数据")
             result['baziChart']['shenSha'] = {
                 'dayChong': '',
                 'zhiShen': '',
@@ -69,7 +71,7 @@ def get_bazi_result(result_id):
             
         # 检查大运数据
         if not result['baziChart'].get('daYun'):
-            logging.error(f"大运数据缺失: {result_id}")
+            logging.warning(f"大运数据不存在，初始化空数据")
             result['baziChart']['daYun'] = {
                 'startAge': 1,
                 'startYear': 2025,
@@ -79,7 +81,7 @@ def get_bazi_result(result_id):
             
         # 检查流年数据
         if not result['baziChart'].get('flowingYears'):
-            logging.error(f"流年数据缺失: {result_id}")
+            logging.warning(f"流年数据不存在，初始化空数据")
             result['baziChart']['flowingYears'] = []
             
         logging.info(f"成功获取分析结果: {result_id}")
@@ -88,6 +90,225 @@ def get_bazi_result(result_id):
         logging.error(f"获取八字分析结果失败: {str(e)}")
         logging.error(traceback.format_exc())
         return jsonify(code=500, message=str(e)), 500
+
+# 新增API端点：更新八字分析数据
+@bazi_bp.route('/update/<result_id>', methods=['POST', 'OPTIONS'])
+@cross_origin()  # 添加跨域支持
+def update_bazi_analysis(result_id):
+    # 处理OPTIONS预检请求
+    if request.method == 'OPTIONS':
+        response = jsonify({'code': 200, 'message': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response
+        
+    try:
+        logging.info(f"更新八字分析数据: {result_id}")
+        data = request.json
+        
+        # 检查结果是否存在
+        result = BaziResultModel.find_by_id(result_id)
+        if not result:
+            logging.error(f"未找到结果记录: {result_id}")
+            return jsonify(code=404, message="未找到分析结果"), 404
+        
+        # 解析输入数据
+        birth_date = data.get('birthDate')
+        birth_time = data.get('birthTime')
+        gender = data.get('gender', 'male')
+        calendar_type = data.get('calendarType', 'solar')
+        force_recalculate = data.get('forceRecalculate', False)
+        generate_shensha_data = data.get('generateShenshaData', False)
+        generate_dayun_data = data.get('generateDayunData', False)
+        generate_liunian_data = data.get('generateLiunianData', False)
+        use_deepseek_api = data.get('useDeepseekAPI', False)
+        
+        logging.info(f"更新请求参数: birthDate={birth_date}, birthTime={birth_time}, gender={gender}, " 
+                    f"forceRecalculate={force_recalculate}, generateShenshaData={generate_shensha_data}, " 
+                    f"generateDayunData={generate_dayun_data}, generateLiunianData={generate_liunian_data}, "
+                    f"useDeepseekAPI={use_deepseek_api}")
+        
+        # 组合出生日期时间
+        birth_datetime = f"{birth_date} {birth_time}"
+        
+        # 计算八字(如果强制重新计算或没有八字数据)
+        if force_recalculate or not result.get('baziChart'):
+            logging.info(f"计算八字数据: {birth_datetime}, gender={gender}")
+            bazi_chart = calculate_bazi(birth_datetime, gender)
+            
+            # 更新八字图
+            result['baziChart'] = bazi_chart
+            
+            # 如果需要，生成神煞数据
+            if generate_shensha_data:
+                logging.info(f"生成神煞数据")
+                # 这里应该调用神煞数据生成函数，当前直接使用calculate_bazi返回的数据
+                
+            # 如果需要，生成大运数据
+            if generate_dayun_data:
+                logging.info(f"生成大运数据")
+                # 计算大运数据通常集成在calculate_bazi中，此处可以额外处理
+                
+            # 如果需要，生成流年数据
+            if generate_liunian_data:
+                logging.info(f"生成流年数据")
+                # 生成流年数据
+                current_year = datetime.now().year
+                birth_year = int(birth_date.split('-')[0])
+                
+                # 使用calculate_flowing_years函数生成流年数据
+                flowing_years = calculate_flowing_years(gender, {
+                    "birthYear": birth_year,
+                    "dayHeavenlyStem": result['baziChart']['dayPillar']['heavenlyStem'],
+                    "dayEarthlyBranch": result['baziChart']['dayPillar']['earthlyBranch']
+                })
+                
+                # 更新流年数据
+                result['baziChart']['flowingYears'] = flowing_years
+            
+            # 更新数据库
+            success = BaziResultModel.update(result_id, result)
+            if not success:
+                logging.error(f"更新八字图数据失败: {result_id}")
+                return jsonify(code=500, message="更新八字图数据失败"), 500
+                
+            logging.info(f"已更新八字图数据: {result_id}")
+            
+            # 如果需要使用DeepSeek API进行分析，设置标志
+            if use_deepseek_api:
+                result['analysisStatus'] = 'pending'
+                result['analysisProgress'] = 0
+                analyzing_results[result_id] = True
+                success = BaziResultModel.update(result_id, result)
+                if not success:
+                    logging.error(f"更新分析状态失败: {result_id}")
+                
+                # 异步调用分析接口
+                from threading import Thread
+                Thread(target=process_deepseek_analysis, args=(result_id, result)).start()
+                logging.info(f"已触发异步DeepSeek分析: {result_id}")
+        
+        return jsonify(code=200, message="八字分析数据更新成功", data={"resultId": result_id})
+    except Exception as e:
+        logging.error(f"更新八字分析数据失败: {str(e)}")
+        logging.error(traceback.format_exc())
+        return jsonify(code=500, message=str(e)), 500
+
+# 新增API端点：触发八字深度分析
+@bazi_bp.route('/analyze/<result_id>', methods=['POST', 'OPTIONS'])
+@cross_origin()  # 添加跨域支持
+def analyze_bazi(result_id):
+    # 处理OPTIONS预检请求
+    if request.method == 'OPTIONS':
+        response = jsonify({'code': 200, 'message': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response
+        
+    try:
+        logging.info(f"触发八字深度分析: {result_id}")
+        data = request.json
+        use_deepseek_api = data.get('useDeepseekAPI', True)
+        
+        # 检查结果是否存在
+        result = BaziResultModel.find_by_id(result_id)
+        if not result:
+            logging.error(f"未找到结果记录: {result_id}")
+            return jsonify(code=404, message="未找到分析结果"), 404
+        
+        # 检查是否已经在分析中
+        if result_id in analyzing_results:
+            logging.info(f"分析已在进行中: {result_id}")
+            return jsonify(code=200, message="分析已在进行中", data={"resultId": result_id})
+        
+        # 更新分析状态
+        result['analysisStatus'] = 'pending'
+        result['analysisProgress'] = 0
+        analyzing_results[result_id] = True
+        success = BaziResultModel.update(result_id, result)
+        if not success:
+            logging.error(f"更新分析状态失败: {result_id}")
+            return jsonify(code=500, message="更新分析状态失败"), 500
+        
+        # 异步调用DeepSeek API
+        if use_deepseek_api:
+            from threading import Thread
+            Thread(target=process_deepseek_analysis, args=(result_id, result)).start()
+            logging.info(f"已触发异步DeepSeek分析: {result_id}")
+        
+        return jsonify(code=200, message="八字分析已触发", data={"resultId": result_id})
+    except Exception as e:
+        logging.error(f"触发八字分析失败: {str(e)}")
+        logging.error(traceback.format_exc())
+        return jsonify(code=500, message=str(e)), 500
+
+# DeepSeek API处理函数
+def process_deepseek_analysis(result_id, result):
+    try:
+        logging.info(f"开始进行DeepSeek API分析: {result_id}")
+        
+        # 更新分析进度
+        result['analysisProgress'] = 10
+        success = BaziResultModel.update(result_id, result)
+        if not success:
+            logging.error(f"更新分析进度失败(10%): {result_id}")
+        
+        # 获取八字数据
+        bazi_chart = result.get('baziChart', {})
+        if not bazi_chart:
+            logging.error(f"没有八字数据，无法进行分析: {result_id}")
+            result['analysisStatus'] = 'failed'
+            result['analysisMessage'] = "没有八字数据，无法进行分析"
+            BaziResultModel.update(result_id, result)
+            del analyzing_results[result_id]
+            return
+        
+        # 更新分析进度
+        result['analysisProgress'] = 20
+        success = BaziResultModel.update(result_id, result)
+        if not success:
+            logging.error(f"更新分析进度失败(20%): {result_id}")
+        
+        # 调用DeepSeek API进行分析
+        try:
+            # 准备分析请求
+            analysis = generate_bazi_analysis(bazi_chart)
+            logging.info(f"DeepSeek API分析完成: {result_id}")
+            
+            # 更新结果
+            result['analysisStatus'] = 'completed'
+            result['analysisProgress'] = 100
+            result['analysis'] = analysis
+            success = BaziResultModel.update(result_id, result)
+            if not success:
+                logging.error(f"更新分析结果失败: {result_id}")
+            else:
+                logging.info(f"成功更新分析结果: {result_id}")
+            
+        except Exception as api_error:
+            logging.error(f"DeepSeek API调用失败: {str(api_error)}")
+            result['analysisStatus'] = 'failed'
+            result['analysisMessage'] = f"DeepSeek API调用失败: {str(api_error)}"
+            result['analysisProgress'] = 0
+            BaziResultModel.update(result_id, result)
+        
+    except Exception as e:
+        logging.error(f"处理DeepSeek分析时出错: {str(e)}")
+        logging.error(traceback.format_exc())
+        
+        try:
+            result['analysisStatus'] = 'failed'
+            result['analysisMessage'] = f"处理失败: {str(e)}"
+            result['analysisProgress'] = 0
+            BaziResultModel.update(result_id, result)
+        except:
+            pass
+    finally:
+        # 清理分析标志
+        if result_id in analyzing_results:
+            del analyzing_results[result_id]
 
 @bazi_bp.route('/pdf/<result_id>', methods=['GET'])
 def get_bazi_pdf(result_id):
