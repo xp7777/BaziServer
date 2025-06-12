@@ -83,8 +83,28 @@ def get_bazi_result(result_id):
         if not result['baziChart'].get('flowingYears'):
             logging.warning(f"流年数据不存在，初始化空数据")
             result['baziChart']['flowingYears'] = []
+        
+        # 检查分析状态和进度
+        if 'analysisStatus' not in result:
+            result['analysisStatus'] = 'completed'  # 默认为已完成
+        if 'analysisProgress' not in result:
+            result['analysisProgress'] = 100  # 默认为100%完成
             
-        logging.info(f"成功获取分析结果: {result_id}")
+        # 检查分析内容是否存在，如果存在则标记为已完成
+        if result.get('analysis') or result.get('aiAnalysis'):
+            result['analysisStatus'] = 'completed'
+            result['analysisProgress'] = 100
+            
+        # 如果分析状态是completed但进度不是100%，强制设置为100%
+        if result.get('analysisStatus') == 'completed' and result.get('analysisProgress') != 100:
+            result['analysisProgress'] = 100
+            
+        # 如果分析状态是pending但不在分析队列中，标记为已完成
+        if result.get('analysisStatus') == 'pending' and result_id not in analyzing_results:
+            result['analysisStatus'] = 'completed'
+            result['analysisProgress'] = 100
+            
+        logging.info(f"成功获取分析结果: {result_id}, 分析状态: {result.get('analysisStatus')}, 分析进度: {result.get('analysisProgress')}%")
         return jsonify(code=200, data=result)
     except Exception as e:
         logging.error(f"获取八字分析结果失败: {str(e)}")
@@ -282,9 +302,21 @@ def process_deepseek_analysis(result_id, result):
             logging.info(f"DeepSeek API分析完成: {result_id}")
             
             # 更新结果
-            result['analysisStatus'] = 'completed'
-            result['analysisProgress'] = 100
+            result['analysisStatus'] = 'completed'  # 明确设置为已完成
+            result['analysisProgress'] = 100  # 明确设置为100%
             result['analysis'] = analysis
+            
+            # 同时更新到aiAnalysis字段，确保前端能正确显示
+            if 'aiAnalysis' not in result or not result['aiAnalysis']:
+                result['aiAnalysis'] = {}
+            
+            # 将analysis字段的内容复制到aiAnalysis字段
+            for key, value in analysis.items():
+                result['aiAnalysis'][key] = value
+                
+            # 确保分析状态明确标记为已完成
+            result['analysisCompleted'] = True
+            
             success = BaziResultModel.update(result_id, result)
             if not success:
                 logging.error(f"更新分析结果失败: {result_id}")

@@ -246,16 +246,13 @@
             :scrollable="false"
             class="analysis-progress-notice"
           >
-            <div class="analysis-progress">
-              <p>AI正在生成八字分析结果，这可能需要30-60秒</p>
-              <van-progress :percentage="analyzeProgress" :show-pivot="false" color="#1989fa" />
-            </div>
+            
           </van-notice-bar>
           
-          <!-- 八字命局核心分析 -->
+          <!-- 核心分析 -->
           <div class="analysis-section">
             <h3>八字命局核心分析</h3>
-            <template v-if="!aiAnalysis.coreAnalysis || aiAnalysis.coreAnalysis === '暂无' || aiAnalysis.coreAnalysis.includes('正在分析')">
+            <template v-if="!aiAnalysis.coreAnalysis || aiAnalysis.coreAnalysis === '暂无' || aiAnalysis.coreAnalysis === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -266,7 +263,7 @@
           <!-- 五行旺衰与用神 -->
           <div class="analysis-section">
             <h3>五行旺衰与用神</h3>
-            <template v-if="!aiAnalysis.fiveElements || aiAnalysis.fiveElements === '暂无' || aiAnalysis.fiveElements.includes('正在分析')">
+            <template v-if="!aiAnalysis.fiveElements || aiAnalysis.fiveElements === '暂无' || aiAnalysis.fiveElements === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -277,7 +274,7 @@
           <!-- 神煞解析 -->
           <div class="analysis-section">
             <h3>神煞解析</h3>
-            <template v-if="!aiAnalysis.shenShaAnalysis || aiAnalysis.shenShaAnalysis === '暂无' || aiAnalysis.shenShaAnalysis.includes('正在分析')">
+            <template v-if="!aiAnalysis.shenShaAnalysis || aiAnalysis.shenShaAnalysis === '暂无' || aiAnalysis.shenShaAnalysis === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -288,7 +285,7 @@
           <!-- 大运与流年关键节点 -->
           <div class="analysis-section">
             <h3>大运与流年关键节点</h3>
-            <template v-if="!aiAnalysis.keyPoints || aiAnalysis.keyPoints === '暂无' || aiAnalysis.keyPoints.includes('正在分析')">
+            <template v-if="!aiAnalysis.keyPoints || aiAnalysis.keyPoints === '暂无' || aiAnalysis.keyPoints === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -299,7 +296,7 @@
           <!-- 婚姻感情 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '婚姻感情' : '未来感情发展' }}</h3>
-            <template v-if="!aiAnalysis.relationship || aiAnalysis.relationship === '暂无' || aiAnalysis.relationship.includes('正在分析')">
+            <template v-if="!aiAnalysis.relationship || aiAnalysis.relationship === '暂无' || aiAnalysis.relationship === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -319,7 +316,7 @@
           <!-- 事业财运 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '事业财运' : '未来事业财运' }}</h3>
-            <template v-if="!aiAnalysis.career || aiAnalysis.career === '暂无' || aiAnalysis.career.includes('正在分析')">
+            <template v-if="!aiAnalysis.career || aiAnalysis.career === '暂无' || aiAnalysis.career === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -339,7 +336,7 @@
           <!-- 子女情况 -->
           <div class="analysis-section">
             <h3>{{ userAge !== null && userAge >= 18 ? '子女情况' : '未来子女缘分' }}</h3>
-            <template v-if="!aiAnalysis.children || aiAnalysis.children === '暂无' || aiAnalysis.children.includes('正在分析')">
+            <template v-if="!aiAnalysis.children || aiAnalysis.children === '暂无' || aiAnalysis.children === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -359,7 +356,7 @@
           <!-- 父母情况 -->
           <div class="analysis-section">
             <h3>父母情况</h3>
-            <template v-if="!aiAnalysis.parents || aiAnalysis.parents === '暂无' || aiAnalysis.parents.includes('正在分析')">
+            <template v-if="!aiAnalysis.parents || aiAnalysis.parents === '暂无' || aiAnalysis.parents === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -379,7 +376,7 @@
           <!-- 身体健康 -->
           <div class="analysis-section">
             <h3>身体健康</h3>
-            <template v-if="!aiAnalysis.health || aiAnalysis.health === '暂无' || aiAnalysis.health.includes('正在分析')">
+            <template v-if="!aiAnalysis.health || aiAnalysis.health === '暂无' || aiAnalysis.health === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -399,7 +396,7 @@
           <!-- 学业 -->
           <div class="analysis-section">
             <h3>学业</h3>
-            <template v-if="!aiAnalysis.education || aiAnalysis.education === '暂无' || aiAnalysis.education.includes('正在分析')">
+            <template v-if="!aiAnalysis.education || aiAnalysis.education === '暂无' || aiAnalysis.education === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -419,7 +416,7 @@
           <!-- 人际关系 -->
           <div class="analysis-section">
             <h3>人际关系</h3>
-            <template v-if="!aiAnalysis.social || aiAnalysis.social === '暂无' || aiAnalysis.social.includes('正在分析')">
+            <template v-if="!aiAnalysis.social || aiAnalysis.social === '暂无' || aiAnalysis.social === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -439,7 +436,7 @@
           <!-- 近五年运势 -->
           <div class="analysis-section">
             <h3>近五年运势</h3>
-            <template v-if="!aiAnalysis.future || aiAnalysis.future === '暂无' || aiAnalysis.future.includes('正在分析')">
+            <template v-if="!aiAnalysis.future || aiAnalysis.future === '暂无' || aiAnalysis.future === '分析生成中...'">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -1413,90 +1410,9 @@ const pollAnalysisStatus = async (resultId, maxAttempts = 30) => {
   });
 };
 
-// 修改reloadBaziData函数，添加轮询逻辑
+// 重新加载八字数据
 const reloadBaziData = async () => {
-  Toast.loading('正在重新加载数据...');
-  
   try {
-    if (!resultId.value) {
-      Toast.fail('缺少结果ID');
-      return;
-    }
-    
-    console.log(`重新加载数据，结果ID: ${resultId.value}`);
-    
-    // 获取URL参数
-    const urlParams = new URLSearchParams(window.location.search);
-    
-    // 尝试使用模拟支付接口
-    try {
-      console.log('尝试使用模拟支付接口...');
-      
-      // 显示加载提示
-      Toast.loading({
-        message: '正在处理支付...',
-        duration: 0,
-        position: 'middle',
-        forbidClick: true
-      });
-      
-      // 准备请求数据
-      const requestData = {
-        birthDate: baziData.value.birthDate || urlParams.get('birthDate'),
-        birthTime: baziData.value.birthTime || urlParams.get('birthTime'),
-        gender: baziData.value.gender || urlParams.get('gender')
-      };
-      
-      console.log('请求数据:', requestData);
-      
-      // 发送模拟支付请求
-      const mockPaymentResponse = await axios.post(`/api/order/mock/pay/${resultId.value}`, requestData);
-      console.log('模拟支付响应:', mockPaymentResponse.data);
-      
-      if (mockPaymentResponse.data.code === 200) {
-        // 支付成功，显示成功提示
-        Toast.success('支付成功');
-        
-        // 使用返回的resultId重新加载数据
-        if (mockPaymentResponse.data.data && mockPaymentResponse.data.data.resultId) {
-          const newResultId = mockPaymentResponse.data.data.resultId;
-          console.log('获取到新的resultId:', newResultId);
-          
-          // 更新全局的resultId变量
-          resultId.value = newResultId;
-          // 还需要更新本地存储中的resultId
-          localStorage.setItem('resultId', newResultId);
-          
-          // 显示正在加载分析结果
-          Toast.loading({
-            message: '正在生成八字分析结果，这可能需要30-60秒...',
-            duration: 0,
-            position: 'middle',
-            forbidClick: true
-          });
-          
-          // 轮询检查分析状态
-          const analysisComplete = await pollAnalysisStatus(newResultId);
-          
-          if (analysisComplete) {
-            Toast.success('分析已完成');
-          } else {
-            Toast.success('已完成部分分析，显示可用结果');
-          }
-          
-          // 重新加载追问分析结果
-          await loadFollowupResults();
-          
-          return;
-        }
-      }
-    } catch (mockError) {
-      console.error('模拟支付失败:', mockError);
-      Toast.fail('重新加载失败: ' + (mockError.message || '未知错误'));
-      return;
-    }
-    
-    // 如果模拟支付失败，尝试直接获取结果
     try {
       Toast.loading({
         message: '正在加载现有分析结果...',
@@ -1539,24 +1455,26 @@ const reloadBaziData = async () => {
           keyPoints: response.data.data.aiAnalysis?.keyPoints || ''
         };
         
-        // 检查是否存在"正在分析"的内容
+        // 检查分析状态和进度
+        const analysisStatus = response.data.data.analysisStatus || 'completed';
+        const analysisProgress = response.data.data.analysisProgress || 0;
+        
+        // 检查是否所有分析内容都已生成完毕
         const stillAnalyzing = Object.values(aiAnalysis.value).some(
-          value => typeof value === 'string' && value.includes('正在分析')
+          value => typeof value === 'string' && value.includes('分析生成中')
         );
         
-        // 更新分析状态
-        isAnalyzing.value = stillAnalyzing;
+        // 如果后端返回的状态是completed或进度是100，或者所有分析内容都已生成，则认为分析已完成
+        isAnalyzing.value = analysisStatus === 'pending' && analysisProgress < 100 && stillAnalyzing;
+        analyzeProgress.value = analysisProgress;
         
-        if (stillAnalyzing) {
-          console.log('分析仍在进行中...');
-          // 不显示Toast，因为我们已经有进度条显示
-        } else {
-          // 分析完成
+        // 如果分析已完成但进度条未达到100%，强制设置为100%
+        if (!isAnalyzing.value && analyzeProgress.value < 100) {
           analyzeProgress.value = 100;
-          setTimeout(() => {
-            isAnalyzing.value = false;
-          }, 1000);
         }
+        
+        console.log('分析是否进行中:', isAnalyzing.value);
+        console.log('AI分析结果更新:', aiAnalysis.value);
         
         // 重新加载追问分析结果
         console.log('重新加载追问分析结果...');
@@ -2037,11 +1955,23 @@ const getBaziResult = async () => {
         const analysisStatus = response.data.data.analysisStatus || 'completed';
         const analysisProgress = response.data.data.analysisProgress || 0;
         
-        // 更新分析状态
-        isAnalyzing.value = analysisStatus === 'pending';
+        console.log('分析状态:', analysisStatus, '分析进度:', analysisProgress);
+        
+        // 检查是否所有分析内容都已生成完毕
+        const stillAnalyzing = Object.values(aiAnalysis.value).some(
+          value => typeof value === 'string' && value.includes('分析生成中')
+        );
+        
+        // 如果后端返回的状态是completed或进度是100，或者所有分析内容都已生成，则认为分析已完成
+        isAnalyzing.value = analysisStatus === 'pending' && analysisProgress < 100 && stillAnalyzing;
         analyzeProgress.value = analysisProgress;
         
-        console.log('分析状态:', analysisStatus, '分析进度:', analysisProgress);
+        // 如果分析已完成但进度条未达到100%，强制设置为100%
+        if (!isAnalyzing.value && analyzeProgress.value < 100) {
+          analyzeProgress.value = 100;
+        }
+        
+        console.log('分析是否进行中:', isAnalyzing.value);
         console.log('AI分析结果更新:', aiAnalysis.value);
       }
       

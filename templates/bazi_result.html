@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>八字命理分析结果</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>八字命理分析结果</h1>
+        
+        <!-- 基本信息 -->
+        <div class="info-card">
+            <h2>基本信息</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">姓名：</span>
+                    <span id="name" class="info-value">加载中...</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">性别：</span>
+                    <span id="gender" class="info-value">加载中...</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">出生日期：</span>
+                    <span id="birthdate" class="info-value">加载中...</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">出生时间：</span>
+                    <span id="birthtime" class="info-value">加载中...</span>
+                </div>
+                <div class="info-item full-width">
+                    <span class="info-label">八字：</span>
+                    <span id="bazi" class="info-value">加载中...</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 分析状态 -->
+        <div class="status-card">
+            <h3 id="analysisStatus">AI正在生成八字分析结果，这可能需要30-60秒</h3>
+            <div id="analysisProgress" class="progress-container">
+                <div id="progressBar" class="progress-bar" style="width: 0%">0%</div>
+            </div>
+        </div>
+        
+        <!-- 核心分析部分 -->
+        <div class="analysis-section">
+            <h2>八字命局核心分析</h2>
+            <div id="coreAnalysis" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>五行旺衰与用神</h2>
+            <div id="fiveElements" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>神煞解析</h2>
+            <div id="shenShaAnalysis" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>大运与流年关键节点</h2>
+            <div id="keyPoints" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <!-- 生活各方面分析 -->
+        <div class="analysis-section">
+            <h2>性格特点</h2>
+            <div id="personality" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>身体健康</h2>
+            <div id="health" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>事业发展</h2>
+            <div id="career" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>财运分析</h2>
+            <div id="wealth" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>婚姻感情</h2>
+            <div id="relationship" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>学业分析</h2>
+            <div id="education" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>子女情况</h2>
+            <div id="children" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>父母关系</h2>
+            <div id="parents" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>人际关系</h2>
+            <div id="social" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>近五年运势</h2>
+            <div id="future" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <div class="analysis-section">
+            <h2>综合建议</h2>
+            <div id="overall" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <!-- 人生规划建议部分 -->
+        <div class="analysis-section">
+            <h2>人生规划建议</h2>
+            <div id="lifePlan" class="analysis-content">
+                <p class="analysis-loading">分析生成中...</p>
+            </div>
+        </div>
+        
+        <!-- 返回按钮 -->
+        <div class="action-buttons">
+            <a href="/" class="button">返回首页</a>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/bazi_result.js') }}"></script>
+</body>
+</html> 
