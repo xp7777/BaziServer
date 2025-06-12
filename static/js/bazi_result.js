@@ -37,9 +37,10 @@ function showAnalysisResult(data) {
         const analysis = data.analysis;
         
         // 输出调试信息
-        console.log("父母情况:", analysis.parents);
-        console.log("近五年运势:", analysis.future);
-        console.log("人生规划建议:", analysis.lifePlan);
+        console.log("父母情况:", analysis.parents?.substring(0, 50));
+        console.log("身体健康:", analysis.health?.substring(0, 50));
+        console.log("近五年运势:", analysis.future?.substring(0, 50));
+        console.log("人生规划建议:", analysis.lifePlan?.substring(0, 50));
         
         // 核心分析部分
         displayAnalysisSection('coreAnalysis', analysis.coreAnalysis);
@@ -49,30 +50,82 @@ function showAnalysisResult(data) {
         
         // 生活各方面分析
         displayAnalysisSection('personality', analysis.personality);
-        displayAnalysisSection('health', analysis.health);
+        
+        // 健康部分 - 尝试从多个字段提取
+        if (!isEmptyOrDefault(analysis.health)) {
+            console.log("使用health字段显示健康内容:", analysis.health?.substring(0, 100));
+            displayAnalysisSection('health', analysis.health);
+        } else if (analysis["1. 养育重"] && analysis["1. 养育重"].includes("体质")) {
+            const healthMatch = /体质特点.*?(?:保健建议|重点防护).*?(?=\n\n\n|\Z)/s.exec(analysis["1. 养育重"]);
+            if (healthMatch) {
+                console.log("从养育重提取健康内容:", healthMatch[0].substring(0, 100));
+                displayAnalysisSection('health', healthMatch[0]);
+            } else {
+                const simpleHealthMatch = /体质.*?(?=\n\n|\Z)/s.exec(analysis["1. 养育重"]);
+                if (simpleHealthMatch) {
+                    console.log("从养育重提取简单健康内容:", simpleHealthMatch[0].substring(0, 100));
+                    displayAnalysisSection('health', simpleHealthMatch[0]);
+                } else {
+                    displayAnalysisSection('health', "分析生成中...");
+                }
+            }
+        } else {
+            displayAnalysisSection('health', "分析生成中...");
+        }
+        
         displayAnalysisSection('career', analysis.career);
         displayAnalysisSection('wealth', analysis.wealth);
         displayAnalysisSection('relationship', analysis.relationship);
         displayAnalysisSection('education', analysis.education);
         displayAnalysisSection('children', analysis.children);
-        displayAnalysisSection('parents', analysis.parents);
+        
+        // 父母情况 - 尝试从多个字段提取
+        if (!isEmptyOrDefault(analysis.parents)) {
+            displayAnalysisSection('parents', analysis.parents);
+        } else if (analysis.shenShaAnalysis && analysis.shenShaAnalysis.includes("年柱")) {
+            const parentsMatch = /年柱.*?(?=\n\n|\Z)/s.exec(analysis.shenShaAnalysis);
+            if (parentsMatch) {
+                displayAnalysisSection('parents', parentsMatch[0]);
+            } else {
+                displayAnalysisSection('parents', "分析生成中...");
+            }
+        } else {
+            displayAnalysisSection('parents', "分析生成中...");
+        }
+        
         displayAnalysisSection('social', analysis.social);
         
-        // 近五年运势和人生规划建议
-        if (analysis.future && !isEmptyOrDefault(analysis.future)) {
+        // 近五年运势 - 尝试从多个字段提取
+        if (!isEmptyOrDefault(analysis.future)) {
             displayAnalysisSection('future', analysis.future);
-        } else {
-            // 尝试从social字段中提取近五年运势内容
-            const futureMatch = /近五年运势(?:\s*\([^)]*\))?([\s\S]+?)(?=---|\Z)/i.exec(analysis.social);
-            if (futureMatch && futureMatch[1]) {
-                displayAnalysisSection('future', futureMatch[1].trim());
+        } else if (analysis.social && analysis.social.includes("2025") && analysis.social.includes("2026")) {
+            const futureMatch = /(?:1\. )?2025.*?2026.*?2027.*?(?=\n\n|\Z)/s.exec(analysis.social);
+            if (futureMatch) {
+                displayAnalysisSection('future', futureMatch[0]);
             } else {
                 displayAnalysisSection('future', "分析生成中...");
             }
+        } else {
+            displayAnalysisSection('future', "分析生成中...");
         }
         
         displayAnalysisSection('overall', analysis.overall);
-        displayAnalysisSection('lifePlan', analysis.lifePlan);
+        
+        // 人生规划建议 - 尝试从多个字段提取
+        if (!isEmptyOrDefault(analysis.lifePlan)) {
+            displayAnalysisSection('lifePlan', analysis.lifePlan);
+        } else if (analysis["1. 养育重"]) {
+            displayAnalysisSection('lifePlan', analysis["1. 养育重"]);
+        } else if (analysis.overall && analysis.overall.includes("养育")) {
+            const lifePlanMatch = /养育.*?(?=\n\n|\Z)/s.exec(analysis.overall);
+            if (lifePlanMatch) {
+                displayAnalysisSection('lifePlan', lifePlanMatch[0]);
+            } else {
+                displayAnalysisSection('lifePlan', "分析生成中...");
+            }
+        } else {
+            displayAnalysisSection('lifePlan', "分析生成中...");
+        }
         
         // 检查是否所有分析都已完成
         checkAnalysisCompletion(analysis);
@@ -89,10 +142,17 @@ function displayAnalysisSection(sectionId, content) {
         if (isEmptyOrDefault(content)) {
             sectionElement.innerHTML = `<p class="analysis-loading">分析生成中...</p>`;
         } else {
-            // 处理内容中的换行
-            const formattedContent = content
-                .replace(/\n/g, '<br>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // 处理加粗
+            // 处理内容中的换行和格式
+            let formattedContent = content
+                // 处理列表项
+                .replace(/(\d+)\.\s+(.*?)(?=\n|$)/g, '<strong>$1.</strong> $2')
+                // 处理嵌套列表项
+                .replace(/\s+-\s+(.*?)(?=\n|$)/g, '<br>&nbsp;&nbsp;&nbsp;• $1')
+                // 处理加粗
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // 最后处理换行，确保其他替换已完成
+                .replace(/\n/g, '<br>');
+                
             sectionElement.innerHTML = formattedContent;
         }
     } else {

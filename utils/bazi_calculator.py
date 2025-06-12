@@ -1083,6 +1083,9 @@ def calculate_day_zhi_shen_sha(zhi):
 def calculate_da_yun(year, month, day, hour, gender):
     """计算大运"""
     try:
+        # 转换性别为中文
+        gender_cn = '男' if gender == 'male' else '女'
+        
         # 创建农历对象
         solar = Solar.fromYmdHms(year, month, day, hour, 0, 0)
         lunar = solar.getLunar()
@@ -1104,7 +1107,7 @@ def calculate_da_yun(year, month, day, hour, gender):
         # 确定大运顺序（阳男阴女顺行，阴男阳女逆行）
         year_gan = lunar.getYearGan()
         is_yang = year_gan in ['甲', '丙', '戊', '庚', '壬']
-        is_forward = (is_yang and gender == 'male') or (not is_yang and gender == 'female')
+        is_forward = (is_yang and gender_cn == '男') or (not is_yang and gender_cn == '女')
         
         # 生成大运列表
         da_yun_list = []
@@ -1256,6 +1259,9 @@ def calculate_bazi(birth_datetime, gender):
     try:
         logging.info(f"计算八字，输入参数: birth_datetime={birth_datetime}, gender={gender}")
         
+        # 转换性别为中文
+        gender_cn = '男' if gender == 'male' else '女'
+        
         # 解析日期时间
         if "时" in birth_datetime:
             # 处理带时辰格式的日期时间
@@ -1372,7 +1378,7 @@ def calculate_bazi(birth_datetime, gender):
                 "dayGan": calculate_day_gan_shen_sha(day_gan),
                 "dayZhi": calculate_day_zhi_shen_sha(day_zhi)
             },
-            "daYun": calculate_da_yun(year, month, day, hour, gender),
+            "daYun": calculate_da_yun(year, month, day, hour, gender_cn),
             "flowingYears": []
         }
         

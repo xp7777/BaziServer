@@ -697,7 +697,17 @@ def generate_bazi_analysis(bazi_chart, gender):
     """
     try:
         logger.info("开始生成八字分析")
-        logger.info(f"输入数据: 性别={gender}, 八字数据=四柱信息+五行分布")
+        
+        # 转换性别为中文
+        if gender == 'male' or gender == '男':
+            gender_cn = '男'
+        elif gender == 'female' or gender == '女':
+            gender_cn = '女'
+        else:
+            gender_cn = '男'  # 默认值
+            
+        logger.info(f"性别转换: {gender} -> {gender_cn}")
+        logger.info(f"输入数据: 性别={gender_cn}, 八字数据=四柱信息+五行分布")
         
         # 提取八字数据
         year_pillar = bazi_chart['yearPillar']
@@ -733,7 +743,7 @@ def generate_bazi_analysis(bazi_chart, gender):
         请作为一名专业的命理师，基于以下八字命盘数据，进行全面的人生分析和指导。
         
         八字基本信息：
-        性别：{gender}
+        性别：{gender_cn}
         出生日期：{birth_date}
         出生时间：{birth_time}
         当前年龄：{age}岁
@@ -890,6 +900,16 @@ def generate_followup_analysis(bazi_chart, area, gender, previous_analysis=None)
     try:
         logger.info(f"开始生成追问分析: {area}")
         
+        # 转换性别为中文
+        if gender == 'male' or gender == '男':
+            gender_cn = '男'
+        elif gender == 'female' or gender == '女':
+            gender_cn = '女'
+        else:
+            gender_cn = '男'  # 默认值
+            
+        logger.info(f"性别转换: {gender} -> {gender_cn}")
+        
         # 提取四柱信息
         year_pillar = bazi_chart['yearPillar']
         month_pillar = bazi_chart['monthPillar']
@@ -1014,7 +1034,7 @@ def generate_followup_analysis(bazi_chart, area, gender, previous_analysis=None)
         
         # 填充最终的提示词
         prompt = template.format(
-            gender=gender,
+            gender=gender_cn,
             year_pillar_stem=year_pillar['heavenlyStem'],
             year_pillar_branch=year_pillar['earthlyBranch'],
             month_pillar_stem=month_pillar['heavenlyStem'],
@@ -1359,8 +1379,10 @@ def extract_analysis_from_text(ai_text):
             analysis["health"] = health_content
             logger.info(f"直接从原文提取到身体健康，内容长度: {len(health_content)} 字符")
         else:
-            # 尝试另一种匹配模式
-            health_matches = re.findall(r'体质.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL)
+            # 尝试另一种匹配模式 - 增强匹配模式，包括"体质"相关内容
+            health_matches = re.findall(r'体质特点.*?(?:保健建议|重点防护).*?(?=学业|人际关系|近五年运势|---|\n\n\n|\Z)', ai_text, re.DOTALL) or \
+                            re.findall(r'1\. 体质.*?(?:2\. (?:保健|重点防护)).*?(?=学业|人际关系|近五年运势|---|\n\n\n|\Z)', ai_text, re.DOTALL) or \
+                            re.findall(r'1\. 体质特点.*?(?=学业|人际关系|近五年运势|---|\n\n\n|\Z)', ai_text, re.DOTALL)
             if health_matches:
                 health_content = max(health_matches, key=len).strip()
                 analysis["health"] = health_content
@@ -1380,8 +1402,9 @@ def extract_analysis_from_text(ai_text):
             analysis["future"] = future_content
             logger.info(f"直接从原文提取到近五年运势，内容长度: {len(future_content)} 字符")
         else:
-            # 尝试另一种匹配模式
-            future_matches = re.findall(r'2025.*?2026.*?2027.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL)
+            # 尝试另一种匹配模式 - 增强匹配模式，匹配年份序列
+            future_matches = re.findall(r'(?:1\. )?2025.*?2026.*?2027.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL) or \
+                            re.findall(r'(?:1\. )?202[0-9]年.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL)
             if future_matches:
                 future_content = max(future_matches, key=len).strip()
                 analysis["future"] = future_content
@@ -1394,8 +1417,9 @@ def extract_analysis_from_text(ai_text):
             analysis["lifePlan"] = lifePlan_content
             logger.info(f"直接从原文提取到人生规划建议，内容长度: {len(lifePlan_content)} 字符")
         else:
-            # 尝试另一种匹配模式
-            lifePlan_matches = re.findall(r'健康：.*?教育：.*?环境：.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL)
+            # 尝试另一种匹配模式 - 增强匹配模式
+            lifePlan_matches = re.findall(r'(?:1\. )?养育重点.*?(?:2\. )?环境选择.*?(?:3\. )?教育启蒙.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL) or \
+                              re.findall(r'健康[：:].*?教育[：:].*?(?=---|\n\n|\Z)', ai_text, re.DOTALL)
             if lifePlan_matches:
                 lifePlan_content = max(lifePlan_matches, key=len).strip()
                 analysis["lifePlan"] = lifePlan_content
@@ -1560,10 +1584,11 @@ def map_section_name(section_name):
         "整体运势": "overall",
         "总结建议": "overall",
         
-        # 人生规划建议
+        # 人生规划建议 - 修正映射到lifePlan而非overall
         "人生规划建议": "lifePlan",
         "人生规划": "lifePlan",
         "规划建议": "lifePlan",
+        "1. 养育重": "lifePlan",  # 添加特殊情况匹配
         
         # 性格特点
         "性格特点": "personality",
