@@ -1378,35 +1378,34 @@ def extract_analysis_from_text(ai_text):
                     analysis[en_key] = content
                     logger.info(f"通过整体匹配提取到 {en_key} 部分，内容长度: {len(analysis[en_key])} 字符")
         
-        # 特殊处理：提取父母情况和身体健康
-        if "children" in analysis and "父母情况" in analysis["children"]:
-            # 从子女情况中提取父母情况部分
-            parts = analysis["children"].split("父母情况")
-            if len(parts) > 1:
-                # 将第二部分作为父母情况
-                parent_parts = parts[1].split("身体健康") if "身体健康" in parts[1] else [parts[1]]
-                analysis["parents"] = parent_parts[0].strip()
-                logger.info(f"从children字段中提取到parents部分，内容长度: {len(analysis['parents'])} 字符")
-                
-                # 更新子女情况
-                analysis["children"] = parts[0].strip()
-                
-                # 如果有身体健康部分，也提取出来
-                if "身体健康" in parts[1]:
-                    health_parts = parts[1].split("身体健康")
-                    if len(health_parts) > 1:
-                        analysis["health"] = health_parts[1].strip()
-                        logger.info(f"从children字段中提取到health部分，内容长度: {len(analysis['health'])} 字符")
-        
-        # 特殊处理：从social字段中提取近五年运势
-        if "social" in analysis and "近五年运势" in analysis["social"]:
-            parts = analysis["social"].split("近五年运势")
-            if len(parts) > 1:
-                # 将第一部分保留为social
-                analysis["social"] = parts[0].strip()
-                # 将第二部分作为future
-                analysis["future"] = parts[1].strip()
-                logger.info(f"从social字段中提取到future部分，内容长度: {len(analysis['future'])} 字符")
+        # 直接从原始文本中提取特定段落
+        # 1. 提取父母情况
+        parents_matches = re.findall(r'父母情况(.*?)(?=身体健康|学业|人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
+        if parents_matches:
+            parents_content = max(parents_matches, key=len).strip()
+            analysis["parents"] = parents_content
+            logger.info(f"直接从原文提取到父母情况，内容长度: {len(parents_content)} 字符")
+            
+        # 2. 提取身体健康
+        health_matches = re.findall(r'身体健康(.*?)(?=学业|人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
+        if health_matches:
+            health_content = max(health_matches, key=len).strip()
+            analysis["health"] = health_content
+            logger.info(f"直接从原文提取到身体健康，内容长度: {len(health_content)} 字符")
+            
+        # 3. 提取学业
+        education_matches = re.findall(r'学业(.*?)(?=人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
+        if education_matches:
+            education_content = max(education_matches, key=len).strip()
+            analysis["education"] = education_content
+            logger.info(f"直接从原文提取到学业，内容长度: {len(education_content)} 字符")
+            
+        # 4. 提取近五年运势
+        future_matches = re.findall(r'近五年运势(.*?)(?=-|\Z)', ai_text, re.DOTALL)
+        if future_matches:
+            future_content = max(future_matches, key=len).strip()
+            analysis["future"] = future_content
+            logger.info(f"直接从原文提取到近五年运势，内容长度: {len(future_content)} 字符")
         
         # 确保所有必要字段都存在
         required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
@@ -1415,7 +1414,7 @@ def extract_analysis_from_text(ai_text):
         for field in required_fields:
             if field not in analysis or not analysis[field]:
                 logger.warning(f"缺少必要字段 {field}，添加默认值")
-                analysis[field] = f"暂无"
+                analysis[field] = f"分析生成中..."
                 
         # 记录提取结果
         logger.info(f"最终提取到 {len(analysis)} 个部分: {list(analysis.keys())}")
