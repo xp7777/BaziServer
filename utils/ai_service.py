@@ -466,7 +466,7 @@ def call_openai_api(prompt):
 
 def clean_markdown_symbols(text):
     """
-    清理文本中的Markdown符号（* 和 #）
+    清理文本中的Markdown符号（* 和 #），但保留内容
     
     Args:
         text: 需要清理的文本
@@ -482,9 +482,13 @@ def clean_markdown_symbols(text):
     
     # 移除文本中的 # 符号（保留标题效果但去除符号）
     import re
-    text = re.sub(r'###\s+', '', text)  # 移除三级标题的 ###
-    text = re.sub(r'##\s+', '', text)   # 移除二级标题的 ##
-    text = re.sub(r'#\s+', '', text)    # 移除一级标题的 #
+    text = re.sub(r'^###\s+', '', text, flags=re.MULTILINE)  # 移除三级标题的 ###
+    text = re.sub(r'^##\s+', '', text, flags=re.MULTILINE)   # 移除二级标题的 ##
+    text = re.sub(r'^#\s+', '', text, flags=re.MULTILINE)    # 移除一级标题的 #
+    
+    # 移除 Markdown 列表标记
+    text = re.sub(r'^\s*-\s+', '• ', text, flags=re.MULTILINE)  # 将 Markdown 列表转为实心圆点
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)  # 移除数字列表标记
     
     return text
 
@@ -671,9 +675,8 @@ def call_deepseek_api(prompt):
                         for pattern in wrong_patterns:
                             content = re.sub(pattern, f"{year}年{correct_ganzhi}", content)
             
-            # 清理Markdown符号 (* 和 #)
-            content = clean_markdown_symbols(content)
-            logger.info("已清理返回内容中的Markdown符号 (* 和 #)")
+            # 保留原始Markdown格式，不在此处清理，以便提取函数能正确识别标题
+            logger.info("保留内容中的Markdown格式，用于后续分析提取")
             
             return content
         else:
@@ -1290,8 +1293,11 @@ def extract_analysis_from_text(ai_text):
             format_type = "unknown"
             logger.info("未检测到明确的标题格式，尝试多种格式提取")
             
+        # 预处理文本，保留Markdown标记格式进行提取，但不清理
+        processing_text = ai_text
+        
         # 按行处理文本
-        lines = ai_text.split('\n')
+        lines = processing_text.split('\n')
         logger.info(f"文本共有 {len(lines)} 行")
         
         detected_sections = []
@@ -1357,94 +1363,108 @@ def extract_analysis_from_text(ai_text):
             analysis[current_section] = '\n'.join(current_content)
             logger.info(f"提取到最后一部分 {current_section}，内容长度: {len(analysis[current_section])} 字符")
         
+        # 如果使用的是Markdown格式但提取结果很少，尝试直接使用正则表达式提取
+        if format_type == "markdown" and len(analysis) < 5:
+            logger.info("提取结果不足，尝试使用正则表达式从原始文本直接提取所有章节")
+            sections = re.findall(r'###\s*(.*?)\s*\n(.*?)(?=\n###|$)', ai_text, re.DOTALL)
+            for title, content in sections:
+                section_name = map_section_name(title.strip())
+                analysis[section_name] = content.strip()
+                logger.info(f"正则提取到Markdown标题 '{title.strip()}' -> {section_name}，内容长度: {len(content.strip())} 字符")
+        
         # 直接从原始文本中提取特定段落
         # 1. 提取父母情况
-        parents_matches = re.findall(r'父母情况(.*?)(?=身体健康|学业|人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
+        parents_matches = re.findall(r'###\s*父母情况\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                         re.findall(r'父母情况(.*?)(?=身体健康|学业|人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
         if parents_matches:
             parents_content = max(parents_matches, key=len).strip()
             analysis["parents"] = parents_content
             logger.info(f"直接从原文提取到父母情况，内容长度: {len(parents_content)} 字符")
-        else:
-            # 尝试另一种匹配模式
-            parents_matches = re.findall(r'年柱乙巳.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL)
-            if parents_matches:
-                parents_content = max(parents_matches, key=len).strip()
-                analysis["parents"] = parents_content
-                logger.info(f"使用备用模式提取到父母情况，内容长度: {len(parents_content)} 字符")
             
         # 2. 提取身体健康
-        health_matches = re.findall(r'身体健康(.*?)(?=学业|人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
+        health_matches = re.findall(r'###\s*身体健康\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                        re.findall(r'身体健康(.*?)(?=学业|人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
         if health_matches:
             health_content = max(health_matches, key=len).strip()
             analysis["health"] = health_content
             logger.info(f"直接从原文提取到身体健康，内容长度: {len(health_content)} 字符")
-        else:
-            # 尝试另一种匹配模式 - 增强匹配模式，包括"体质"相关内容
-            health_matches = re.findall(r'体质特点.*?(?:保健建议|重点防护).*?(?=学业|人际关系|近五年运势|---|\n\n\n|\Z)', ai_text, re.DOTALL) or \
-                            re.findall(r'1\. 体质.*?(?:2\. (?:保健|重点防护)).*?(?=学业|人际关系|近五年运势|---|\n\n\n|\Z)', ai_text, re.DOTALL) or \
-                            re.findall(r'1\. 体质特点.*?(?=学业|人际关系|近五年运势|---|\n\n\n|\Z)', ai_text, re.DOTALL)
-            if health_matches:
-                health_content = max(health_matches, key=len).strip()
-                analysis["health"] = health_content
-                logger.info(f"使用备用模式提取到身体健康，内容长度: {len(health_content)} 字符")
             
         # 3. 提取学业
-        education_matches = re.findall(r'学业(.*?)(?=人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
+        education_matches = re.findall(r'###\s*学业\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                           re.findall(r'学业(.*?)(?=人际关系|近五年运势|-|\Z)', ai_text, re.DOTALL)
         if education_matches:
             education_content = max(education_matches, key=len).strip()
             analysis["education"] = education_content
             logger.info(f"直接从原文提取到学业，内容长度: {len(education_content)} 字符")
             
         # 4. 提取近五年运势
-        future_matches = re.findall(r'近五年运势(?:\s*\([^)]*\))?(.*?)(?=人生规划|人生规划建议|-|\Z)', ai_text, re.DOTALL)
+        future_matches = re.findall(r'###\s*近五年运势\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                        re.findall(r'近五年运势(?:\s*\([^)]*\))?(.*?)(?=人生规划|人生规划建议|-|\Z)', ai_text, re.DOTALL)
         if future_matches:
             future_content = max(future_matches, key=len).strip()
             analysis["future"] = future_content
             logger.info(f"直接从原文提取到近五年运势，内容长度: {len(future_content)} 字符")
-        else:
-            # 尝试另一种匹配模式 - 增强匹配模式，匹配年份序列
-            future_matches = re.findall(r'(?:1\. )?2025.*?2026.*?2027.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL) or \
-                            re.findall(r'(?:1\. )?202[0-9]年.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL)
-            if future_matches:
-                future_content = max(future_matches, key=len).strip()
-                analysis["future"] = future_content
-                logger.info(f"使用备用模式提取到近五年运势，内容长度: {len(future_content)} 字符")
             
         # 5. 提取人生规划建议
-        lifePlan_matches = re.findall(r'人生规划建议(.*?)(?=-|\Z)', ai_text, re.DOTALL)
+        lifePlan_matches = re.findall(r'###\s*人生规划建议\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                          re.findall(r'人生规划建议(.*?)(?=-|\Z)', ai_text, re.DOTALL)
         if lifePlan_matches:
             lifePlan_content = max(lifePlan_matches, key=len).strip()
             analysis["lifePlan"] = lifePlan_content
             logger.info(f"直接从原文提取到人生规划建议，内容长度: {len(lifePlan_content)} 字符")
-        else:
-            # 尝试另一种匹配模式 - 增强匹配模式
-            lifePlan_matches = re.findall(r'(?:1\. )?养育重点.*?(?:2\. )?环境选择.*?(?:3\. )?教育启蒙.*?(?=---|\n\n|\Z)', ai_text, re.DOTALL) or \
-                              re.findall(r'健康[：:].*?教育[：:].*?(?=---|\n\n|\Z)', ai_text, re.DOTALL)
-            if lifePlan_matches:
-                lifePlan_content = max(lifePlan_matches, key=len).strip()
-                analysis["lifePlan"] = lifePlan_content
-                logger.info(f"使用备用模式提取到人生规划建议，内容长度: {len(lifePlan_content)} 字符")
         
-        # 6. 提取未来感情发展
-        relationship_matches = re.findall(r'未来感情发展(.*?)(?=未来事业财运|未来子女缘分|-|\Z)', ai_text, re.DOTALL)
+        # 6. 提取婚姻感情
+        relationship_matches = re.findall(r'###\s*婚姻感情\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                              re.findall(r'婚姻感情(.*?)(?=事业财运|子女情况|-|\Z)', ai_text, re.DOTALL)
         if relationship_matches:
             relationship_content = max(relationship_matches, key=len).strip()
             analysis["relationship"] = relationship_content
-            logger.info(f"直接从原文提取到未来感情发展，内容长度: {len(relationship_content)} 字符")
+            logger.info(f"直接从原文提取到婚姻感情，内容长度: {len(relationship_content)} 字符")
             
-        # 7. 提取未来事业财运
-        career_matches = re.findall(r'未来事业财运(.*?)(?=未来子女缘分|父母情况|-|\Z)', ai_text, re.DOTALL)
+        # 7. 提取事业财运
+        career_matches = re.findall(r'###\s*事业财运\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                        re.findall(r'事业财运(.*?)(?=子女情况|父母情况|-|\Z)', ai_text, re.DOTALL)
         if career_matches:
             career_content = max(career_matches, key=len).strip()
             analysis["career"] = career_content
-            logger.info(f"直接从原文提取到未来事业财运，内容长度: {len(career_content)} 字符")
+            logger.info(f"直接从原文提取到事业财运，内容长度: {len(career_content)} 字符")
             
-        # 8. 提取未来子女缘分
-        children_matches = re.findall(r'未来子女缘分(.*?)(?=父母情况|身体健康|-|\Z)', ai_text, re.DOTALL)
+        # 8. 提取子女情况
+        children_matches = re.findall(r'###\s*子女情况\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                          re.findall(r'子女情况(.*?)(?=父母情况|身体健康|-|\Z)', ai_text, re.DOTALL)
         if children_matches:
             children_content = max(children_matches, key=len).strip()
             analysis["children"] = children_content
-            logger.info(f"直接从原文提取到未来子女缘分，内容长度: {len(children_content)} 字符")
+            logger.info(f"直接从原文提取到子女情况，内容长度: {len(children_content)} 字符")
+            
+        # 9. 提取八字命局核心分析
+        core_matches = re.findall(r'###\s*八字命局核心分析\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL)
+        if core_matches:
+            core_content = max(core_matches, key=len).strip()
+            analysis["coreAnalysis"] = core_content
+            logger.info(f"直接从原文提取到八字命局核心分析，内容长度: {len(core_content)} 字符")
+        
+        # 10. 提取五行旺衰与用神
+        five_matches = re.findall(r'###\s*五行旺衰与用神\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL)
+        if five_matches:
+            five_content = max(five_matches, key=len).strip()
+            analysis["fiveElements"] = five_content
+            logger.info(f"直接从原文提取到五行旺衰与用神，内容长度: {len(five_content)} 字符")
+            
+        # 11. 提取神煞解析
+        shen_sha_matches = re.findall(r'###\s*神煞解析\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL)
+        if shen_sha_matches:
+            shen_sha_content = max(shen_sha_matches, key=len).strip()
+            analysis["shenShaAnalysis"] = shen_sha_content
+            logger.info(f"直接从原文提取到神煞解析，内容长度: {len(shen_sha_content)} 字符")
+            
+        # 12. 提取人际关系
+        social_matches = re.findall(r'###\s*人际关系\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                        re.findall(r'人际关系(.*?)(?=近五年运势|人生规划|-|\Z)', ai_text, re.DOTALL)
+        if social_matches:
+            social_content = max(social_matches, key=len).strip()
+            analysis["social"] = social_content
+            logger.info(f"直接从原文提取到人际关系，内容长度: {len(social_content)} 字符")
         
         # 确保所有必要字段都存在
         required_fields = ['overall', 'health', 'wealth', 'career', 'relationship', 'children', 
