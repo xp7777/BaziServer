@@ -26,8 +26,15 @@ except Exception as e:
 os.environ['WECHAT_MCH_ID'] = os.getenv('WECHAT_MCH_ID', '1706110646') #微信支付商户号
 os.environ['WECHAT_CERT_SERIAL_NO'] = os.getenv('WECHAT_CERT_SERIAL_NO', '69D653B5EB73DB2B9A5175FEF05AAFE6EDD66083')  #微信支付API证书序列号
 os.environ['WECHAT_APP_ID'] = os.getenv('WECHAT_APP_ID', 'wxa7b459b6aa6e3ad1')  # 替换为您的真实AppID
-os.environ['WECHAT_API_KEY'] = os.getenv('WECHAT_API_KEY', '69D653B5EB73DB2B9A5175FEF05AAFE6EDD66083')  # 替换为您的真实API密钥
-os.environ['WECHAT_NOTIFY_URL'] = os.getenv('WECHAT_NOTIFY_URL', 'https://wlmqhxswyxgs.top/api/order/wechat/notify') #微信支付回调地址
+
+# V2 API密钥配置（保留向后兼容）
+# 例如: os.environ['WECHAT_API_KEY'] = os.getenv('WECHAT_API_KEY', '3Yf8jzZqK9XW6bNcRv7d2pLtH1sGhJ9P')
+os.environ['WECHAT_API_KEY'] = os.getenv('WECHAT_API_KEY', '3Yf8jzZqK9XW6bNcRv7d2pLtH1sGhJ9P')
+
+# V3 API配置
+os.environ['WECHAT_NOTIFY_URL'] = os.getenv('WECHAT_NOTIFY_URL', 'https://wlmqhxswyxgs.top/api/order/wechat/notify/v3') #微信支付V3回调地址
+os.environ['WECHAT_CERT_DIR'] = os.getenv('WECHAT_CERT_DIR', './cert')  # 证书存放目录
+os.environ['WECHAT_API_V3_KEY'] = os.getenv('WECHAT_API_V3_KEY', '')  # V3 API密钥，用于解密回调报文
 
 # 验证关键环境变量
 def validate_env_vars():

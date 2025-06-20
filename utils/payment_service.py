@@ -11,8 +11,23 @@ import qrcode
 from io import BytesIO
 import base64
 import hmac
+from utils.wechat_pay_v3 import wechat_pay_v3, WechatPayV3
 
 logger = logging.getLogger(__name__)
+
+# 初始化微信支付V3接口
+# wechat_pay_v3 = None
+# try:
+#     wechat_pay_v3 = WechatPayV3()
+#     logger.info("微信支付V3接口初始化成功")
+# except Exception as e:
+#     logger.error(f"微信支付V3接口初始化失败: {str(e)}")
+
+# 使用统一实例，已在wechat_pay_v3.py中创建
+if wechat_pay_v3 is not None:
+    logger.info("使用全局微信支付V3接口实例")
+else:
+    logger.warning("全局微信支付V3接口实例不可用")
 
 def create_wechat_payment(order_id, amount, return_qr_image=False):
     """
@@ -26,6 +41,32 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
     Returns:
         dict: 包含支付二维码URL和可选的二维码图片
     """
+    # 尝试使用V3接口
+    if wechat_pay_v3 is not None:
+        try:
+            logger.info(f"使用微信支付V3接口创建订单: {order_id}")
+            # 将金额转换为分（整数）
+            amount_in_cents = int(amount * 100)
+            result = wechat_pay_v3.create_native_order(
+                out_trade_no=order_id,
+                amount=amount_in_cents,
+                description="八字命理AI人生指导",
+                return_qr_image=return_qr_image
+            )
+            
+            if result.get("code") == "SUCCESS":
+                logger.info(f"微信支付V3下单成功: {order_id}")
+                return result
+            else:
+                logger.error(f"微信支付V3下单失败: {result.get('message', '未知错误')}")
+                # 失败后尝试使用V2接口
+        except Exception as e:
+            logger.exception(f"微信支付V3创建订单异常: {str(e)}")
+            # 出错后尝试使用V2接口
+    
+    # 以下是原有的V2接口代码（作为后备方案）
+    logger.warning(f"使用微信支付V2接口创建订单（后备方案）: {order_id}")
+    
     # 获取配置
     app_id = os.getenv('WECHAT_APP_ID')
     mch_id = os.getenv('WECHAT_MCH_ID')
@@ -62,11 +103,11 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
         return {"code_url": test_url}
     
     try:
-        logger.info(f"开始调用微信支付API创建订单: {order_id}")
+        logger.info(f"开始调用微信支付V2 API创建订单: {order_id}")
         
         # 构造请求参数
         nonce_str = str(uuid.uuid4()).replace('-', '')
-        body = "八字命理AI人生指导"
+        body = "八字命理AI人生指导"  # 确保没有多余空格
         out_trade_no = order_id
         total_fee = int(amount * 100)  # 微信支付金额以分为单位
         spbill_create_ip = "127.0.0.1"
@@ -74,34 +115,48 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
         
         # 构造签名参数
         sign_params = {
-            "appid": app_id,
-            "mch_id": mch_id,
-            "nonce_str": nonce_str,
-            "body": body,
-            "out_trade_no": out_trade_no,
-            "total_fee": str(total_fee),
-            "spbill_create_ip": spbill_create_ip,
-            "notify_url": notify_url,
-            "trade_type": trade_type
+            "appid": app_id.strip(),
+            "mch_id": mch_id.strip(),
+            "nonce_str": nonce_str.strip(),
+            "body": body.strip(),
+            "out_trade_no": out_trade_no.strip(),
+            "total_fee": str(total_fee).strip(),
+            "spbill_create_ip": spbill_create_ip.strip(),
+            "notify_url": notify_url.strip(),
+            "trade_type": trade_type.strip()
         }
+        
+        # 打印调试信息，检查签名前的各参数
+        logger.info(f"appid: '{app_id}'")
+        logger.info(f"mch_id: '{mch_id}'")
+        logger.info(f"body值: '{body}'")
         
         # 生成签名
         sign_string = "&".join([f"{k}={v}" for k, v in sorted(sign_params.items())])
-        sign_string = sign_string + "&key=" + api_key
+        sign_string = sign_string + "&key=" + api_key.strip()
+        
+        # 打印签名参数用于调试
+        logger.info(f"生成签名参数: {sign_params}")
+        logger.info(f"完整签名字符串: {sign_string}")
+        logger.info(f"签名使用的API密钥(部分隐藏): {api_key[:4]}...{api_key[-4:]}")
+        
         sign = hashlib.md5(sign_string.encode('utf-8')).hexdigest().upper()
+        logger.info(f"生成的MD5签名: {sign}")
         
         # 构造XML请求
         xml_data = "<xml>"
         for k, v in sign_params.items():
+            # 确保XML中的值与签名计算使用的值完全一致
             xml_data += f"<{k}>{v}</{k}>"
         xml_data += f"<sign>{sign}</sign>"
         xml_data += "</xml>"
         
         logger.info("发送微信支付统一下单请求")
+        logger.debug(f"请求XML: {xml_data}")
         
         # 发送请求
         url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
-        headers = {'Content-Type': 'application/xml'}
+        headers = {'Content-Type': 'application/xml; charset=utf-8'}  # 明确指定UTF-8编码
         response = requests.post(url, data=xml_data.encode('utf-8'), headers=headers)
         
         # 记录响应内容
@@ -112,7 +167,7 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
         result = xmltodict.parse(response.content)['xml']
         
         if result['return_code'] == 'SUCCESS' and result['result_code'] == 'SUCCESS':
-            logger.info(f"微信支付下单成功: {order_id}")
+            logger.info(f"微信支付V2下单成功: {order_id}")
             code_url = result['code_url']
             
             if return_qr_image:
@@ -141,7 +196,7 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
             return {"code_url": code_url}
         else:
             error_msg = result.get('err_code_des') or result.get('return_msg') or '未知错误'
-            logger.error(f"微信支付下单失败: {error_msg}")
+            logger.error(f"微信支付V2下单失败: {error_msg}")
             return {"error": error_msg, "code": "WECHAT_API_ERROR"}
     
     except Exception as e:
