@@ -36,6 +36,13 @@ os.environ['WECHAT_NOTIFY_URL'] = os.getenv('WECHAT_NOTIFY_URL', 'https://wlmqhx
 os.environ['WECHAT_CERT_DIR'] = os.getenv('WECHAT_CERT_DIR', './cert')  # 证书存放目录
 os.environ['WECHAT_API_V3_KEY'] = os.getenv('WECHAT_API_V3_KEY', '')  # V3 API密钥，用于解密回调报文
 
+# 根据环境变量设置回调URL，优先使用配置的域名，如果没有，则使用本地地址
+if os.getenv('ENV', 'development') == 'development':
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('PORT', 5000))
+    # 如果是本地开发环境，可以使用内网穿透服务如ngrok提供外部访问URL
+    os.environ['WECHAT_NOTIFY_URL'] = os.getenv('WECHAT_NOTIFY_URL', f'http://{host}:{port}/api/order/wechat/notify/v3')
+
 # 验证关键环境变量
 def validate_env_vars():
     critical_vars = {

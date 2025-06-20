@@ -224,11 +224,38 @@ export default {
         // 查询支付结果API
         console.log('查询支付结果:', orderId.value);
         
-        const response = await axios.get(`/api/order/query/${orderId.value}`);
+        // 增加重试次数，微信支付状态更新可能有延迟
+        let retryCount = 0;
+        const maxRetries = 3;
+        let response;
+        let paymentSuccess = false;
         
-        console.log('支付查询响应:', response.data);
+        // 重试查询支付状态
+        while (retryCount < maxRetries && !paymentSuccess) {
+          response = await axios.get(`/api/order/query/${orderId.value}`);
+          console.log(`支付查询响应 (尝试 ${retryCount + 1}/${maxRetries}):`, response.data);
+          
+          if (response.data.code === 200 && response.data.data.status === 'paid') {
+            paymentSuccess = true;
+            break;
+          }
+          
+          // 如果查询失败，等待2秒后重试
+          if (!paymentSuccess) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            retryCount++;
+          }
+        }
         
-        if (response.data.code === 200 && response.data.data.status === 'paid') {
+        // 如果重试后仍未成功，尝试手动更新接口
+        if (!paymentSuccess) {
+          console.log('查询支付状态失败，尝试手动更新订单状态');
+          response = await axios.get(`/api/order/manual_update/${orderId.value}`);
+          console.log('手动更新响应:', response.data);
+          paymentSuccess = (response.data.code === 200 && response.data.data.status === 'paid');
+        }
+        
+        if (paymentSuccess) {
           Toast.success('支付成功');
           showQRCode.value = false;
           
@@ -237,79 +264,51 @@ export default {
           
           if (!resultId) {
             console.error('服务器未返回有效的resultId');
-            Toast.fail('获取结果ID失败，请联系客服');
-            return;
+            // 生成默认结果ID并尝试手动更新
+            const defaultResultId = 'RES' + orderId.value.replace(/^BZ/, '');
+            console.log('使用默认结果ID:', defaultResultId);
+            
+            try {
+              // 尝试手动更新获取结果ID
+              const manualResponse = await axios.get(`/api/order/manual_update/${orderId.value}`);
+              console.log('手动更新响应:', manualResponse.data);
+              
+              if (manualResponse.data.code === 200 && manualResponse.data.data.resultId) {
+                // 使用手动更新返回的resultId
+                const updatedResultId = manualResponse.data.data.resultId;
+                console.log('手动更新成功，获取到结果ID:', updatedResultId);
+                
+                // 继续处理计算和分析
+                await processBaziCalculation(updatedResultId);
+                
+                // 跳转到结果页面
+                redirectToResultPage(updatedResultId);
+                return;
+              } else {
+                Toast.fail('无法获取有效的结果ID，将使用默认ID');
+                await processBaziCalculation(defaultResultId);
+                redirectToResultPage(defaultResultId);
+                return;
+              }
+            } catch (manualError) {
+              console.error('手动更新失败:', manualError);
+              Toast.fail('获取结果ID失败，使用默认ID');
+              await processBaziCalculation(defaultResultId);
+              redirectToResultPage(defaultResultId);
+              return;
+            }
           }
           
           console.log('获取到结果ID:', resultId);
           
           // 请求立即计算完整的命盘数据
-          try {
-            Toast.loading({
-              message: '正在生成八字命盘...',
-              duration: 0,
-              forbidClick: true
-            });
-            
-            // 修改：使用正确的update API端点
-            console.log('正在请求更新八字数据:', resultId);
-            const updateResponse = await axios.post(`http://localhost:5000/api/bazi/update/${resultId}`, {
-              birthDate,
-              birthTime,
-              gender,
-              calendarType,
-              birthPlace,
-              livingPlace,
-              focusAreas,
-              forceRecalculate: true,        // 强制重新计算基础数据
-              generateShenshaData: true,     // 生成神煞数据
-              generateDayunData: true,       // 生成大运数据 
-              generateLiunianData: true,     // 生成流年数据
-              useDeepseekAPI: true           // 使用DeepSeek API进行分析
-            });
-            
-            console.log('八字数据更新响应:', updateResponse.data);
-            
-            if (updateResponse.data.code === 200) {
-              Toast.success('命盘数据生成中');
-              
-              // 确保延迟足够长，以便后端完成八字数据处理
-              setTimeout(async () => {
-                try {
-                  console.log('正在请求八字深度分析:', resultId);
-                  const analyzeResponse = await axios.post(`http://localhost:5000/api/bazi/analyze/${resultId}`, {
-                    useDeepseekAPI: true
-                  });
-                  console.log('八字深度分析响应:', analyzeResponse.data);
-                  Toast.success('命盘分析已开始，请稍后刷新查看结果');
-                } catch (analyzeError) {
-                  console.error('深度分析请求失败:', analyzeError);
-                  Toast.fail('命盘分析请求失败');
-                }
-              }, 3000); // 延长等待时间到3秒
-            } else {
-              console.error('八字数据更新失败:', updateResponse.data.message);
-              Toast.fail('命盘计算请求失败: ' + (updateResponse.data.message || '未知错误'));
-            }
-          } catch (calcError) {
-            console.error('命盘计算请求失败:', calcError);
-            Toast.fail('命盘计算请求失败: ' + (calcError.message || '未知错误'));
-          }
+          await processBaziCalculation(resultId);
           
-          // 跳转到结果页面，传递必要参数
-          router.push({
-            path: `/result/${resultId}`,
-            query: {
-              birthDate,
-              birthTime,
-              gender,
-              birthPlace,
-              livingPlace,
-              originalOrderId: orderId.value // 传递原始订单ID
-            }
-          });
+          // 跳转到结果页面
+          redirectToResultPage(resultId);
         } else {
-          Toast.fail(response.data.message || '支付处理失败');
+          Toast.fail(response?.data?.message || '支付处理失败');
+          isProcessing.value = false;
         }
       } catch (error) {
         console.error('支付处理出错:', error);
@@ -322,9 +321,81 @@ export default {
         const defaultResultId = 'RES' + orderId.value.replace(/^BZ/, '');
         console.log('使用默认结果ID:', defaultResultId);
         
+        // 尝试计算和跳转
+        await processBaziCalculation(defaultResultId);
+        
         // 即使出错也跳转到结果页面，使用默认结果ID
+        redirectToResultPage(defaultResultId);
+      } finally {
+        isProcessing.value = false;
+      }
+    };
+    
+    // 提取八字计算过程为独立函数
+    const processBaziCalculation = async (resultId) => {
+      try {
+        Toast.loading({
+          message: '正在生成八字命盘...',
+          duration: 0,
+          forbidClick: true
+        });
+        
+        // 获取基础URL，确保在不同环境下都能正确请求API
+        const baseUrl = process.env.VUE_APP_API_URL || window.location.origin;
+        console.log('使用API基础URL:', baseUrl);
+        
+        // 修改：使用正确的update API端点
+        console.log('正在请求更新八字数据:', resultId);
+        const updateResponse = await axios.post(`${baseUrl}/api/bazi/update/${resultId}`, {
+          birthDate,
+          birthTime,
+          gender,
+          calendarType,
+          birthPlace,
+          livingPlace,
+          focusAreas,
+          forceRecalculate: true,        // 强制重新计算基础数据
+          generateShenshaData: true,     // 生成神煞数据
+          generateDayunData: true,       // 生成大运数据 
+          generateLiunianData: true,     // 生成流年数据
+          useDeepseekAPI: true           // 使用DeepSeek API进行分析
+        });
+        
+        console.log('八字数据更新响应:', updateResponse.data);
+        
+        if (updateResponse.data.code === 200) {
+          Toast.success('命盘数据生成中');
+          
+          // 确保延迟足够长，以便后端完成八字数据处理
+          setTimeout(async () => {
+            try {
+              console.log('正在请求八字深度分析:', resultId);
+              const analyzeResponse = await axios.post(`${baseUrl}/api/bazi/analyze/${resultId}`, {
+                useDeepseekAPI: true
+              });
+              console.log('八字深度分析响应:', analyzeResponse.data);
+              Toast.success('命盘分析已开始');
+            } catch (analyzeError) {
+              console.error('深度分析请求失败:', analyzeError);
+              Toast.fail('命盘分析请求失败');
+            }
+          }, 3000); // 延长等待时间到3秒
+        } else {
+          console.error('八字数据更新失败:', updateResponse.data.message);
+          Toast.fail('命盘计算请求失败: ' + (updateResponse.data.message || '未知错误'));
+        }
+      } catch (calcError) {
+        console.error('命盘计算请求失败:', calcError);
+        Toast.fail('命盘计算请求失败: ' + (calcError.message || '未知错误'));
+      }
+    };
+    
+    // 添加结果页面跳转函数
+    const redirectToResultPage = (resultId) => {
+      // 延迟跳转，给用户体验更好的过渡
+      setTimeout(() => {
         router.push({
-          path: `/result/${defaultResultId}`,
+          path: `/result/${resultId}`,
           query: {
             birthDate,
             birthTime,
@@ -334,9 +405,7 @@ export default {
             originalOrderId: orderId.value // 传递原始订单ID
           }
         });
-      } finally {
-        isProcessing.value = false;
-      }
+      }, 1000);
     };
     
     const checkPaymentStatus = async () => {

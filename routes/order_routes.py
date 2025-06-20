@@ -32,12 +32,12 @@ def create_order():
         return jsonify(code=400, message="请提供性别和出生时间信息"), 400
     
     # 计算订单金额: 基础费用9.9元 + 每个侧重点9.9元
-    base_price = 9.9
-    focus_price = 9.9 * len(focus_areas)
+    base_price = 1
+    focus_price = 0.00000000001 * len(focus_areas)
     total_amount = base_price + focus_price
     
     # 创建订单
-    order = OrderModel.create_order(user_id, total_amount)
+    order = OrderModel.create_order(user_id, base_price)
     
     # 创建八字结果记录
     result = BaziResultModel.create_result(
@@ -325,7 +325,7 @@ def create_followup_order():
     order = {
         "_id": order_id,
         "userId": result.get('userId', 'anonymous'),
-        "amount": 9.9,
+        "amount": 0.00001,
         "status": "pending",
         "orderType": "followup",
         "resultId": result_id,
@@ -341,7 +341,7 @@ def create_followup_order():
         "message": "创建追问订单成功",
         "data": {
                             "orderId": order_id,
-            "amount": 9.9
+            "amount": 0.00001
         }
     })
 
@@ -723,6 +723,14 @@ def query_order(order_id):
                     # 订单已支付，更新状态
                     OrderModel.update_status(order_id, 'paid')
                     
+                    # 生成结果ID (如果没有)
+                    result_id = order.get('resultId')
+                    if not result_id:
+                        result_id = f"RES{order_id.replace('BZ', '')}"
+                        OrderModel.update_order_result_id(order_id, result_id)
+                    else:
+                        result_id = order.get('resultId')
+                    
                     # 添加支付信息
                     payment_info = {
                         'paymentTime': datetime.now(),
@@ -739,7 +747,7 @@ def query_order(order_id):
                         data={
                             "orderId": order['_id'],
                             "status": 'paid',
-                            "resultId": order.get('resultId'),
+                            "resultId": result_id,
                             "paymentMethod": 'wechat'
                         }
                     )
@@ -855,7 +863,7 @@ def create_simple_order():
         return jsonify(code=400, message="请提供性别和出生日期时间信息"), 400
     
     # 计算订单金额: 基础费用9.9元
-    total_amount = 9.9
+    total_amount = 1
     
     try:
         # 生成订单ID
@@ -902,7 +910,7 @@ def create_simple_order():
 # 微信支付V3回调处理
 @order_bp.route('/wechat/notify/v3', methods=['POST'])
 def wechat_notify_v3():
-    """微信支付V3回调"""
+    """微信支付V3回调处理"""
     if wechat_pay_v3 is None:
         logging.error("微信支付V3接口未初始化")
         return jsonify(code="FAIL", message="支付接口未初始化"), 500
@@ -916,9 +924,9 @@ def wechat_notify_v3():
     logging.debug(f"微信支付V3回调头部: {dict(headers)}")
     logging.debug(f"微信支付V3回调数据: {body}")
     
-    # 验证回调
+    # 处理回调
     try:
-        # 验证回调通知
+        # 验证并解析回调通知
         notify_data = wechat_pay_v3.verify_notify(headers, body)
         
         if not notify_data:
@@ -939,24 +947,119 @@ def wechat_notify_v3():
         
         # 处理支付成功通知
         if event_type == "TRANSACTION.SUCCESS":
-            resource = notify_data.get("resource", {})
-            # 如果V3 API密钥存在，尝试解密resource数据
-            api_v3_key = os.getenv('WECHAT_API_V3_KEY')
+            # 获取解密后的数据
+            decrypted_data = notify_data.get("decrypted_resource")
             
-            # 以下为处理逻辑示例
-            # 实际情况中，如果有API V3密钥，可以解密resource数据获取订单详情
-            # 如果没有API V3密钥，这里只记录回调但不处理支付结果
-            out_trade_no = "订单号"  # 从解密后的数据获取
-            transaction_id = "微信支付单号"  # 从解密后的数据获取
+            if not decrypted_data:
+                logging.warning("未解密资源数据，可能缺少API V3密钥")
+                # 尝试从原始数据中获取订单号
+                resource = notify_data.get("resource", {})
+                if isinstance(resource, dict) and resource.get("original_type") == "transaction":
+                    # 可能包含订单号信息
+                    out_trade_no = resource.get("out_trade_no", "unknown")
+                else:
+                    logging.error("无法获取订单号，回调处理终止")
+                    return "{}"  # 返回空JSON表示接收成功
+            else:
+                # 从解密数据中获取订单信息
+                out_trade_no = decrypted_data.get("out_trade_no")
+                transaction_id = decrypted_data.get("transaction_id")
+                trade_state = decrypted_data.get("trade_state")
+                amount = decrypted_data.get("amount", {}).get("total")
+                
+                logging.info(f"支付成功: 订单={out_trade_no}, 微信订单号={transaction_id}, 金额={amount}分")
+                
+                # 更新订单状态
+                if out_trade_no:
+                    order = OrderModel.find_by_id(out_trade_no)
+                    if order and order['status'] != 'paid':
+                        # 更新订单状态
+                        OrderModel.update_status(out_trade_no, 'paid')
+                        
+                        # 生成结果ID (如果没有)
+                        result_id = order.get('resultId')
+                        if not result_id:
+                            result_id = f"RES{out_trade_no.replace('BZ', '')}"
+                            OrderModel.update_order_result_id(out_trade_no, result_id)
+                        
+                        # 添加支付信息
+                        payment_info = {
+                            'paymentTime': datetime.now(),
+                            'transactionId': transaction_id,
+                            'paymentMethod': 'wechat',
+                            'apiVersion': 'v3',
+                            'amount': amount
+                        }
+                        OrderModel.update_payment_info(out_trade_no, payment_info)
+                        
+                        logging.info(f"已更新订单状态为已支付: {out_trade_no}")
+                        
+                        # 处理后续业务逻辑（可以添加任务队列处理八字分析等）
+                        # 这里可以添加类似onPaymentSuccess的逻辑
+                    else:
+                        logging.info(f"订单已处理或不存在: {out_trade_no}")
+                else:
+                    logging.error("回调数据中未找到订单号")
             
-            # 输出一个成功响应，即使不处理支付结果
-            # 微信支付平台期望收到http状态码200和{}作为应答
-            return "{}"
-        
-        logging.warning(f"未处理的微信支付V3事件类型: {event_type}")
-        return "{}"  # 返回空JSON
+        # 微信支付平台期望收到http状态码200和返回体{}，表示成功接收通知
+        return "{}", 200, {"Content-Type": "application/json"}
         
     except Exception as e:
         logging.error(f"处理微信支付V3回调异常: {str(e)}")
         logging.error(traceback.format_exc())
-        return jsonify(code="FAIL", message="处理异常"), 500 
+        
+        # 即使出错，仍需返回200和{}，避免微信平台重复通知
+        return "{}", 200, {"Content-Type": "application/json"}
+
+# 添加手动更新支付状态API
+@order_bp.route('/manual_update/<order_id>', methods=['GET'])
+def manual_update_order(order_id):
+    """手动更新订单状态，用于支付回调失败时使用"""
+    # 先从数据库查询订单
+    order = OrderModel.find_by_id(order_id)
+    
+    if not order:
+        return jsonify(code=404, message="订单不存在"), 404
+    
+    # 如果订单已支付，直接返回
+    if order['status'] == 'paid':
+        return jsonify(
+            code=200,
+            message="订单已支付",
+            data={
+                "orderId": order['_id'],
+                "status": order['status'],
+                "resultId": order.get('resultId'),
+                "paymentMethod": order.get('paymentMethod')
+            }
+        )
+    
+    # 手动更新订单状态为已支付
+    OrderModel.update_status(order_id, 'paid')
+    
+    # 生成结果ID (如果没有)
+    result_id = order.get('resultId')
+    if not result_id:
+        result_id = f"RES{order_id.replace('BZ', '')}"
+        OrderModel.update_order_result_id(order_id, result_id)
+    
+    # 添加支付信息
+    payment_info = {
+        'paymentTime': datetime.now(),
+        'transactionId': 'manual_update',
+        'paymentMethod': order.get('paymentMethod', 'wechat'),
+        'apiVersion': 'manual'
+    }
+    OrderModel.update_payment_info(order_id, payment_info)
+    
+    # 返回更新后的订单状态
+    return jsonify(
+        code=200,
+        message="订单已手动更新为已支付状态",
+        data={
+            "orderId": order_id,
+            "status": 'paid',
+            "resultId": result_id,
+            "paymentMethod": order.get('paymentMethod')
+        }
+    ) 

@@ -14,6 +14,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
 import qrcode
 from io import BytesIO
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +346,50 @@ class WechatPayV3:
                 "message": str(e)
             }
     
+    def decrypt_resource(self, resource):
+        """解密回调中的加密数据
+        
+        Args:
+            resource: 包含加密数据的字典，应包含 ciphertext, nonce, associated_data 字段
+            
+        Returns:
+            解密后的数据字典，如果解密失败则返回None
+        """
+        try:
+            api_v3_key = os.getenv('WECHAT_API_V3_KEY')
+            if not api_v3_key:
+                logger.error("未设置WECHAT_API_V3_KEY，无法解密回调数据")
+                return None
+                
+            # 获取加密数据
+            ciphertext = resource.get('ciphertext')
+            nonce = resource.get('nonce')
+            associated_data = resource.get('associated_data')
+            
+            if not all([ciphertext, nonce, associated_data]):
+                logger.error("回调数据缺少必要的字段，无法解密")
+                return None
+            
+            # Base64解码密文
+            ciphertext = base64.b64decode(ciphertext)
+            
+            # 使用AES-GCM解密
+            key_bytes = api_v3_key.encode('utf-8')
+            aesgcm = AESGCM(key_bytes)
+            plaintext = aesgcm.decrypt(
+                nonce.encode('utf-8'), 
+                ciphertext, 
+                associated_data.encode('utf-8')
+            )
+            
+            # 解析解密后的数据
+            json_data = json.loads(plaintext.decode('utf-8'))
+            logger.info("成功解密回调数据")
+            return json_data
+        except Exception as e:
+            logger.exception(f"解密回调数据失败: {str(e)}")
+            return None
+    
     def verify_notify(self, headers, body):
         """验证回调通知"""
         if not self.cert_loaded:
@@ -356,8 +401,18 @@ class WechatPayV3:
             data = json.loads(body)
             logger.debug(f"微信支付回调数据: {data}")
             
-            # TODO: 验证签名和解密数据
-            # 当前简化处理，仅返回数据
+            # 获取加密资源
+            resource = data.get('resource')
+            if resource:
+                # 解密资源
+                decrypted_data = self.decrypt_resource(resource)
+                if decrypted_data:
+                    # 将解密后的数据添加到回调数据中
+                    data['decrypted_resource'] = decrypted_data
+                    logger.info(f"解密后的回调资源数据: {decrypted_data}")
+                else:
+                    logger.error("解密回调资源失败")
+            
             return data
         except Exception as e:
             logger.error(f"解析回调数据失败: {str(e)}")
