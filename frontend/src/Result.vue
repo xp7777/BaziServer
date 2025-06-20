@@ -1834,7 +1834,8 @@ const pollFollowupStatus = async () => {
           'social': '人际关系',
           'friends': '人际关系',
           'future': '近五年运势',
-          'fiveYears': '近五年运势'
+          'fiveYears': '近五年运势',
+          'lifePlan': '人生规划建议'
         };
         
         const targetTitle = sectionMap[currentFollowup.value.id];
@@ -1915,7 +1916,8 @@ const getFollowupAnalysis = async (area) => {
         for (const key in response.data.data) {
           if (key.toLowerCase() === area.toLowerCase() || 
              (area === 'fiveYears' && key === 'future') ||
-             (area === 'future' && key === 'fiveYears')) {
+             (area === 'future' && key === 'fiveYears') ||
+             (area === 'lifePlan' && key === 'lifePlan')) {
             analysisContent = response.data.data[key];
             console.log(`找到匹配的键[${key}]，内容长度: ${analysisContent ? analysisContent.length : 0}`);
             break;

@@ -1398,16 +1398,16 @@ def extract_analysis_from_text(ai_text):
             logger.info(f"直接从原文提取到学业，内容长度: {len(education_content)} 字符")
             
         # 4. 提取近五年运势
-        future_matches = re.findall(r'###\s*近五年运势\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
-                        re.findall(r'近五年运势(?:\s*\([^)]*\))?(.*?)(?=人生规划|人生规划建议|-|\Z)', ai_text, re.DOTALL)
+        future_matches = re.findall(r'###\s*近五年运势(?:\s*\([^)]*\))?\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                         re.findall(r'近五年运势(?:\s*\([^)]*\))?(.*?)(?=人生规划|人生规划建议|-|\Z)', ai_text, re.DOTALL)
         if future_matches:
             future_content = max(future_matches, key=len).strip()
             analysis["future"] = future_content
             logger.info(f"直接从原文提取到近五年运势，内容长度: {len(future_content)} 字符")
             
         # 5. 提取人生规划建议
-        lifePlan_matches = re.findall(r'###\s*人生规划建议\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
-                          re.findall(r'人生规划建议(.*?)(?=-|\Z)', ai_text, re.DOTALL)
+        lifePlan_matches = re.findall(r'###\s*人生规划建议(?:\s*\([^)]*\))?\s*\n(.*?)(?=###|$)', ai_text, re.DOTALL) or \
+                          re.findall(r'人生规划建议(?:\s*\([^)]*\))?(.*?)(?=-|\Z)', ai_text, re.DOTALL)
         if lifePlan_matches:
             lifePlan_content = max(lifePlan_matches, key=len).strip()
             analysis["lifePlan"] = lifePlan_content
