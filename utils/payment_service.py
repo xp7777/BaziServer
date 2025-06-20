@@ -10,6 +10,7 @@ import xmltodict
 import qrcode
 from io import BytesIO
 import base64
+import hmac
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +31,11 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
     mch_id = os.getenv('WECHAT_MCH_ID')
     api_key = os.getenv('WECHAT_API_KEY')
     notify_url = os.getenv('WECHAT_NOTIFY_URL')
+    cert_serial_no = os.getenv('WECHAT_CERT_SERIAL_NO')
     
     # 如果没有配置微信支付，返回测试URL
     if not all([app_id, mch_id, api_key, notify_url]):
-        logger.warning("微信支付未配置，返回测试URL")
+        logger.warning("微信支付未完全配置，返回测试URL")
         test_url = f"https://example.com/test-pay?order_id={order_id}&amount={amount}"
         
         if return_qr_image:
@@ -60,6 +62,8 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
         return {"code_url": test_url}
     
     try:
+        logger.info(f"开始调用微信支付API创建订单: {order_id}")
+        
         # 构造请求参数
         nonce_str = str(uuid.uuid4()).replace('-', '')
         body = "八字命理AI人生指导"
@@ -93,15 +97,22 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
         xml_data += f"<sign>{sign}</sign>"
         xml_data += "</xml>"
         
+        logger.info("发送微信支付统一下单请求")
+        
         # 发送请求
         url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
         headers = {'Content-Type': 'application/xml'}
         response = requests.post(url, data=xml_data.encode('utf-8'), headers=headers)
         
+        # 记录响应内容
+        logger.info(f"微信支付响应状态码: {response.status_code}")
+        logger.debug(f"微信支付原始响应: {response.text}")
+        
         # 解析响应
         result = xmltodict.parse(response.content)['xml']
         
         if result['return_code'] == 'SUCCESS' and result['result_code'] == 'SUCCESS':
+            logger.info(f"微信支付下单成功: {order_id}")
             code_url = result['code_url']
             
             if return_qr_image:
@@ -120,6 +131,8 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
                 img.save(buffered)
                 img_str = base64.b64encode(buffered.getvalue()).decode()
                 
+                logger.info("已生成微信支付二维码图片")
+                
                 return {
                     "code_url": code_url,
                     "qr_image": f"data:image/png;base64,{img_str}"
@@ -127,12 +140,13 @@ def create_wechat_payment(order_id, amount, return_qr_image=False):
             
             return {"code_url": code_url}
         else:
-            logger.error(f"微信支付下单失败: {result}")
-            return None
+            error_msg = result.get('err_code_des') or result.get('return_msg') or '未知错误'
+            logger.error(f"微信支付下单失败: {error_msg}")
+            return {"error": error_msg, "code": "WECHAT_API_ERROR"}
     
     except Exception as e:
         logger.exception(f"创建微信支付异常: {str(e)}")
-        return None
+        return {"error": str(e), "code": "SYSTEM_ERROR"}
 
 def create_alipay_payment(order_id, amount, is_mobile=False):
     """

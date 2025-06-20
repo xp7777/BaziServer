@@ -22,6 +22,13 @@ try:
 except Exception as e:
     logging.warning(f".env文件加载失败，使用默认值: {str(e)}")
 
+# 设置微信支付环境变量
+os.environ['WECHAT_MCH_ID'] = os.getenv('WECHAT_MCH_ID', '1706110646') #微信支付商户号
+os.environ['WECHAT_CERT_SERIAL_NO'] = os.getenv('WECHAT_CERT_SERIAL_NO', '69D653B5EB73DB2B9A5175FEF05AAFE6EDD66083')  #微信支付API证书序列号
+os.environ['WECHAT_APP_ID'] = os.getenv('WECHAT_APP_ID', 'wxa7b459b6aa6e3ad1')  # 替换为您的真实AppID
+os.environ['WECHAT_API_KEY'] = os.getenv('WECHAT_API_KEY', '69D653B5EB73DB2B9A5175FEF05AAFE6EDD66083')  # 替换为您的真实API密钥
+os.environ['WECHAT_NOTIFY_URL'] = os.getenv('WECHAT_NOTIFY_URL', 'https://wlmqhxswyxgs.top/api/order/wechat/notify') #微信支付回调地址
+
 # 验证关键环境变量
 def validate_env_vars():
     critical_vars = {
@@ -39,6 +46,18 @@ def validate_env_vars():
     api_key = os.getenv('DEEPSEEK_API_KEY', '')
     if api_key and not api_key.startswith('sk-'):
         logging.warning("DEEPSEEK_API_KEY格式可能不正确，应以'sk-'开头")
+    
+    # 验证微信支付配置
+    wechat_vars = {
+        'WECHAT_MCH_ID': os.getenv('WECHAT_MCH_ID'),
+        'WECHAT_CERT_SERIAL_NO': os.getenv('WECHAT_CERT_SERIAL_NO'),
+        'WECHAT_APP_ID': os.getenv('WECHAT_APP_ID'),
+        'WECHAT_API_KEY': os.getenv('WECHAT_API_KEY')
+    }
+    
+    for key, value in wechat_vars.items():
+        if value and (value.startswith('需要配置') or value.endswith('需要配置')):
+            logging.warning(f"{key}未正确配置，部分支付功能可能不可用")
 
 # 验证环境变量
 validate_env_vars()
@@ -74,6 +93,8 @@ if os.getenv('ENV', 'development') != 'production':
     logging.info(f"DeepSeek API URL: {DEEPSEEK_API_URL}")
     logging.info(f"MongoDB URI: {mongo_uri.split('@')[-1] if '@' in mongo_uri else mongo_uri}")  # 不显示凭据部分
     logging.info(f"JWT过期时间: {jwt_expires_hours}小时")
+    logging.info(f"微信支付商户号: {os.getenv('WECHAT_MCH_ID')}")
+    logging.info(f"微信支付证书序列号: {os.getenv('WECHAT_CERT_SERIAL_NO')[:8]}...")
 else:
     logging.info("生产环境中，敏感配置信息已隐藏")
 

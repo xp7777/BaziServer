@@ -62,14 +62,18 @@
       <div class="qrcode-container">
         <h3>请扫码支付</h3>
         <div class="qrcode">
-          <iframe v-if="qrCodeUrl" :src="qrCodeUrl" frameborder="0" width="200" height="200"></iframe>
+          <img v-if="qrCodeUrl && qrCodeUrl.startsWith('data:')" :src="qrCodeUrl" alt="支付二维码" />
+          <iframe v-else-if="qrCodeUrl" :src="qrCodeUrl" frameborder="0" width="200" height="200"></iframe>
           <div v-else class="qrcode-placeholder">
             <p>正在加载支付二维码...</p>
           </div>
         </div>
         <p>支付金额: ¥9.90</p>
-        <van-button type="primary" block @click="onPaymentSuccess">
-          支付完成
+        <van-button type="primary" block @click="checkPaymentStatus">
+          我已完成支付
+        </van-button>
+        <van-button plain block @click="showQRCode = false" style="margin-top: 10px">
+          取消
         </van-button>
       </div>
     </van-popup>
@@ -77,7 +81,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Toast } from 'vant';
 import axios from 'axios';
@@ -98,24 +102,45 @@ export default {
     const focusAreas = route.query.focusAreas?.split(',') || [];
     
     // 支付相关状态
-    const orderId = ref('BZ1749371719072');
+    const orderId = ref('');
     const createTime = ref(new Date().toLocaleString());
     const paymentMethod = ref('wechat');
     const showQRCode = ref(false);
     const qrCodeUrl = ref('');
     const isProcessing = ref(false);
     
-    onMounted(() => {
-      // 实际项目中这里应该调用API创建订单
-      console.log('订单创建成功', {
-        gender,
-        calendarType,
-        birthDate,
-        birthTime,
-        birthPlace,
-        livingPlace,
-        focusAreas
-      });
+    onMounted(async () => {
+      // 调用API创建订单
+      try {
+        Toast.loading({
+          message: '正在创建订单...',
+          duration: 0,
+          forbidClick: true
+        });
+        
+        // 调用订单创建API
+        const response = await axios.post('/api/order/create/simple', {
+          gender,
+          birthDate,
+          birthTime,
+          birthPlace,
+          livingPlace,
+          focusAreas: focusAreas || [],
+          calendarType: calendarType || 'solar'
+        });
+        
+        if (response.data.code === 200) {
+          orderId.value = response.data.data.orderId;
+          createTime.value = new Date().toLocaleString();
+          Toast.success('订单创建成功');
+          console.log('订单创建成功', orderId.value);
+        } else {
+          Toast.fail(response.data.message || '创建订单失败');
+        }
+      } catch (error) {
+        console.error('创建订单失败:', error);
+        Toast.fail('创建订单失败，请重试');
+      }
     });
     
     const onClickLeft = () => {
@@ -123,25 +148,64 @@ export default {
     };
     
     const onPayment = () => {
-      // 根据支付方式显示不同的二维码
-      if (paymentMethod.value === 'wechat') {
-        // 使用本地HTML文件作为微信支付二维码
-        qrCodeUrl.value = '/images/wechat-qrcode.html';
-      } else {
-        // 使用本地HTML文件作为支付宝二维码
-        qrCodeUrl.value = '/images/alipay-qrcode.html';
+      // 检查订单ID
+      if (!orderId.value) {
+        Toast.fail('订单尚未创建，请刷新页面重试');
+        return;
       }
       
-      showQRCode.value = true;
-      
-      // 实际项目中这里应该调用API获取支付二维码
-      console.log('发起支付请求', {
-        orderId: orderId.value,
-        paymentMethod: paymentMethod.value
+      // 根据支付方式获取真实二维码
+      Toast.loading({
+        message: '正在获取支付二维码...',
+        duration: 0,
+        forbidClick: true
       });
-
-      // 由于我们只是演示，记录一下二维码URL
-      console.log(`使用${paymentMethod.value}支付，二维码URL:`, qrCodeUrl.value);
+      
+      // 创建真实支付订单并获取支付二维码
+      const createPayment = async () => {
+        try {
+          const paymentData = {
+            paymentMethod: paymentMethod.value,
+            birthDate,
+            birthTime,
+            gender,
+            focusAreas,
+            calendarType,
+            birthPlace,
+            livingPlace
+          };
+          
+          // 调用真实支付API
+          const response = await axios.post(`/api/order/create/payment/${orderId.value}`, paymentData);
+          
+          if (response.data.code === 200) {
+            Toast.clear();
+            
+            // 解析支付二维码返回数据
+            if (response.data.data.qr_image) {
+              // 直接使用Base64二维码图片
+              qrCodeUrl.value = response.data.data.qr_image;
+              showQRCode.value = true;
+            } else if (response.data.data.code_url) {
+              // 生成二维码图片
+              qrCodeUrl.value = response.data.data.code_url;
+              showQRCode.value = true;
+            } else if (response.data.data.pay_url) {
+              // 支付宝URL
+              window.open(response.data.data.pay_url, '_blank');
+            } else {
+              Toast.fail('未获取到支付二维码');
+            }
+          } else {
+            Toast.fail(response.data.message || '获取支付二维码失败');
+          }
+        } catch (error) {
+          console.error('获取支付二维码出错:', error);
+          Toast.fail('获取支付二维码失败');
+        }
+      };
+      
+      createPayment();
     };
     
     const onPaymentSuccess = async () => {
@@ -151,34 +215,20 @@ export default {
       
       isProcessing.value = true;
       Toast.loading({
-        message: '正在处理支付...',
+        message: '正在查询支付结果...',
         duration: 0,
         forbidClick: true
       });
       
       try {
-        // 调用模拟支付API
-        console.log('调用模拟支付API:', orderId.value);
-        const paymentData = {
-          birthDate,
-          birthTime,
-          gender,
-          focusAreas,
-          calendarType,
-          birthPlace,
-          livingPlace,
-          forceRecalculate: true  // 强制重新计算所有数据
-        };
+        // 查询支付结果API
+        console.log('查询支付结果:', orderId.value);
         
-        const response = await axios.post(`http://localhost:5000/api/order/mock/pay/${orderId.value}`, paymentData, {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
+        const response = await axios.get(`/api/order/query/${orderId.value}`);
         
-        console.log('模拟支付API响应:', response.data);
+        console.log('支付查询响应:', response.data);
         
-        if (response.data.code === 200) {
+        if (response.data.code === 200 && response.data.data.status === 'paid') {
           Toast.success('支付成功');
           showQRCode.value = false;
           
@@ -289,6 +339,70 @@ export default {
       }
     };
     
+    const checkPaymentStatus = async () => {
+      if (isProcessing.value) return;
+      
+      isProcessing.value = true;
+      Toast.loading({
+        message: '正在查询支付状态...',
+        duration: 0,
+        forbidClick: true
+      });
+      
+      try {
+        const response = await axios.get(`/api/order/query/${orderId.value}`);
+        console.log('支付状态查询响应:', response.data);
+        
+        if (response.data.code === 200 && response.data.data.status === 'paid') {
+          // 支付成功，继续处理
+          onPaymentSuccess();
+        } else {
+          Toast.fail('未检测到支付完成，请确认支付或稍后再试');
+          isProcessing.value = false;
+        }
+      } catch (error) {
+        console.error('查询支付状态失败:', error);
+        Toast.fail('查询支付状态失败');
+        isProcessing.value = false;
+      }
+    };
+    
+    // 添加轮询支付状态的方法
+    let paymentStatusInterval = null;
+    
+    const startPaymentStatusPolling = () => {
+      // 每5秒查询一次支付状态
+      paymentStatusInterval = setInterval(async () => {
+        try {
+          const response = await axios.get(`/api/order/query/${orderId.value}`);
+          console.log('轮询支付状态:', response.data);
+          
+          if (response.data.code === 200 && response.data.data.status === 'paid') {
+            // 支付成功，停止轮询并处理
+            clearInterval(paymentStatusInterval);
+            onPaymentSuccess();
+          }
+        } catch (error) {
+          console.error('轮询支付状态失败:', error);
+        }
+      }, 5000);
+    };
+    
+    // 在显示二维码时开始轮询，在组件销毁时清除轮询
+    watch(showQRCode, (newVal) => {
+      if (newVal) {
+        startPaymentStatusPolling();
+      } else if (paymentStatusInterval) {
+        clearInterval(paymentStatusInterval);
+      }
+    });
+    
+    onUnmounted(() => {
+      if (paymentStatusInterval) {
+        clearInterval(paymentStatusInterval);
+      }
+    });
+
     return {
       orderId,
       createTime,
@@ -298,7 +412,8 @@ export default {
       isProcessing,
       onClickLeft,
       onPayment,
-      onPaymentSuccess
+      onPaymentSuccess,
+      checkPaymentStatus
     };
   }
 };

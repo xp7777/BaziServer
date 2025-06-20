@@ -138,52 +138,109 @@ def check_status(order_id):
 @order_bp.route('/wechat/notify', methods=['POST'])
 def wechat_notify():
     """微信支付回调"""
+    logging.info("收到微信支付回调")
+    logging.debug(f"回调数据: {request.data}")
+    
     # 验证支付结果
-    result = verify_wechat_payment(request.data)
-    
-    if result and result['return_code'] == 'SUCCESS' and result['result_code'] == 'SUCCESS':
-        order_id = result['out_trade_no']
+    try:
+        result = verify_wechat_payment(request.data)
         
-        # 更新订单状态
-        order = OrderModel.find_by_id(order_id)
-        if order and order['status'] != 'paid':
-            OrderModel.update_status(order_id, 'paid')
+        if result and result['return_code'] == 'SUCCESS' and result['result_code'] == 'SUCCESS':
+            order_id = result['out_trade_no']
+            logging.info(f"微信支付成功: {order_id}")
             
-            # 启动八字分析任务
-            try:
-                # 查找对应的八字结果记录
-                bazi_result = BaziResultModel.find_by_order_id(order_id)
-                if bazi_result:
-                    # 调用分析API
-                    from routes.bazi_routes_fixed_new import calculate_bazi, generate_ai_analysis
-                    
-                    # 计算八字
-                    bazi_chart = calculate_bazi(
-                        bazi_result['birthTime'].split(' ')[0],
-                        bazi_result['birthTime'].split(' ')[1],
-                        bazi_result['gender']
-                    )
-                    
-                    # 生成AI分析
-                    ai_analysis = generate_ai_analysis(
-                        bazi_chart,
-                        bazi_result['focusAreas'],
-                        bazi_result['gender']
-                    )
-                    
-                    # 更新分析结果
-                    BaziResultModel.update_analysis(
-                        bazi_result['_id'],
-                        bazi_chart,
-                        ai_analysis
-                    )
-            except Exception as e:
-                # 记录错误但不影响支付成功响应
-                logging.error(f"生成八字分析时出错: {str(e)}")
+            # 获取支付金额
+            total_fee = int(result.get('total_fee', 0))  # 单位: 分
+            transaction_id = result.get('transaction_id', '')
+            logging.info(f"订单ID: {order_id}, 微信支付单号: {transaction_id}, 支付金额: {total_fee / 100}元")
             
-            return "<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>"
-    
-    return "<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[签名失败]]></return_msg></xml>"
+            # 更新订单状态
+            order = OrderModel.find_by_id(order_id)
+            if order and order['status'] != 'paid':
+                logging.info(f"更新订单状态为已支付: {order_id}")
+                OrderModel.update_status(order_id, 'paid')
+                
+                # 将支付信息添加到订单
+                payment_info = {
+                    'paymentTime': datetime.now(),
+                    'transactionId': transaction_id,
+                    'paymentMethod': 'wechat',
+                    'totalFee': total_fee / 100
+                }
+                OrderModel.update_payment_info(order_id, payment_info)
+                
+                # 启动八字分析任务
+                try:
+                    # 查找对应的八字结果记录
+                    bazi_result = BaziResultModel.find_by_order_id(order_id)
+                    if bazi_result:
+                        logging.info(f"启动八字分析任务: {order_id}")
+                        
+                        # 获取订单类型
+                        order_type = order.get('orderType', 'analysis')
+                        
+                        # 如果是基础八字分析订单
+                        if order_type == 'analysis':
+                            # 调用分析API
+                            from routes.bazi_routes_fixed_new import calculate_bazi, generate_ai_analysis
+                            
+                            # 计算八字
+                            bazi_chart = calculate_bazi(
+                                bazi_result['birthTime'].split(' ')[0],
+                                bazi_result['birthTime'].split(' ')[1],
+                                bazi_result['gender']
+                            )
+                            
+                            # 生成AI分析
+                            ai_analysis = generate_ai_analysis(
+                                bazi_chart,
+                                bazi_result['focusAreas'],
+                                bazi_result['gender']
+                            )
+                            
+                            # 更新分析结果
+                            BaziResultModel.update_analysis(
+                                bazi_result['_id'],
+                                bazi_chart,
+                                ai_analysis
+                            )
+                        # 如果是追问分析订单
+                        elif order_type == 'followup':
+                            area = order.get('area')
+                            result_id = order.get('resultId')
+                            
+                            if area and result_id:
+                                logging.info(f"启动追问分析任务: {result_id}, 领域: {area}")
+                                
+                                # 异步生成追问分析
+                                async_task(
+                                    async_generate_followup,
+                                    result_id,
+                                    area
+                                )
+                except Exception as e:
+                    # 记录错误但不影响支付成功响应
+                    logging.error(f"生成八字分析时出错: {str(e)}")
+                    logging.error(traceback.format_exc())
+                
+                logging.info("微信支付回调处理成功，返回成功响应")
+                return "<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>"
+            else:
+                logging.warning(f"订单不存在或已支付: {order_id}")
+        else:
+            # 支付验证失败
+            error_msg = "未知错误"
+            if result:
+                error_msg = result.get('return_msg', '未知错误')
+            logging.error(f"微信支付验证失败: {error_msg}")
+            
+        # 如果没有成功处理，返回失败
+        logging.warning("微信支付回调处理失败，返回失败响应")
+        return "<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[签名失败]]></return_msg></xml>"
+    except Exception as e:
+        logging.error(f"处理微信支付回调异常: {str(e)}")
+        logging.error(traceback.format_exc())
+        return "<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[系统错误]]></return_msg></xml>"
 
 @order_bp.route('/alipay/notify', methods=['POST'])
 def alipay_notify():
@@ -626,3 +683,156 @@ def mock_pay(order_id):
         logging.error(f"模拟支付失败: {str(e)}")
         logging.error(traceback.format_exc())
         return jsonify(code=500, message=str(e)), 500 
+
+# 添加订单查询API
+@order_bp.route('/query/<order_id>', methods=['GET'])
+def query_order(order_id):
+    """查询订单状态，用于前端轮询支付结果"""
+    order = OrderModel.find_by_id(order_id)
+    
+    if not order:
+        return jsonify(code=404, message="订单不存在"), 404
+    
+    return jsonify(
+        code=200,
+        message="成功",
+        data={
+            "orderId": order['_id'],
+            "status": order['status'],
+            "resultId": order.get('resultId'),
+            "paymentMethod": order.get('paymentMethod'),
+            "paymentTime": order.get('paymentTime', "").isoformat() if order.get('paymentTime') else None
+        }
+    )
+
+# 创建支付订单API（不需要JWT认证）
+@order_bp.route('/create/payment/<order_id>', methods=['POST'])
+def create_payment(order_id):
+    """创建支付订单并返回支付二维码"""
+    data = request.json
+    
+    payment_method = data.get('paymentMethod')
+    device_type = data.get('deviceType', 'pc')
+    
+    if not payment_method:
+        return jsonify(code=400, message="请提供支付方式"), 400
+    
+    # 检查支付方式
+    if payment_method not in ['wechat', 'alipay']:
+        return jsonify(code=400, message="不支持的支付方式"), 400
+    
+    # 查找订单
+    order = OrderModel.find_by_id(order_id)
+    
+    if not order:
+        return jsonify(code=404, message="订单不存在"), 404
+    
+    if order['status'] == 'paid':
+        return jsonify(code=400, message="订单已支付"), 400
+    
+    # 记录订单相关信息（出生日期等）用于后续处理
+    if data.get('birthDate') and data.get('birthTime') and data.get('gender'):
+        orders_collection.update_one(
+            {"_id": order_id},
+            {"$set": {
+                "birthDate": data.get('birthDate'),
+                "birthTime": data.get('birthTime'),
+                "gender": data.get('gender'),
+                "focusAreas": data.get('focusAreas', []),
+                "birthPlace": data.get('birthPlace', ""),
+                "livingPlace": data.get('livingPlace', ""),
+                "calendarType": data.get('calendarType', "solar")
+            }}
+        )
+    
+    # 更新支付方式
+    OrderModel.update_payment(order_id, payment_method)
+    
+    # 生成支付参数
+    payment_data = None
+    try:
+        if payment_method == 'wechat':
+            # 设置return_qr=True返回二维码图片的base64编码
+            payment_data = create_wechat_payment(order_id, order['amount'], return_qr_image=True)
+        elif payment_method == 'alipay':
+            is_mobile = device_type.lower() in ['mobile', 'h5', 'app']
+            payment_data = create_alipay_payment(order_id, order['amount'], is_mobile=is_mobile)
+        
+        if not payment_data:
+            return jsonify(code=500, message="生成支付参数失败"), 500
+        
+        logging.info(f"创建{payment_method}支付订单成功: {order_id}")
+        
+        response_data = {
+            "orderId": order_id,
+            **payment_data
+        }
+        
+        return jsonify(
+            code=200,
+            message="成功",
+            data=response_data
+        )
+    except Exception as e:
+        logging.error(f"创建支付订单失败: {str(e)}")
+        logging.error(traceback.format_exc())
+        return jsonify(code=500, message=f"创建支付订单失败: {str(e)}"), 500 
+
+# 简化版订单创建API (不需要JWT认证)
+@order_bp.route('/create/simple', methods=['POST'])
+def create_simple_order():
+    """创建简化版订单，不需要用户登录"""
+    data = request.json
+    
+    gender = data.get('gender')
+    birth_date = data.get('birthDate')
+    birth_time = data.get('birthTime')
+    focus_areas = data.get('focusAreas', [])
+    
+    if not gender or not birth_date or not birth_time:
+        return jsonify(code=400, message="请提供性别和出生日期时间信息"), 400
+    
+    # 计算订单金额: 基础费用9.9元
+    total_amount = 9.9
+    
+    try:
+        # 生成订单ID
+        timestamp = int(time.time() * 1000)
+        order_id = f"BZ{timestamp}"
+        
+        # 构造订单数据
+        order = {
+            "_id": order_id,  # 使用字符串ID
+            "userId": "guest",  # 游客用户
+            "amount": total_amount,
+            "status": "pending",  # pending, paid, failed
+            "paymentMethod": None,  # wechat, alipay
+            "createTime": datetime.now(),
+            "payTime": None,
+            "resultId": None,
+            "birthDate": birth_date,
+            "birthTime": birth_time,
+            "gender": gender,
+            "focusAreas": focus_areas,
+            "birthPlace": data.get('birthPlace', ""),
+            "livingPlace": data.get('livingPlace', ""),
+            "calendarType": data.get('calendarType', "solar")
+        }
+        
+        # 直接插入订单
+        OrderModel.insert(order)
+        
+        logging.info(f"简化版订单创建成功: {order_id}")
+        
+        return jsonify(
+            code=200,
+            message="订单创建成功",
+            data={
+                "orderId": order_id,
+                "amount": total_amount
+            }
+        )
+    except Exception as e:
+        logging.error(f"创建订单失败: {str(e)}")
+        logging.error(traceback.format_exc())
+        return jsonify(code=500, message=f"创建订单失败: {str(e)}"), 500 

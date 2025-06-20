@@ -135,6 +135,53 @@ class OrderModel:
         return result
     
     @staticmethod
+    def update_payment_info(order_id, payment_info):
+        """更新订单的支付信息
+        
+        Args:
+            order_id: 订单ID
+            payment_info: 包含支付信息的字典，如支付时间、交易ID等
+            
+        Returns:
+            更新后的订单信息
+        """
+        try:
+            logging.info(f"更新订单支付信息: {order_id}")
+            
+            # 先尝试使用ObjectId
+            try:
+                result = orders_collection.find_one_and_update(
+                    {"_id": ObjectId(order_id)},
+                    {"$set": {
+                        "paymentInfo": payment_info,
+                        "updateTime": datetime.now()
+                    }},
+                    return_document=ReturnDocument.AFTER
+                )
+            except:
+                # 如果失败，尝试使用字符串ID
+                result = orders_collection.find_one_and_update(
+                    {"_id": order_id},
+                    {"$set": {
+                        "paymentInfo": payment_info,
+                        "updateTime": datetime.now()
+                    }},
+                    return_document=ReturnDocument.AFTER
+                )
+            
+            if result:
+                if isinstance(result['_id'], ObjectId):
+                    result['_id'] = str(result['_id'])
+                logging.info(f"成功更新订单支付信息: {order_id}")
+                return result
+            else:
+                logging.warning(f"未找到订单，无法更新支付信息: {order_id}")
+                return None
+        except Exception as e:
+            logging.error(f"更新订单支付信息失败: {str(e)}")
+            return None
+    
+    @staticmethod
     def find_by_result_id_and_type(result_id, order_type):
         """根据结果ID和订单类型查找订单"""
         logging.info(f"查询订单: resultId={result_id}, orderType={order_type}")

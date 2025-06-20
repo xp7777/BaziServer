@@ -1593,191 +1593,120 @@ const payForFollowup = async () => {
       const followupOrderId = orderResponse.data.data.orderId;
       console.log('追问订单创建成功:', followupOrderId);
       
-      // 第二步：处理支付
+      // 调用微信支付
       Toast.loading({
-        message: '正在处理支付...',
+        message: '正在准备支付...',
         forbidClick: true,
         duration: 0
       });
       
-      // 模拟支付
-      const paymentResponse = await axios.post(`/api/order/mock/pay/${followupOrderId}`, {
-        birthDate: baziData.value?.birthDate || urlParams.get('birthDate'),
-        birthTime: baziData.value?.birthTime || urlParams.get('birthTime'),
-        gender: baziData.value?.gender || urlParams.get('gender'),
-        area: currentFollowup.value.id,
-        resultId: resultId.value
+      // 获取微信支付参数
+      const paymentResponse = await axios.post('/api/order/payment', {
+        orderId: followupOrderId,
+        paymentMethod: 'wechat',
+        deviceType: 'pc',
+        returnQrCode: true // 返回二维码图片
       });
       
       if (paymentResponse.data.code === 200) {
-        console.log('追问支付成功:', paymentResponse.data);
-        Toast.success('支付成功');
+        Toast.clear();
         
-        // 立即更新UI状态，将当前追问标记为已付费
-        const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
-        if (index !== -1) {
-          followupOptions.value[index].paid = true;
-          followupOptions.value = [...followupOptions.value]; // 强制Vue更新
-        }
+        // 显示微信支付二维码
+        const paymentData = paymentResponse.data.data;
+        const qrCodeImage = paymentData.qr_image;
         
-        // 第三步：加载分析结果
-        Toast.loading({
-          message: '正在生成分析结果，这可能需要30-60秒...',
-          forbidClick: true,
-          duration: 0
-        });
-        
-        // 获取并保存新的resultId（如果有的话）
-        if (paymentResponse.data.data && paymentResponse.data.data.resultId) {
-          const newResultId = paymentResponse.data.data.resultId;
-          console.log('获取到新的resultId:', newResultId);
-          // 更新全局的resultId变量
-          resultId.value = newResultId;
-          // 还需要更新本地存储中的resultId
-          localStorage.setItem('resultId', newResultId);
-        }
-        
-        // 轮询检查分析结果状态
-        const area = currentFollowup.value.id;
-        let isComplete = false;
-        let attempts = 0;
-        const maxAttempts = 60; // 最多等待120秒（60次 * 2秒）
-        
-        // 自定义轮询检查追问分析状态
-        const pollFollowupStatus = async () => {
-          console.log(`开始轮询追问分析状态: ${area}`);
+        Dialog.confirm({
+          title: '微信支付',
+          message: `
+            <div style="text-align: center">
+              <p>请使用微信扫描下方二维码支付</p>
+              <p>金额: ￥9.9</p>
+              <img src="${qrCodeImage}" style="width: 200px; height: 200px" />
+              <p style="font-size: 12px; color: #999">付款完成后，请点击"已完成支付"按钮</p>
+            </div>
+          `,
+          messageAlign: 'center',
+          confirmButtonText: '已完成支付',
+          cancelButtonText: '取消',
+          showCancelButton: true,
+        })
+        .then(async () => {
+          // 用户点击"已完成支付"
+          Toast.loading({
+            message: '正在确认支付结果...',
+            forbidClick: true,
+            duration: 0
+          });
           
-          // 开始计时
-          const startTime = new Date().getTime();
-          const timeoutMs = 120000; // 120秒超时
+          // 轮询检查支付结果
+          let checkCount = 0;
+          const maxChecks = 10;
+          let isPaid = false;
           
-          while (attempts < maxAttempts && !isComplete) {
-            attempts++;
+          while (checkCount < maxChecks && !isPaid) {
             try {
-              // 等待2秒
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              const statusResponse = await axios.get(`/api/order/status/${followupOrderId}`);
               
-              // 检查是否超时
-              const currentTime = new Date().getTime();
-              if (currentTime - startTime > timeoutMs) {
-                console.warn(`轮询追问分析状态超时: ${area}`);
-                break;
-              }
-              
-              // 检查追问分析结果
-              console.log(`尝试第${attempts}次获取追问分析: ${area}`);
-              const response = await axios.get(`/api/bazi/followup/${resultId.value}/${area}`);
-              
-              if (response.data.code === 200 && response.data.data && response.data.data.analysis) {
-                // 检查分析内容是否为"正在分析"
-                const analysis = response.data.data.analysis;
-                if (typeof analysis === 'string' && !analysis.includes('正在分析')) {
-                  console.log(`成功获取追问分析结果: ${area}`);
-                  isComplete = true;
-                  followupAnalysis.value[area] = analysis;
+              if (statusResponse.data.code === 200) {
+                const orderStatus = statusResponse.data.data.status;
+                
+                if (orderStatus === 'paid') {
+                  isPaid = true;
+                  
+                  // 如果有返回新的resultId，更新它
+                  if (statusResponse.data.data.resultId) {
+                    resultId.value = statusResponse.data.data.resultId;
+                    localStorage.setItem('resultId', statusResponse.data.data.resultId);
+                  }
+                  
                   break;
-                } else {
-                  console.log(`追问分析结果还在生成中: ${area}`);
                 }
               }
             } catch (error) {
-              // 只有非404错误才打印详细信息
-              if (!error.response || error.response.status !== 404) {
-                console.error('检查追问分析状态出错:', error);
-              }
-              
-              // 如果遇到404错误，表示追问分析尚未创建完毕
-              if (error.response && error.response.status === 404) {
-                console.log('追问分析尚未创建完毕，继续等待...');
-              } else if (attempts >= maxAttempts / 2) {
-                // 如果尝试次数超过一半且仍然失败，不要退出轮询，但记录错误
-                console.warn(`获取分析数据失败(${attempts}/${maxAttempts})，继续尝试...`);
-              }
+              console.error('检查支付状态出错:', error);
             }
-          }
-          
-          // 无论是否完成，都尝试获取最终结果
-          console.log(`轮询完成，最终尝试获取追问分析: ${area}`);
-          try {
-            const finalResult = await getFollowupAnalysis(area);
-            console.log(`最终获取追问分析结果: ${finalResult ? '成功' : '失败'}`);
-            return finalResult;
-          } catch (error) {
-            console.error('获取最终追问分析结果失败:', error);
-            // 如果分析结果仍然不可用，显示友好的错误信息
-            followupAnalysis.value[area] = "分析正在处理中，请稍后刷新页面查看。";
-            return null;
-          }
-        };
-        
-        // 开始轮询
-        const result = await pollFollowupStatus();
-        
-        // 更新UI
-        Toast.clear();
-        if (result) {
-          Toast.success('分析已完成');
-          
-          // 支付成功且分析完成后，切换到AI分析结果标签页显示结果
-          activeTab.value = 1; // 切换到AI分析结果标签
-          
-          // 滚动到相应分析部分
-          setTimeout(() => {
-            const sectionMap = {
-              'relationship': '婚姻感情',
-              'marriage': '婚姻感情',
-              'career': '事业财运',
-              'work': '事业财运',
-              'money': '事业财运',
-              'wealth': '事业财运',
-              'children': '子女情况',
-              'family': '子女情况',
-              'parents': '父母情况',
-              'health': '身体健康',
-              'education': '学业',
-              'study': '学业',
-              'social': '人际关系',
-              'friends': '人际关系',
-              'future': '近五年运势',
-              'fiveYears': '近五年运势'
-            };
             
-            const targetTitle = sectionMap[currentFollowup.value.id];
-            if (targetTitle) {
-              // 查找并滚动到对应的分析部分
-              const sections = document.querySelectorAll('.analysis-section h3');
-              for (let i = 0; i < sections.length; i++) {
-                if (sections[i].textContent.includes(targetTitle)) {
-                  sections[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  
-                  // 高亮显示该部分
-                  const section = sections[i].parentElement;
-                  section.classList.add('highlight-section');
-                  setTimeout(() => {
-                    section.classList.remove('highlight-section');
-                  }, 3000);
-                  
-                  break;
-                }
-              }
-            }
-          }, 500);
-        } else {
-          Toast.success('正在生成分析，请稍后刷新查看');
-        }
-        
-        showFollowupDialog.value = false;
-        
-        // 确保界面刷新显示分析结果
-        setTimeout(() => {
-          const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
-          if (index !== -1) {
-            // 强制更新
-            followupOptions.value = [...followupOptions.value];
+            // 等待2秒后再次检查
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            checkCount++;
           }
-        }, 500);
+          
+          Toast.clear();
+          
+          if (isPaid) {
+            // 支付成功
+            Toast.success('支付成功');
+            
+            // 更新UI，将当前追问项标记为已付费
+            const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
+            if (index !== -1) {
+              followupOptions.value[index].paid = true;
+              followupOptions.value = [...followupOptions.value]; // 强制Vue更新
+            }
+            
+            // 加载分析结果
+            Toast.loading({
+              message: '正在生成分析结果，这可能需要30-60秒...',
+              forbidClick: true,
+              duration: 0
+            });
+            
+            // 轮询检查分析结果状态
+            const area = currentFollowup.value.id;
+            await pollFollowupStatus();
+          } else {
+            // 支付未完成
+            Toast.fail('未检测到支付完成，请稍后再试');
+          }
+        })
+        .catch(() => {
+          // 用户取消支付
+          Toast.clear();
+          Toast.info('已取消支付');
+        });
       } else {
-        Toast.fail('支付失败');
+        Toast.clear();
+        Toast.fail(paymentResponse.data.message || '获取支付参数失败');
       }
     } else {
       Toast.fail('创建订单失败');
@@ -1787,7 +1716,136 @@ const payForFollowup = async () => {
     Toast.fail('处理失败，请重试');
   } finally {
     isLoadingFollowup.value = false;
+  }
+};
+
+// 自定义轮询检查追问分析状态
+const pollFollowupStatus = async () => {
+  const area = currentFollowup.value.id;
+  console.log(`开始轮询追问分析状态: ${area}`);
+  
+  // 开始计时
+  const startTime = new Date().getTime();
+  const timeoutMs = 120000; // 120秒超时
+  let attempts = 0;
+  const maxAttempts = 60; // 最多等待120秒（60次 * 2秒）
+  let isComplete = false;
+  
+  while (attempts < maxAttempts && !isComplete) {
+    attempts++;
+    try {
+      // 等待2秒
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 检查是否超时
+      const currentTime = new Date().getTime();
+      if (currentTime - startTime > timeoutMs) {
+        console.warn(`轮询追问分析状态超时: ${area}`);
+        break;
+      }
+      
+      // 检查追问分析结果
+      console.log(`尝试第${attempts}次获取追问分析: ${area}`);
+      const response = await axios.get(`/api/bazi/followup/${resultId.value}/${area}`);
+      
+      if (response.data.code === 200 && response.data.data && response.data.data.analysis) {
+        // 检查分析内容是否为"正在分析"
+        const analysis = response.data.data.analysis;
+        if (typeof analysis === 'string' && !analysis.includes('正在分析')) {
+          console.log(`成功获取追问分析结果: ${area}`);
+          isComplete = true;
+          followupAnalysis.value[area] = analysis;
+          break;
+        } else {
+          console.log(`追问分析结果还在生成中: ${area}`);
+        }
+      }
+    } catch (error) {
+      // 只有非404错误才打印详细信息
+      if (!error.response || error.response.status !== 404) {
+        console.error('检查追问分析状态出错:', error);
+      }
+      
+      // 如果遇到404错误，表示追问分析尚未创建完毕
+      if (error.response && error.response.status === 404) {
+        console.log('追问分析尚未创建完毕，继续等待...');
+      } else if (attempts >= maxAttempts / 2) {
+        // 如果尝试次数超过一半且仍然失败，不要退出轮询，但记录错误
+        console.warn(`获取分析数据失败(${attempts}/${maxAttempts})，继续尝试...`);
+      }
+    }
+  }
+  
+  // 无论是否完成，都尝试获取最终结果
+  console.log(`轮询完成，最终尝试获取追问分析: ${area}`);
+  try {
+    const finalResult = await getFollowupAnalysis(area);
+    console.log(`最终获取追问分析结果: ${finalResult ? '成功' : '失败'}`);
+    
+    // 更新UI
     Toast.clear();
+    if (finalResult) {
+      Toast.success('分析已完成');
+      
+      // 支付成功且分析完成后，切换到AI分析结果标签页显示结果
+      activeTab.value = 1; // 切换到AI分析结果标签
+      
+      // 滚动到相应分析部分
+      setTimeout(() => {
+        const sectionMap = {
+          'relationship': '婚姻感情',
+          'marriage': '婚姻感情',
+          'career': '事业财运',
+          'work': '事业财运',
+          'money': '事业财运',
+          'wealth': '事业财运',
+          'children': '子女情况',
+          'family': '子女情况',
+          'parents': '父母情况',
+          'health': '身体健康',
+          'education': '学业',
+          'study': '学业',
+          'social': '人际关系',
+          'friends': '人际关系',
+          'future': '近五年运势',
+          'fiveYears': '近五年运势'
+        };
+        
+        const targetTitle = sectionMap[currentFollowup.value.id];
+        if (targetTitle) {
+          // 查找并滚动到对应的分析部分
+          const sections = document.querySelectorAll('.analysis-section h3');
+          for (let i = 0; i < sections.length; i++) {
+            if (sections[i].textContent.includes(targetTitle)) {
+              sections[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+              
+              // 高亮显示该部分
+              const section = sections[i].parentElement;
+              section.classList.add('highlight-section');
+              setTimeout(() => {
+                section.classList.remove('highlight-section');
+              }, 3000);
+              
+              break;
+            }
+          }
+        }
+      }, 500);
+    } else {
+      Toast.success('正在生成分析，请稍后刷新查看');
+    }
+    
+    showFollowupDialog.value = false;
+    
+    return finalResult;
+  } catch (error) {
+    console.error('获取最终追问分析结果失败:', error);
+    Toast.clear();
+    Toast.fail('分析生成失败，请稍后刷新页面');
+    
+    // 如果分析结果仍然不可用，显示友好的错误信息
+    followupAnalysis.value[area] = "分析正在处理中，请稍后刷新页面查看。";
+    return null;
   }
 };
 
