@@ -344,49 +344,95 @@ export default {
         const baseUrl = process.env.VUE_APP_API_URL || window.location.origin;
         console.log('使用API基础URL:', baseUrl);
         
-        // 修改：使用正确的update API端点
-        console.log('正在请求更新八字数据:', resultId);
-        const updateResponse = await axios.post(`${baseUrl}/api/bazi/update/${resultId}`, {
-          birthDate,
-          birthTime,
-          gender,
-          calendarType,
-          birthPlace,
-          livingPlace,
-          focusAreas,
-          forceRecalculate: true,        // 强制重新计算基础数据
-          generateShenshaData: true,     // 生成神煞数据
-          generateDayunData: true,       // 生成大运数据 
-          generateLiunianData: true,     // 生成流年数据
-          useDeepseekAPI: true           // 使用DeepSeek API进行分析
-        });
+        // 添加重试机制
+        let retryCount = 0;
+        const maxRetries = 3;
+        let updateSuccess = false;
         
-        console.log('八字数据更新响应:', updateResponse.data);
-        
-        if (updateResponse.data.code === 200) {
-          Toast.success('命盘数据生成中');
-          
-          // 确保延迟足够长，以便后端完成八字数据处理
-          setTimeout(async () => {
-            try {
-              console.log('正在请求八字深度分析:', resultId);
-              const analyzeResponse = await axios.post(`${baseUrl}/api/bazi/analyze/${resultId}`, {
-                useDeepseekAPI: true
-              });
-              console.log('八字深度分析响应:', analyzeResponse.data);
-              Toast.success('命盘分析已开始');
-            } catch (analyzeError) {
-              console.error('深度分析请求失败:', analyzeError);
-              Toast.fail('命盘分析请求失败');
+        while (retryCount < maxRetries && !updateSuccess) {
+          try {
+            // 修改：使用正确的update API端点
+            console.log(`正在请求更新八字数据 (尝试 ${retryCount + 1}/${maxRetries}):`, resultId);
+            const updateResponse = await axios.post(`${baseUrl}/api/bazi/update/${resultId}`, {
+              birthDate,
+              birthTime,
+              gender,
+              calendarType,
+              birthPlace,
+              livingPlace,
+              focusAreas,
+              forceRecalculate: true,        // 强制重新计算基础数据
+              generateShenshaData: true,     // 生成神煞数据
+              generateDayunData: true,       // 生成大运数据 
+              generateLiunianData: true,     // 生成流年数据
+              useDeepseekAPI: true           // 使用DeepSeek API进行分析
+            });
+            
+            console.log('八字数据更新响应:', updateResponse.data);
+            
+            if (updateResponse.data.code === 200) {
+              updateSuccess = true;
+              Toast.success('命盘数据生成中');
+              
+              // 确保延迟足够长，以便后端完成八字数据处理
+              setTimeout(async () => {
+                try {
+                  console.log('正在请求八字深度分析:', resultId);
+                  const analyzeResponse = await axios.post(`${baseUrl}/api/bazi/analyze/${resultId}`, {
+                    useDeepseekAPI: true
+                  });
+                  console.log('八字深度分析响应:', analyzeResponse.data);
+                  Toast.success('命盘分析已开始');
+                } catch (analyzeError) {
+                  console.error('深度分析请求失败:', analyzeError);
+                  // 即使分析请求失败，也继续流程，不阻止用户查看结果
+                  Toast.fail('命盘深度分析请求失败，但可以继续查看基础结果');
+                }
+              }, 3000); // 延长等待时间到3秒
+              
+              break; // 成功后跳出循环
+            } else {
+              console.error('八字数据更新失败:', updateResponse.data.message);
+              // 失败后重试
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              retryCount++;
             }
-          }, 3000); // 延长等待时间到3秒
-        } else {
-          console.error('八字数据更新失败:', updateResponse.data.message);
-          Toast.fail('命盘计算请求失败: ' + (updateResponse.data.message || '未知错误'));
+          } catch (error) {
+            console.error(`更新请求失败 (尝试 ${retryCount + 1}/${maxRetries}):`, error);
+            
+            // 如果是404错误，可能是结果记录还未创建，尝试手动更新订单状态
+            if (error.response && error.response.status === 404) {
+              console.log('结果记录不存在，尝试手动更新订单状态');
+              try {
+                const manualResponse = await axios.get(`${baseUrl}/api/order/manual_update/${orderId.value}`);
+                console.log('手动更新响应:', manualResponse.data);
+                
+                if (manualResponse.data.code === 200 && manualResponse.data.data.resultId) {
+                  // 使用手动更新返回的resultId
+                  const updatedResultId = manualResponse.data.data.resultId;
+                  console.log('手动更新成功，获取到新的结果ID:', updatedResultId);
+                  
+                  // 更新当前使用的resultId
+                  resultId = updatedResultId;
+                }
+              } catch (manualError) {
+                console.error('手动更新失败:', manualError);
+              }
+            }
+            
+            // 失败后重试
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            retryCount++;
+          }
+        }
+        
+        if (!updateSuccess) {
+          Toast.fail('命盘计算请求失败，请稍后在结果页面刷新重试');
+          console.error('达到最大重试次数，八字数据更新失败');
         }
       } catch (calcError) {
         console.error('命盘计算请求失败:', calcError);
-        Toast.fail('命盘计算请求失败: ' + (calcError.message || '未知错误'));
+        Toast.fail('命盘计算请求失败，但您仍可以查看结果页面');
       }
     };
     

@@ -14,7 +14,7 @@
     
     <!-- 添加全局分析状态提示 -->
     <van-notice-bar
-      v-if="isAnalyzing"
+      v-if="analysisStatus === 'pending'"
       color="#1989fa"
       background="#ecf9ff"
       left-icon="info-o"
@@ -23,53 +23,60 @@
     >
       <div class="analysis-progress">
         <p>AI正在生成八字分析结果，这可能需要30-60秒</p>
-        <van-progress :percentage="analyzeProgress" :show-pivot="false" color="#1989fa" />
+        <van-progress :percentage="analysisProgress" :show-pivot="false" color="#1989fa" />
       </div>
     </van-notice-bar>
     
-    <van-tabs v-model="activeTab" sticky>
+    <!-- 添加手动刷新按钮 -->
+    <div v-if="showManualRefresh" class="manual-refresh-container">
+      <van-empty description="获取分析结果失败" />
+      <van-button type="primary" size="normal" @click="manualRefresh">手动刷新</van-button>
+      <p class="refresh-tip">如果多次刷新仍然失败，请联系客服</p>
+    </div>
+    
+    <van-tabs v-model="activeTab" sticky v-if="!showManualRefresh">
       <van-tab title="命盘信息">
         <div class="bazi-chart">
           <h3>八字命盘</h3>
-          <div v-if="baziData && baziData.yearPillar && baziData.monthPillar && baziData.dayPillar && baziData.hourPillar" class="four-pillars">
+          <div v-if="baziChart && baziChart.yearPillar && baziChart.monthPillar && baziChart.dayPillar && baziChart.hourPillar" class="four-pillars">
             <!-- 年柱 -->
             <div class="pillar">
-              <div class="stem">{{ baziData.yearPillar.heavenlyStem }}</div>
-              <div class="branch">{{ baziData.yearPillar.earthlyBranch }}</div>
+              <div class="stem">{{ baziChart.yearPillar.heavenlyStem }}</div>
+              <div class="branch">{{ baziChart.yearPillar.earthlyBranch }}</div>
               <div class="label">年柱</div>
-              <div class="nayin">{{ baziData.yearPillar.naYin }}</div>
-              <div class="shishen">{{ baziData.yearPillar.shiShen }}</div>
-              <div class="wangshuai">{{ baziData.yearPillar.wangShuai }}</div>
+              <div class="nayin">{{ baziChart.yearPillar.naYin }}</div>
+              <div class="shishen">{{ baziChart.yearPillar.shiShen }}</div>
+              <div class="wangshuai">{{ baziChart.yearPillar.wangShuai }}</div>
             </div>
             
             <!-- 月柱 -->
             <div class="pillar">
-              <div class="stem">{{ baziData.monthPillar.heavenlyStem }}</div>
-              <div class="branch">{{ baziData.monthPillar.earthlyBranch }}</div>
+              <div class="stem">{{ baziChart.monthPillar.heavenlyStem }}</div>
+              <div class="branch">{{ baziChart.monthPillar.earthlyBranch }}</div>
               <div class="label">月柱</div>
-              <div class="nayin">{{ baziData.monthPillar.naYin }}</div>
-              <div class="shishen">{{ baziData.monthPillar.shiShen }}</div>
-              <div class="wangshuai">{{ baziData.monthPillar.wangShuai }}</div>
+              <div class="nayin">{{ baziChart.monthPillar.naYin }}</div>
+              <div class="shishen">{{ baziChart.monthPillar.shiShen }}</div>
+              <div class="wangshuai">{{ baziChart.monthPillar.wangShuai }}</div>
             </div>
             
             <!-- 日柱 -->
             <div class="pillar">
-              <div class="stem">{{ baziData.dayPillar.heavenlyStem }}</div>
-              <div class="branch">{{ baziData.dayPillar.earthlyBranch }}</div>
+              <div class="stem">{{ baziChart.dayPillar.heavenlyStem }}</div>
+              <div class="branch">{{ baziChart.dayPillar.earthlyBranch }}</div>
               <div class="label">日柱</div>
-              <div class="nayin">{{ baziData.dayPillar.naYin }}</div>
-              <div class="shishen">{{ baziData.dayPillar.shiShen }}</div>
-              <div class="wangshuai">{{ baziData.dayPillar.wangShuai }}</div>
+              <div class="nayin">{{ baziChart.dayPillar.naYin }}</div>
+              <div class="shishen">{{ baziChart.dayPillar.shiShen }}</div>
+              <div class="wangshuai">{{ baziChart.dayPillar.wangShuai }}</div>
             </div>
             
             <!-- 时柱 -->
             <div class="pillar">
-              <div class="stem">{{ baziData.hourPillar.heavenlyStem }}</div>
-              <div class="branch">{{ baziData.hourPillar.earthlyBranch }}</div>
+              <div class="stem">{{ baziChart.hourPillar.heavenlyStem }}</div>
+              <div class="branch">{{ baziChart.hourPillar.earthlyBranch }}</div>
               <div class="label">时柱</div>
-              <div class="nayin">{{ baziData.hourPillar.naYin }}</div>
-              <div class="shishen">{{ baziData.hourPillar.shiShen }}</div>
-              <div class="wangshuai">{{ baziData.hourPillar.wangShuai }}</div>
+              <div class="nayin">{{ baziChart.hourPillar.naYin }}</div>
+              <div class="shishen">{{ baziChart.hourPillar.shiShen }}</div>
+              <div class="wangshuai">{{ baziChart.hourPillar.wangShuai }}</div>
             </div>
           </div>
           <div v-else class="error-message">
@@ -78,8 +85,8 @@
           </div>
           
           <h3>五行分布</h3>
-          <div class="five-elements" v-if="baziData && baziData.fiveElements">
-            <div class="element" v-for="(value, element) in baziData.fiveElements" :key="element">
+          <div class="five-elements" v-if="baziChart && baziChart.fiveElements">
+            <div class="element" v-for="(value, element) in baziChart.fiveElements" :key="element">
               <div class="element-name">{{ getElementName(element) }}</div>
               <div class="element-value">{{ value }}</div>
             </div>
@@ -93,35 +100,35 @@
           
           <!-- 添加神煞显示 -->
           <h3>神煞信息</h3>
-          <div class="shen-sha-info" v-if="baziData && baziData.shenSha">
+          <div class="shen-sha-info" v-if="baziChart && baziChart.shenSha">
             <div class="shen-sha-content">
               <div class="shen-sha-item">
                 <span class="label">日冲</span>
-                <span class="value">{{ baziData.shenSha.dayChong }}</span>
+                <span class="value">{{ baziChart.shenSha.dayChong }}</span>
               </div>
               <div class="shen-sha-item">
                 <span class="label">值神</span>
-                <span class="value">{{ baziData.shenSha.zhiShen }}</span>
+                <span class="value">{{ baziChart.shenSha.zhiShen }}</span>
               </div>
               <div class="shen-sha-item">
                 <span class="label">喜神</span>
-                <span class="value">{{ baziData.shenSha.xiShen }}</span>
+                <span class="value">{{ baziChart.shenSha.xiShen }}</span>
               </div>
               <div class="shen-sha-item">
                 <span class="label">福神</span>
-                <span class="value">{{ baziData.shenSha.fuShen }}</span>
+                <span class="value">{{ baziChart.shenSha.fuShen }}</span>
               </div>
               <div class="shen-sha-item">
                 <span class="label">财神</span>
-                <span class="value">{{ baziData.shenSha.caiShen }}</span>
+                <span class="value">{{ baziChart.shenSha.caiShen }}</span>
               </div>
             </div>
             
             <!-- 本命神煞 -->
-            <div class="ben-ming-sha" v-if="baziData.shenSha.benMing.length > 0">
+            <div class="ben-ming-sha" v-if="baziChart.shenSha.benMing.length > 0">
               <h4>本命神煞</h4>
               <div class="ben-ming-list">
-                <span v-for="(sha, index) in baziData.shenSha.benMing" :key="index" class="ben-ming-item">
+                <span v-for="(sha, index) in baziChart.shenSha.benMing" :key="index" class="ben-ming-item">
                   {{ sha }}
                 </span>
               </div>
@@ -135,11 +142,11 @@
           
           <!-- 添加大运显示 -->
           <h3>大运信息</h3>
-          <div class="da-yun-info" v-if="baziData && baziData.daYun">
+          <div class="da-yun-info" v-if="baziChart && baziChart.daYun">
             <div class="qi-yun-info">
-              <p>起运年龄: {{ baziData.daYun.startAge }}岁</p>
-              <p>起运年份: {{ baziData.daYun.startYear }}年</p>
-              <p>大运顺序: {{ baziData.daYun.isForward ? '顺行' : '逆行' }}</p>
+              <p>起运年龄: {{ baziChart.daYun.startAge }}岁</p>
+              <p>起运年份: {{ baziChart.daYun.startYear }}年</p>
+              <p>大运顺序: {{ baziChart.daYun.isForward ? '顺行' : '逆行' }}</p>
             </div>
             
             <!-- 大运列表 -->
@@ -156,7 +163,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(yun, index) in baziData.daYun.daYunList" :key="index">
+                  <tr v-for="(yun, index) in baziChart.daYun.daYunList" :key="index">
                     <td>{{ yun.startAge }}-{{ yun.endAge }}</td>
                     <td>{{ yun.startYear }}-{{ yun.endYear }}</td>
                     <td>{{ yun.heavenlyStem }}</td>
@@ -175,7 +182,7 @@
           </div>
           
           <h3>流年信息</h3>
-          <div class="liu-nian-info" v-if="baziData && baziData.flowingYears && baziData.flowingYears.length">
+          <div class="liu-nian-info" v-if="baziChart && baziChart.flowingYears && baziChart.flowingYears.length">
             <table class="custom-table">
               <thead>
                 <tr>
@@ -189,7 +196,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(year, index) in baziData.flowingYears" :key="index">
+                <tr v-for="(year, index) in baziChart.flowingYears" :key="index">
                   <td>{{ year.year }}</td>
                   <td>{{ year.age }}</td>
                   <td>{{ year.heavenlyStem }}</td>
@@ -239,14 +246,17 @@
           
           <!-- 添加全局分析状态提示 -->
           <van-notice-bar
-            v-if="isAnalyzing"
+            v-if="analysisStatus === 'pending'"
             color="#1989fa"
             background="#ecf9ff"
             left-icon="info-o"
             :scrollable="false"
             class="analysis-progress-notice"
           >
-            
+            <div class="analysis-progress">
+              <p>AI正在生成八字分析结果，这可能需要30-60秒</p>
+              <van-progress :percentage="analysisProgress" :show-pivot="false" color="#1989fa" />
+            </div>
           </van-notice-bar>
           
           <!-- 核心分析 -->
@@ -482,7 +492,7 @@
     </div>
     
     <!-- 添加追问部分 -->
-    <div class="followup-section" v-if="baziData && !loading">
+    <div class="followup-section" v-if="baziChart && !loading">
       <h2 class="section-title">深度分析</h2>
       <p class="section-desc">选择您感兴趣的领域，进行深度分析</p>
       
@@ -834,9 +844,16 @@ onMounted(async () => {
       duration: 0
     });
     
+    // 设置分析状态为进行中
+    analysisStatus.value = 'pending';
+    
     // 启动轮询
     await pollAnalysisStatus(resultId.value);
     Toast.success('分析完成');
+    
+    // 分析完成后更新状态
+    analysisStatus.value = 'completed';
+    analysisProgress.value = 100;
   }
   
   // 关闭加载提示
@@ -1365,20 +1382,64 @@ const checkAnalysisStatus = async (resultId) => {
   }
 };
 
-// 添加轮询检查函数
-const pollAnalysisStatus = async (resultId, maxAttempts = 30) => {
+// 轮询检查分析状态
+const pollAnalysisStatus = async (resultId) => {
   let attempts = 0;
+  const maxAttempts = 30; // 最多轮询30次，约60秒
   
-  // 显示进度条
-  isAnalyzing.value = true;
+  // 启动模拟进度条
+  if (!analyzeTimer.value) {
+    let progress = analysisProgress.value || 0;
+    analyzeTimer.value = setInterval(() => {
+      if (progress < 95) { // 最多到95%，留5%给实际完成时
+        progress += Math.random() * 3;
+        if (progress > 95) progress = 95;
+        analysisProgress.value = Math.floor(progress);
+      }
+    }, 1000);
+  }
   
-  // 创建模拟进度，即使后端没有反馈也会看到进度在增加
-  if (analyzeTimer.value) clearInterval(analyzeTimer.value);
-  analyzeTimer.value = setInterval(() => {
-    if (analyzeProgress.value < 90) {
-      analyzeProgress.value += 2;
+  // 检查分析状态
+  const checkAnalysisStatus = async (resultId) => {
+    try {
+      const response = await axios.get(`/api/bazi/result/${resultId}`);
+      if (response.data.code === 200) {
+        const data = response.data.data;
+        
+        // 更新AI分析结果
+        if (data.aiAnalysis) {
+          aiAnalysis.value = {
+            ...aiAnalysis.value,
+            ...data.aiAnalysis
+          };
+        }
+        
+        // 检查分析状态
+        const status = data.analysisStatus || 'completed';
+        const progress = data.analysisProgress || 0;
+        
+        // 更新状态和进度
+        analysisStatus.value = status;
+        analysisProgress.value = progress;
+        
+        // 检查是否完成
+        if (status === 'completed' || progress >= 100) {
+          return true;
+        }
+        
+        // 检查内容是否已生成（即使状态未更新）
+        const allGenerated = !Object.values(aiAnalysis.value).some(
+          value => typeof value === 'string' && value.includes('正在分析')
+        );
+        
+        return allGenerated;
+      }
+      return false;
+    } catch (error) {
+      console.error('检查分析状态失败:', error);
+      return false;
     }
-  }, 2000);
+  };
   
   return new Promise((resolve) => {
     const checkInterval = setInterval(async () => {
@@ -1396,9 +1457,9 @@ const pollAnalysisStatus = async (resultId, maxAttempts = 30) => {
         
         if (isComplete) {
           // 如果完成，确保进度显示100%
-          analyzeProgress.value = 100;
+          analysisProgress.value = 100;
           setTimeout(() => {
-            isAnalyzing.value = false;
+            analysisStatus.value = 'completed';
           }, 1000); // 短暂显示100%后隐藏进度条
         }
         
@@ -1413,89 +1474,54 @@ const pollAnalysisStatus = async (resultId, maxAttempts = 30) => {
 // 重新加载八字数据
 const reloadBaziData = async () => {
   try {
-    try {
-      Toast.loading({
-        message: '正在加载现有分析结果...',
-        duration: 0,
-        forbidClick: true
-      });
-      
-      const response = await axios.get(`/api/bazi/result/${resultId.value}`);
-      
-      if (response.data.code === 200) {
-        // 更新八字数据，使用空值合并运算符确保数据存在
-        baziData.value = {
-          yearPillar: response.data.data.baziChart?.yearPillar || null,
-          monthPillar: response.data.data.baziChart?.monthPillar || null,
-          dayPillar: response.data.data.baziChart?.dayPillar || null,
-          hourPillar: response.data.data.baziChart?.hourPillar || null,
-          fiveElements: response.data.data.baziChart?.fiveElements || null,
-          flowingYears: response.data.data.baziChart?.flowingYears || [],
-          shenSha: response.data.data.baziChart?.shenSha || baziData.value.shenSha,
-          daYun: response.data.data.baziChart?.daYun || baziData.value.daYun,
-          birthDate: response.data.data.baziChart?.birthDate || null,
-          birthTime: response.data.data.baziChart?.birthTime || null,
-          gender: response.data.data.baziChart?.gender || null
-        };
-        
-        // 更新AI分析结果
-        aiAnalysis.value = {
-          health: response.data.data.aiAnalysis?.health || '',
-          career: response.data.data.aiAnalysis?.career || '',
-          relationship: response.data.data.aiAnalysis?.relationship || '',
-          children: response.data.data.aiAnalysis?.children || '',
-          social: response.data.data.aiAnalysis?.social || '',
-          future: response.data.data.aiAnalysis?.future || '',
-          parents: response.data.data.aiAnalysis?.parents || '',
-          education: response.data.data.aiAnalysis?.education || '',
-          // 新增字段
-          coreAnalysis: response.data.data.aiAnalysis?.coreAnalysis || '',
-          fiveElements: response.data.data.aiAnalysis?.fiveElements || '',
-          shenShaAnalysis: response.data.data.aiAnalysis?.shenShaAnalysis || '',
-          keyPoints: response.data.data.aiAnalysis?.keyPoints || ''
-        };
-        
-        // 检查分析状态和进度
-        const analysisStatus = response.data.data.analysisStatus || 'completed';
-        const analysisProgress = response.data.data.analysisProgress || 0;
-        
-        // 检查是否所有分析内容都已生成完毕
-        const stillAnalyzing = Object.values(aiAnalysis.value).some(
-          value => typeof value === 'string' && value.includes('分析生成中')
-        );
-        
-        // 如果后端返回的状态是completed或进度是100，或者所有分析内容都已生成，则认为分析已完成
-        isAnalyzing.value = analysisStatus === 'pending' && analysisProgress < 100 && stillAnalyzing;
-        analyzeProgress.value = analysisProgress;
-        
-        // 如果分析已完成但进度条未达到100%，强制设置为100%
-        if (!isAnalyzing.value && analyzeProgress.value < 100) {
-          analyzeProgress.value = 100;
-        }
-        
-        console.log('分析是否进行中:', isAnalyzing.value);
-        console.log('AI分析结果更新:', aiAnalysis.value);
-        
-        // 重新加载追问分析结果
-        console.log('重新加载追问分析结果...');
-        await loadFollowupResults();
-        
-        // 遍历所有已支付的追问选项，强制重新获取分析结果
-        const paidOptions = followupOptions.value.filter(option => option.paid);
-        if (paidOptions.length > 0) {
-          console.log('发现已支付的追问选项，强制重新获取:', paidOptions.map(o => o.id));
-          for (const option of paidOptions) {
-            await getFollowupAnalysis(option.id);
-          }
-        }
-        
-        Toast.success('数据刷新成功');
-      } else {
-        Toast.fail(response.data.message || '加载失败');
+    Toast.loading({
+      message: '正在加载现有分析结果...',
+      duration: 0,
+      forbidClick: true
+    });
+    
+    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
+    
+    if (response.data.code === 200) {
+      // 更新八字数据
+      if (response.data.data.baziChart) {
+        baziChart.value = response.data.data.baziChart;
       }
-    } catch (error) {
-      console.error('重新加载失败:', error);
-      Toast.fail('加载失败: ' + (error.message || '未知错误'));
+      
+      // 更新AI分析结果
+      if (response.data.data.aiAnalysis) {
+        aiAnalysis.value = response.data.data.aiAnalysis;
+      }
+      
+      // 检查分析状态和进度
+      analysisStatus.value = response.data.data.analysisStatus || 'completed';
+      analysisProgress.value = response.data.data.analysisProgress || 100;
+      
+      // 如果分析已完成但进度条未达到100%，强制设置为100%
+      if (analysisStatus.value === 'completed' && analysisProgress.value < 100) {
+        analysisProgress.value = 100;
+      }
+      
+      console.log('分析状态:', analysisStatus.value);
+      console.log('分析进度:', analysisProgress.value);
+      console.log('AI分析结果更新:', aiAnalysis.value);
+      
+      // 重新加载追问分析结果
+      console.log('重新加载追问分析结果...');
+      await loadFollowupResults();
+      
+      // 遍历所有已支付的追问选项，强制重新获取分析结果
+      const paidOptions = followupOptions.value.filter(option => option.paid);
+      if (paidOptions.length > 0) {
+        console.log('发现已支付的追问选项，强制重新获取:', paidOptions.map(o => o.id));
+        for (const option of paidOptions) {
+          await getFollowupAnalysis(option.id);
+        }
+      }
+      
+      Toast.success('数据刷新成功');
+    } else {
+      Toast.fail(response.data.message || '加载失败');
     }
   } catch (error) {
     console.error('重新加载失败:', error);
@@ -1958,98 +1984,130 @@ const checkPaidFollowups = async () => {
   }
 };
 
-// 修改getBaziResult函数
+// 获取八字分析结果
 const getBaziResult = async () => {
   loading.value = true;
-  try {
-    console.log('获取八字分析结果，ID:', resultId.value);
-    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
-    console.log('八字分析结果:', response.data);
-    
-    if (response.data.code === 200 && response.data.data) {
-      // 更新八字数据，使用深度合并确保数据结构完整
-      if (response.data.data.baziChart) {
-        baziData.value = {
-          yearPillar: response.data.data.baziChart.yearPillar || baziData.value.yearPillar,
-          monthPillar: response.data.data.baziChart.monthPillar || baziData.value.monthPillar,
-          dayPillar: response.data.data.baziChart.dayPillar || baziData.value.dayPillar,
-          hourPillar: response.data.data.baziChart.hourPillar || baziData.value.hourPillar,
-          fiveElements: response.data.data.baziChart.fiveElements || baziData.value.fiveElements,
-          flowingYears: response.data.data.baziChart.flowingYears || [],
-          shenSha: response.data.data.baziChart.shenSha || baziData.value.shenSha,
-          daYun: response.data.data.baziChart.daYun || baziData.value.daYun,
-          birthDate: response.data.data.baziChart.birthDate || null,
-          birthTime: response.data.data.baziChart.birthTime || null,
-          gender: response.data.data.baziChart.gender || null
-        };
-      } else {
-        console.warn('响应中缺少baziChart数据');
-        Toast.fail('数据格式不正确');
-      }
+  error.value = '';
+  
+  // 添加重试机制
+  let retryCount = 0;
+  const maxRetries = 3;
+  let success = false;
+  
+  while (retryCount < maxRetries && !success) {
+    try {
+      console.log(`获取八字分析结果 (尝试 ${retryCount + 1}/${maxRetries})，ID: ${resultId.value}`);
+      const response = await axios.get(`/api/bazi/result/${resultId.value}`);
       
-      // 更新AI分析结果
-      if (response.data.data.aiAnalysis) {
-        // 直接从response.data.data.analysis获取分析结果
-        const analysis = response.data.data.analysis || {};
+      if (response.data.code === 200) {
+        // 将结果数据赋值给响应变量
+        const result = response.data.data;
         
-        // 更新aiAnalysis对象
-        aiAnalysis.value = {
-          health: analysis.health || response.data.data.aiAnalysis.health || '',
-          career: analysis.career || response.data.data.aiAnalysis.career || '',
-          relationship: analysis.relationship || response.data.data.aiAnalysis.relationship || '',
-          children: analysis.children || response.data.data.aiAnalysis.children || '',
-          social: analysis.social || response.data.data.aiAnalysis.social || '',
-          future: analysis.future || response.data.data.aiAnalysis.future || '',
-          parents: analysis.parents || response.data.data.aiAnalysis.parents || '',
-          education: analysis.education || response.data.data.aiAnalysis.education || '',
-          // 新增字段
-          coreAnalysis: analysis.coreAnalysis || response.data.data.aiAnalysis.coreAnalysis || '',
-          fiveElements: analysis.fiveElements || response.data.data.aiAnalysis.fiveElements || '',
-          shenShaAnalysis: analysis.shenShaAnalysis || response.data.data.aiAnalysis.shenShaAnalysis || '',
-          keyPoints: analysis.keyPoints || response.data.data.aiAnalysis.keyPoints || ''
-        };
-        
-        // 检查分析状态和进度
-        const analysisStatus = response.data.data.analysisStatus || 'completed';
-        const analysisProgress = response.data.data.analysisProgress || 0;
-        
-        console.log('分析状态:', analysisStatus, '分析进度:', analysisProgress);
-        
-        // 检查是否所有分析内容都已生成完毕
-        const stillAnalyzing = Object.values(aiAnalysis.value).some(
-          value => typeof value === 'string' && value.includes('分析生成中')
-        );
-        
-        // 如果后端返回的状态是completed或进度是100，或者所有分析内容都已生成，则认为分析已完成
-        isAnalyzing.value = analysisStatus === 'pending' && analysisProgress < 100 && stillAnalyzing;
-        analyzeProgress.value = analysisProgress;
-        
-        // 如果分析已完成但进度条未达到100%，强制设置为100%
-        if (!isAnalyzing.value && analyzeProgress.value < 100) {
-          analyzeProgress.value = 100;
+        // 更新八字图数据
+        if (result.baziChart) {
+          baziChart.value = result.baziChart;
+          
+          // 计算年龄
+          if (result.baziChart.birthDate) {
+            const birthYear = parseInt(result.baziChart.birthDate.split('-')[0]);
+            const currentYear = new Date().getFullYear();
+            userAge.value = currentYear - birthYear;
+            console.log('用户年龄:', userAge.value);
+          }
         }
         
-        console.log('分析是否进行中:', isAnalyzing.value);
-        console.log('AI分析结果更新:', aiAnalysis.value);
+        // 更新AI分析结果
+        if (result.aiAnalysis) {
+          aiAnalysis.value = result.aiAnalysis;
+        }
+        
+        // 更新用户信息
+        if (result.gender) {
+          userGender.value = result.gender === 'male' ? '男' : '女';
+        }
+        
+        if (result.birthTime) {
+          userBirthTime.value = result.birthTime;
+        }
+        
+        // 更新分析状态
+        analysisStatus.value = result.analysisStatus || 'completed';
+        analysisProgress.value = result.analysisProgress || 100;
+        
+        // 更新订单ID
+        orderId.value = result.orderId || '';
+        
+        // 标记为成功
+        success = true;
+        loading.value = false;
+        
+        // 检查是否有神煞数据
+        if (result.baziChart && result.baziChart.shenSha) {
+          shenShaData.value = result.baziChart.shenSha;
+        }
+        
+        // 检查是否有大运数据
+        if (result.baziChart && result.baziChart.daYun) {
+          daYunData.value = result.baziChart.daYun;
+        }
+        
+        // 检查是否有流年数据
+        if (result.baziChart && result.baziChart.flowingYears) {
+          flowingYearsData.value = result.baziChart.flowingYears;
+        }
+        
+        return true;
+      } else {
+        console.error('获取八字分析结果失败:', response.data.message);
+        error.value = response.data.message || '获取分析结果失败';
+        retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 等待1秒后重试
+      }
+    } catch (e) {
+      console.error('获取八字分析结果出错:', e);
+      error.value = e.message || '获取分析结果出错';
+      
+      // 如果是404错误，可能是结果记录还未创建，尝试手动更新订单状态
+      if (e.response && e.response.status === 404) {
+        console.log('结果记录不存在，尝试手动更新订单状态');
+        
+        // 从resultId中提取orderId
+        let orderId = '';
+        if (resultId.value.startsWith('RES')) {
+          orderId = 'BZ' + resultId.value.substring(3);
+          console.log('从resultId提取的orderId:', orderId);
+          
+          try {
+            // 尝试手动更新订单状态
+            const manualResponse = await axios.get(`/api/order/manual_update/${orderId}`);
+            console.log('手动更新响应:', manualResponse.data);
+            
+            if (manualResponse.data.code === 200) {
+              console.log('手动更新成功，等待2秒后重试获取结果');
+              // 等待2秒后重试，给后端时间创建记录
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          } catch (manualError) {
+            console.error('手动更新失败:', manualError);
+          }
+        }
       }
       
-      // 初始化追问选项
-      initFollowupOptions();
-      
-      // 加载已支付的追问分析结果
-      await loadFollowupResults();
-      
-      Toast.success('分析结果加载成功');
-    } else {
-      console.error('获取八字分析结果失败:', response.data.message);
-      Toast.fail(response.data.message || '获取分析结果失败');
+      retryCount++;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 等待1秒后重试
     }
-  } catch (error) {
-    console.error('获取八字分析结果出错:', error);
-    Toast.fail('获取分析结果失败，请稍后再试');
-  } finally {
-    loading.value = false;
   }
+  
+  if (!success) {
+    loading.value = false;
+    
+    // 如果所有重试都失败，显示手动刷新按钮
+    showManualRefresh.value = true;
+    
+    return false;
+  }
+  
+  return true;
 };
 
 // 添加缺失的函数
@@ -2202,6 +2260,75 @@ const reloadFollowupAnalysis = async (area) => {
     Toast.clear();
   }
 };
+
+// 在data部分添加showManualRefresh变量
+const showManualRefresh = ref(false);
+
+// 添加手动刷新函数
+const manualRefresh = async () => {
+  showManualRefresh.value = false;
+  Toast.loading({
+    message: '正在重新获取分析结果...',
+    duration: 0,
+    forbidClick: true
+  });
+  
+  // 从resultId中提取orderId
+  let orderId = '';
+  if (resultId.value.startsWith('RES')) {
+    orderId = 'BZ' + resultId.value.substring(3);
+    console.log('从resultId提取的orderId:', orderId);
+    
+    try {
+      // 尝试手动更新订单状态
+      const manualResponse = await axios.get(`/api/order/manual_update/${orderId}`);
+      console.log('手动更新响应:', manualResponse.data);
+      
+      if (manualResponse.data.code === 200) {
+        console.log('手动更新成功，等待2秒后重试获取结果');
+        // 等待2秒后重试，给后端时间创建记录
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // 重新获取结果
+        const success = await getBaziResult();
+        if (success) {
+          Toast.success('分析结果加载成功');
+        } else {
+          Toast.fail('获取分析结果失败，请稍后再试');
+        }
+      } else {
+        Toast.fail('手动更新失败: ' + (manualResponse.data.message || '未知错误'));
+      }
+    } catch (error) {
+      console.error('手动更新失败:', error);
+      Toast.fail('手动更新失败，请稍后再试');
+    }
+  } else {
+    // 直接重试获取结果
+    const success = await getBaziResult();
+    if (success) {
+      Toast.success('分析结果加载成功');
+    } else {
+      Toast.fail('获取分析结果失败，请稍后再试');
+    }
+  }
+  
+  Toast.clear();
+};
+
+// 在data部分添加error变量
+const error = ref('');
+
+// 添加所有需要的变量定义
+const baziChart = ref({});
+const analysisStatus = ref('completed');
+const analysisProgress = ref(100);
+const orderId = ref('');
+const userGender = ref('');
+const userBirthTime = ref('');
+const shenShaData = ref({});
+const daYunData = ref({});
+const flowingYearsData = ref([]);
 </script>
 
 <style scoped>
@@ -2619,5 +2746,16 @@ const reloadFollowupAnalysis = async (area) => {
   background-color: #ddd;
   border: none;
   margin: 1.5em 0;
+}
+
+/* 添加手动刷新按钮样式 */
+.manual-refresh-container {
+  padding: 20px;
+  text-align: center;
+}
+.refresh-tip {
+  margin-top: 10px;
+  color: #999;
+  font-size: 14px;
 }
 </style>

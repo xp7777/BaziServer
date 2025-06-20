@@ -740,6 +740,61 @@ def query_order(order_id):
                     }
                     OrderModel.update_payment_info(order_id, payment_info)
                     
+                    # 创建八字分析记录（如果不存在）
+                    bazi_result = BaziResultModel.find_by_id(result_id)
+                    if not bazi_result:
+                        logging.info(f"创建八字分析记录: {result_id}")
+                        # 从订单中获取必要的参数
+                        birth_date = order.get('birthDate')
+                        birth_time = order.get('birthTime')
+                        gender = order.get('gender')
+                        focus_areas = order.get('focusAreas', [])
+                        
+                        if birth_date and birth_time and gender:
+                            # 创建初始的八字分析结果记录
+                            initial_result = {
+                                "_id": result_id,
+                                "orderId": order_id,
+                                "gender": gender,
+                                "birthTime": birth_time,
+                                "birthDate": birth_date, 
+                                "focusAreas": focus_areas,
+                                "baziChart": {
+                                    'yearPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                                    'monthPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                                    'dayPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                                    'hourPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                                    'fiveElements': {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0},
+                                    'gender': gender,
+                                    'birthDate': birth_date,
+                                    'birthTime': birth_time
+                                },
+                                "aiAnalysis": {
+                                    'overall': '正在分析整体运势...',
+                                    'health': '正在分析健康运势...',
+                                    'wealth': '正在分析财运...',
+                                    'career': '正在分析事业运势...',
+                                    'relationship': '正在分析感情运势...',
+                                    'children': '正在分析子女运势...'
+                                },
+                                "status": "processing",
+                                "createTime": datetime.now()
+                            }
+                            
+                            try:
+                                # 直接使用insert_one插入记录
+                                mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+                                client = MongoClient(mongo_uri)
+                                db = client.get_database()
+                                results_collection = db.bazi_results
+                                results_collection.insert_one(initial_result)
+                                logging.info(f"成功创建初始八字分析记录: {result_id}")
+                            except Exception as e:
+                                logging.error(f"创建初始八字分析记录失败: {str(e)}")
+                                logging.error(traceback.format_exc())
+                        else:
+                            logging.error(f"订单缺少必要的出生信息，无法创建八字分析记录: {order_id}")
+                    
                     # 返回更新后的状态
                     return jsonify(
                         code=200,
@@ -994,6 +1049,61 @@ def wechat_notify_v3():
                         
                         logging.info(f"已更新订单状态为已支付: {out_trade_no}")
                         
+                        # 创建八字分析记录（如果不存在）
+                        bazi_result = BaziResultModel.find_by_id(result_id)
+                        if not bazi_result:
+                            logging.info(f"微信支付回调时创建八字分析记录: {result_id}")
+                            # 从订单中获取必要的参数
+                            birth_date = order.get('birthDate')
+                            birth_time = order.get('birthTime')
+                            gender = order.get('gender')
+                            focus_areas = order.get('focusAreas', [])
+                            
+                            if birth_date and birth_time and gender:
+                                # 创建初始的八字分析结果记录
+                                initial_result = {
+                                    "_id": result_id,
+                                    "orderId": out_trade_no,
+                                    "gender": gender,
+                                    "birthTime": birth_time,
+                                    "birthDate": birth_date, 
+                                    "focusAreas": focus_areas,
+                                    "baziChart": {
+                                        'yearPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                                        'monthPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                                        'dayPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                                        'hourPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                                        'fiveElements': {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0},
+                                        'gender': gender,
+                                        'birthDate': birth_date,
+                                        'birthTime': birth_time
+                                    },
+                                    "aiAnalysis": {
+                                        'overall': '正在分析整体运势...',
+                                        'health': '正在分析健康运势...',
+                                        'wealth': '正在分析财运...',
+                                        'career': '正在分析事业运势...',
+                                        'relationship': '正在分析感情运势...',
+                                        'children': '正在分析子女运势...'
+                                    },
+                                    "status": "processing",
+                                    "createTime": datetime.now()
+                                }
+                                
+                                try:
+                                    # 直接使用insert_one插入记录
+                                    mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+                                    client = MongoClient(mongo_uri)
+                                    db = client.get_database()
+                                    results_collection = db.bazi_results
+                                    results_collection.insert_one(initial_result)
+                                    logging.info(f"成功创建初始八字分析记录: {result_id}")
+                                except Exception as e:
+                                    logging.error(f"创建初始八字分析记录失败: {str(e)}")
+                                    logging.error(traceback.format_exc())
+                            else:
+                                logging.error(f"订单缺少必要的出生信息，无法创建八字分析记录: {out_trade_no}")
+                        
                         # 处理后续业务逻辑（可以添加任务队列处理八字分析等）
                         # 这里可以添加类似onPaymentSuccess的逻辑
                     else:
@@ -1051,6 +1161,61 @@ def manual_update_order(order_id):
         'apiVersion': 'manual'
     }
     OrderModel.update_payment_info(order_id, payment_info)
+    
+    # 创建八字分析记录（如果不存在）
+    bazi_result = BaziResultModel.find_by_id(result_id)
+    if not bazi_result:
+        logging.info(f"手动更新时创建八字分析记录: {result_id}")
+        # 从订单中获取必要的参数
+        birth_date = order.get('birthDate')
+        birth_time = order.get('birthTime')
+        gender = order.get('gender')
+        focus_areas = order.get('focusAreas', [])
+        
+        if birth_date and birth_time and gender:
+            # 创建初始的八字分析结果记录
+            initial_result = {
+                "_id": result_id,
+                "orderId": order_id,
+                "gender": gender,
+                "birthTime": birth_time,
+                "birthDate": birth_date, 
+                "focusAreas": focus_areas,
+                "baziChart": {
+                    'yearPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                    'monthPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                    'dayPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                    'hourPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
+                    'fiveElements': {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0},
+                    'gender': gender,
+                    'birthDate': birth_date,
+                    'birthTime': birth_time
+                },
+                "aiAnalysis": {
+                    'overall': '正在分析整体运势...',
+                    'health': '正在分析健康运势...',
+                    'wealth': '正在分析财运...',
+                    'career': '正在分析事业运势...',
+                    'relationship': '正在分析感情运势...',
+                    'children': '正在分析子女运势...'
+                },
+                "status": "processing",
+                "createTime": datetime.now()
+            }
+            
+            try:
+                # 直接使用insert_one插入记录
+                mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+                client = MongoClient(mongo_uri)
+                db = client.get_database()
+                results_collection = db.bazi_results
+                results_collection.insert_one(initial_result)
+                logging.info(f"成功创建初始八字分析记录: {result_id}")
+            except Exception as e:
+                logging.error(f"创建初始八字分析记录失败: {str(e)}")
+                logging.error(traceback.format_exc())
+        else:
+            logging.error(f"订单缺少必要的出生信息，无法创建八字分析记录: {order_id}")
     
     # 返回更新后的订单状态
     return jsonify(
