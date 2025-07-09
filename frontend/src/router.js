@@ -8,6 +8,11 @@ const routes = [
   { 
     path: '/', 
     component: Home,
+    meta: { title: '捭阖学宫' }
+  },
+  { 
+    path: '/bazi-service', 
+    component: () => import('./BaziService.vue'),
     meta: { title: '八字命理AI人生指导' }
   },
   { 

@@ -5,11 +5,20 @@ import App from './App.vue';
 import routes from './router';
 import Vant from 'vant';
 import 'vant/lib/index.css';
+import './App.css'; // 引入全局样式
 
 // 创建路由实例
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+// 页面标题
+router.beforeEach((to, from, next) => {
+  if (to.meta.title) {
+    document.title = to.meta.title;
+  }
+  next();
 });
 
 // 创建Pinia状态管理实例
