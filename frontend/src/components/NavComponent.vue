@@ -14,7 +14,7 @@
             v-for="item in navItems"
             :key="item.id"
             @click="scrollToSection(item.id)"
-            class="nav-link text-gray-300 hover:text-white px-3 py-2 text-sm font-medium transition-colors"
+            class="nav-link text-gray-300 hover:text-white px-3 py-2 text-sm font-medium transition-colors "
           >
             {{ item.label }}
           </button>
@@ -24,7 +24,7 @@
         <div class="md:hidden">
           <button
             @click="toggleMenu"
-            class="text-gray-300 hover:text-white p-2"
+            class="text-gray-300 hover:text-white p-2 "
           >
             <span v-if="isMenuOpen" class="block w-6 h-6">✕</span>
             <span v-else class="block w-6 h-6">☰</span>
@@ -63,6 +63,12 @@ export default {
       ]
     };
   },
+  mounted() {
+    window.addEventListener('scroll', this.handleScroll);
+  },
+  beforeUnmount() {
+    window.removeEventListener('scroll', this.handleScroll);
+  },
   methods: {
     scrollToSection(sectionId) {
       const element = document.getElementById(sectionId);
@@ -73,6 +79,15 @@ export default {
     },
     toggleMenu() {
       this.isMenuOpen = !this.isMenuOpen;
+    },
+    handleScroll() {
+      // 添加滚动时导航栏的效果变化
+      const nav = document.querySelector('nav');
+      if (window.scrollY > 100) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
     }
   }
 };
@@ -82,5 +97,34 @@ export default {
 .backdrop-blur-md {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+nav {
+  transition: all 0.3s ease;
+}
+
+nav.scrolled {
+  background-color: rgba(0, 0, 0, 0.95);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.nav-link {
+  position: relative;
+  background-color: #000;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: #999999;
+  transition: width 0.3s ease;
+}
+
+.nav-link:hover::after {
+  width: 100%;
 }
 </style> 

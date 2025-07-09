@@ -3,3 +3,5 @@ routes/__pycache__/
 models/__pycache__/
 frontend/node_modules/.cache/
 
+frontend/dist/
+frontend/dist.zip

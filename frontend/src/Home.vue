@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-black text-white smooth-scroll">
-    <div class="scroll-progress"></div>
+    <scroll-animation></scroll-animation>
     <nav-component></nav-component>
     <hero-banner></hero-banner>
     
@@ -25,15 +25,14 @@
     <section-component id="guidance" title="人生指导" background="bg-gray-900">
       <div class="text-center max-w-4xl mx-auto">
         <p class="text-lg text-gray-300 leading-relaxed mb-8">
-          融合人工智能和传统文化天文历法、易经等传统智慧，
-          提供人生方向规划与问题解决方案，让古老智慧为现代人生赋能。
+          结合八字命理、堪舆风水、姓名学、卦象预测等传统智慧， 提供人生方向规划与问题解决方案，让古老智慧为现代人生赋能。
         </p>
         <div class="bg-gray-800/50 p-8 rounded-lg border border-gray-700 mb-8">
           <h3 class="text-xl font-semibold text-white mb-4">进入专业服务</h3>
           <p class="text-gray-400 mb-6">
-            涵盖人生事业生活各方面，包括个人居住环境、穿衣打扮等的全面指导！
+            个性化的人生指导服务，包括命理分析、风水咨询、 人生规划等专业内容！
           </p>
-          <button class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors" @click="goToBaziService">
+          <button class="button-cls bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors" @click="goToBaziService">
             点击进入
           </button>
         </div>
@@ -118,7 +117,7 @@
             ></textarea>
             <button
               type="submit"
-              class="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg transition-colors"
+              class="button-cls w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg transition-colors"
             >
               发送消息
             </button>
@@ -147,6 +146,7 @@ import HeroBanner from './components/HeroBanner.vue';
 import SectionComponent from './components/SectionComponent.vue';
 import AboutSection from './components/AboutSection.vue';
 import BackToTop from './components/BackToTop.vue';
+import ScrollAnimation from './components/ScrollAnimation.vue';
 
 export default {
   components: {
@@ -154,7 +154,8 @@ export default {
     HeroBanner,
     SectionComponent,
     AboutSection,
-    BackToTop
+    BackToTop,
+    ScrollAnimation
   },
   setup() {
     const router = useRouter();
@@ -245,6 +246,10 @@ export default {
 .card-hover:hover {
   transform: translateY(-5px);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+.button-cls{
+  background-color: #000;
 }
 
 @media (max-width: 768px) {

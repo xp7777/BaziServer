@@ -19,15 +19,15 @@
       <div class="max-w-4xl mx-auto px-4">
         <transition name="fade" mode="out-in">
           <div :key="currentBanner">
-            <h1 class="hero-title text-5xl md:text-7xl font-bold text-white mb-6">
+            <h1 class="hero-title text-5xl md:text-7xl font-bold text-white mb-6 animate-slideInDown">
               {{ banners[currentBanner].title }}
             </h1>
-            <p class="text-xl md:text-2xl text-gray-300 mb-8">
+            <p class="text-xl md:text-2xl text-gray-300 mb-8 animate-slideInUp">
               {{ banners[currentBanner].subtitle }}
             </p>
             <button
               @click="scrollToAbout"
-              class="bg-gray-800/80 hover:bg-gray-700/80 text-white px-8 py-3 rounded-lg text-lg font-medium transition-all duration-300 backdrop-blur-sm border border-gray-600"
+              class="button-cls bg-gray-800/80 hover:bg-gray-700/80 text-white px-8 py-3 rounded-lg text-lg font-medium transition-all duration-300 backdrop-blur-sm border border-gray-600 animate-fadeIn "
             >
               探索智慧之门
             </button>
@@ -114,5 +114,9 @@ export default {
 .backdrop-blur-sm {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+}
+
+.button-cls{
+  background-color: #000;
 }
 </style> 

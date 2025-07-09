@@ -74,7 +74,7 @@ function App() {
             <div className="bg-gray-800/50 p-8 rounded-lg border border-gray-700 mb-8">
               <h3 className="text-xl font-semibold text-white mb-4">进入专业服务</h3>
               <p className="text-gray-400 mb-6">
-                涵盖人生事业生活各方面，包括个人居住环境、穿衣打扮等的全面指导！
+              个性化的人生指导服务，包括命理分析、风水咨询、 人生规划等专业内容！
               </p>
               <button className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors">
                 点击进入
