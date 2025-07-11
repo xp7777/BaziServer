@@ -1,10 +1,10 @@
 <template>
   <div class="home-container">
-    <van-nav-bar title="八字命理AI人生指导" />
+    <van-nav-bar title="八字命理人生指导" />
     
     <div class="banner">
-      <img src="./assets/banner.png" alt="八字命理AI人生指导" class="banner-img">
-      <h2 class="slogan">传统命理 · 现代科技 · 智慧人生</h2>
+      <img src="./assets/banner11.png" alt="八字命理AI人生指导" class="banner-img">
+      <h2 class="slogan">传统文化 · 现代科技 · 智慧人生</h2>
     </div>
     
     <van-form @submit="onSubmit">
@@ -91,29 +91,31 @@
     </van-form>
     
     <div class="intro-section">
-      <h3>八字命理AI人生指导系统</h3>
-      <p>本系统结合传统八字命理理论与现代人工智能技术，为您提供个性化的人生指导建议。通过分析您的八字命盘和流年大运信息，AI将为您解读人生各方面的发展趋势和潜在机遇。</p>
+      <h3>人生规划指导系统</h3>
+      <p>本系统结合传统国学理论与现代科技，为您提供个性化的人生指导建议。通过分析您的个人信息，为您解读人生各方面的发展趋势和潜在机遇，规划好您的人生之路。</p>
       
       <h3>使用流程</h3>
       <van-steps direction="vertical" :active="0">
         <van-step>
           <h3>填写信息</h3>
-          <p>输入性别、出生年月日时、出生地、居住地和关注领域</p>
+          <p>输入性别、出生年月日时、出生地、居住地和重点关注领域</p>
         </van-step>
         <van-step>
           <h3>完成支付</h3>
           <p>支付9.9元获取专业分析</p>
         </van-step>
         <van-step>
-          <h3>AI分析</h3>
-          <p>系统计算八字并通过AI进行解读</p>
+          <h3>等待分析结果</h3>
+          <p>系统进行计算分析，并进行解读</p>
         </van-step>
         <van-step>
           <h3>查看结果</h3>
           <p>获取详细分析报告并可下载PDF</p>
         </van-step>
       </van-steps>
+      <p style="text-align: center;">如果有问题，请加V guiguziwenhua 解决。</p>
     </div>
+    
   </div>
 </template>
 
