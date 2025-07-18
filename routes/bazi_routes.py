@@ -437,4 +437,45 @@ def get_followup_list(result_id):
     except Exception as e:
         logging.error(f"获取追问列表失败: {str(e)}")
         logging.error(traceback.format_exc())
-        return jsonify(code=500, message=str(e)), 500 
+        return jsonify(code=500, message=str(e)), 500
+
+@bazi_bp.route('/history', methods=['GET'])
+@jwt_required()
+def get_user_history():
+    """获取用户的八字分析历史记录"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # 从数据库获取用户的分析历史
+        # 1. 先获取用户的订单
+        user_orders = list(orders_collection.find(
+            {'userId': user_id, 'status': 'paid'},
+            {'_id': 1, 'resultId': 1, 'createdAt': 1, 'orderType': 1}
+        ).sort('createdAt', -1))
+        
+        # 提取所有结果ID
+        result_ids = [order.get('resultId') for order in user_orders if order.get('resultId')]
+        
+        # 2. 获取对应的八字分析结果
+        results = []
+        for result_id in result_ids:
+            result = BaziResultModel.find_by_id(result_id)
+            if result:
+                # 提取需要的字段
+                results.append({
+                    'resultId': result_id,
+                    'birthDate': result.get('birthTime', {}).get('date', ''),
+                    'gender': result.get('gender', ''),
+                    'focusAreas': result.get('focusAreas', []),
+                    'createdAt': result.get('createdAt', '')
+                })
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': results
+        })
+    
+    except Exception as e:
+        logging.error(f"获取八字分析历史错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'获取失败: {str(e)}'}), 500

@@ -1238,3 +1238,40 @@ def manual_update_order(order_id):
             "paymentMethod": order.get('paymentMethod')
         }
     ) 
+
+@order_bp.route('/my', methods=['GET'])
+@jwt_required()
+def get_user_orders():
+    """获取用户的订单列表"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # 从数据库获取用户的订单
+        orders = list(orders_collection.find(
+            {'userId': user_id},
+            {
+                '_id': 1, 
+                'orderType': 1, 
+                'amount': 1, 
+                'status': 1, 
+                'createdAt': 1, 
+                'payTime': 1,
+                'resultId': 1
+            }
+        ).sort('createdAt', -1))
+        
+        # 格式化输出
+        result = []
+        for order in orders:
+            order['_id'] = str(order['_id'])
+            result.append(order)
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': result
+        })
+    
+    except Exception as e:
+        logging.error(f"获取用户订单列表错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'获取失败: {str(e)}'}), 500
