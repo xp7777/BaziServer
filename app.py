@@ -9,72 +9,47 @@ import requests
 import json
 import time
 
-# 配置日志。
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# 加载.env文件
+load_dotenv()
 
-# 尝试加载环境变量，但忽略错误
-try:
-    load_dotenv()
-    logging.info("成功加载.env文件")
-except Exception as e:
-    logging.warning(f".env文件加载失败，使用默认值: {str(e)}")
+# 设置日志级别
+logging.basicConfig(level=logging.INFO)
 
-# 设置微信支付环境变量
-os.environ['WECHAT_MCH_ID'] = os.getenv('WECHAT_MCH_ID', '1706110646') #微信支付商户号
-os.environ['WECHAT_CERT_SERIAL_NO'] = os.getenv('WECHAT_CERT_SERIAL_NO', '69D653B5EB73DB2B9A5175FEF05AAFE6EDD66083')  #微信支付API证书序列号
-os.environ['WECHAT_APP_ID'] = os.getenv('WECHAT_APP_ID', 'wxa7b459b6aa6e3ad1')  # 替换为您的真实AppID
+# 微信登录配置
+os.environ['WECHAT_LOGIN_APP_ID'] = os.getenv('WECHAT_LOGIN_APP_ID', '')
+os.environ['WECHAT_LOGIN_APP_SECRET'] = os.getenv('WECHAT_LOGIN_APP_SECRET', '')
+os.environ['WECHAT_LOGIN_REDIRECT_URI'] = os.getenv('WECHAT_LOGIN_REDIRECT_URI', 'https://baihexuegong.cn/api/auth/wechat/callback')
 
-# V2 API密钥配置（保留向后兼容）
-# 例如: os.environ['WECHAT_API_KEY'] = os.getenv('WECHAT_API_KEY', '3Yf8jzZqK9XW6bNcRv7d2pLtH1sGhJ9P')
-os.environ['WECHAT_API_KEY'] = os.getenv('WECHAT_API_KEY', '3Yf8jzZqK9XW6bNcRv7d2pLtH1sGhJ9P')
-
-# V3 API配置
-os.environ['WECHAT_NOTIFY_URL'] = os.getenv('WECHAT_NOTIFY_URL', 'https://wlmqhxswyxgs.top/api/order/wechat/notify/v3') #微信支付V3回调地址
-os.environ['WECHAT_CERT_DIR'] = os.getenv('WECHAT_CERT_DIR', './cert')  # 证书存放目录
-os.environ['WECHAT_API_V3_KEY'] = os.getenv('WECHAT_API_V3_KEY', '')  # V3 API密钥，用于解密回调报文
-
-# 根据环境变量设置回调URL，优先使用配置的域名，如果没有，则使用本地地址
-if os.getenv('ENV', 'development') == 'development':
-    host = os.getenv('HOST', '0.0.0.0')
-    port = int(os.getenv('PORT', 5000))
-    # 如果是本地开发环境，可以使用内网穿透服务如ngrok提供外部访问URL
-    os.environ['WECHAT_NOTIFY_URL'] = os.getenv('WECHAT_NOTIFY_URL', f'http://{host}:{port}/api/order/wechat/notify/v3')
-
-# 验证关键环境变量
-def validate_env_vars():
-    critical_vars = {
-        'DEEPSEEK_API_KEY': os.getenv('DEEPSEEK_API_KEY'),
-        'MONGODB_URI': os.getenv('MONGODB_URI'),
-        'JWT_SECRET_KEY': os.getenv('JWT_SECRET_KEY')
+# 验证微信登录配置
+def validate_wechat_login_vars():
+    wechat_login_vars = {
+        'WECHAT_LOGIN_APP_ID': os.getenv('WECHAT_LOGIN_APP_ID'),
+        'WECHAT_LOGIN_APP_SECRET': os.getenv('WECHAT_LOGIN_APP_SECRET'),
+        'WECHAT_LOGIN_REDIRECT_URI': os.getenv('WECHAT_LOGIN_REDIRECT_URI')
     }
     
-    missing_vars = [key for key, value in critical_vars.items() if not value]
+    logging.info("=== 微信登录配置检查 ===")
+    for key, value in wechat_login_vars.items():
+        if not value:
+            logging.error(f"{key} 未配置")
+        else:
+            # 对敏感信息进行脱敏显示
+            if 'SECRET' in key:
+                display_value = f"{value[:8]}..." if len(value) > 8 else "***"
+            else:
+                display_value = value
+            logging.info(f"{key}: {display_value}")
     
+    missing_vars = [key for key, value in wechat_login_vars.items() if not value]
     if missing_vars:
-        logging.warning(f"以下关键环境变量未设置，将使用默认值: {', '.join(missing_vars)}")
+        logging.error(f"微信登录配置缺失: {', '.join(missing_vars)}")
+        return False
     
-    # 验证API密钥格式
-    api_key = os.getenv('DEEPSEEK_API_KEY', '')
-    if api_key and not api_key.startswith('sk-'):
-        logging.warning("DEEPSEEK_API_KEY格式可能不正确，应以'sk-'开头")
-    
-    # 验证微信支付配置
-    wechat_vars = {
-        'WECHAT_MCH_ID': os.getenv('WECHAT_MCH_ID'),
-        'WECHAT_CERT_SERIAL_NO': os.getenv('WECHAT_CERT_SERIAL_NO'),
-        'WECHAT_APP_ID': os.getenv('WECHAT_APP_ID'),
-        'WECHAT_API_KEY': os.getenv('WECHAT_API_KEY')
-    }
-    
-    for key, value in wechat_vars.items():
-        if value and (value.startswith('需要配置') or value.endswith('需要配置')):
-            logging.warning(f"{key}未正确配置，部分支付功能可能不可用")
+    logging.info("微信登录配置验证通过")
+    return True
 
-# 验证环境变量
-validate_env_vars()
+# 调用验证函数
+validate_wechat_login_vars()
 
 # PDF生成使用简易HTML模式
 logging.info("PDF生成功能已配置为使用HTML模式")
@@ -143,11 +118,13 @@ def register_blueprints():
     from routes.user_routes import user_bp
     from routes.order_routes import order_bp
     from routes.bazi_routes import bazi_bp
+    from routes.auth_routes import auth_bp
 
     # 注册蓝图
     app.register_blueprint(user_bp, url_prefix='/api/user')
     app.register_blueprint(order_bp, url_prefix='/api/order')
     app.register_blueprint(bazi_bp, url_prefix='/api/bazi')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
 # 错误处理
 @app.errorhandler(404)

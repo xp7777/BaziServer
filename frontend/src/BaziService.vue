@@ -120,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Toast } from 'vant';
 
@@ -152,7 +152,25 @@ const formData = reactive({
   focusAreas: []
 });
 
+// 检查登录状态
+const checkLoginStatus = () => {
+  const token = localStorage.getItem('userToken');
+  const userInfo = localStorage.getItem('userInfo');
+  
+  if (!token || !userInfo) {
+    Toast.fail('请先登录');
+    router.push('/login');
+    return false;
+  }
+  return true;
+};
+
 const onSubmit = () => {
+  // 首先检查登录状态
+  if (!checkLoginStatus()) {
+    return;
+  }
+  
   // 表单验证
   if (!formData.birthDate) {
     Toast.fail('请选择出生日期');
@@ -194,6 +212,11 @@ const onSubmit = () => {
     }
   });
 };
+
+// 组件挂载时检查登录状态
+onMounted(() => {
+  checkLoginStatus();
+});
 </script>
 
 <style>

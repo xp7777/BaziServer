@@ -1,53 +1,42 @@
-from datetime import datetime
-from bson import ObjectId
-from pymongo import ReturnDocument, MongoClient
+from pymongo import MongoClient
+from bson.objectid import ObjectId
 import os
-
-# 获取MongoDB URI
-mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
-client = MongoClient(mongo_uri)
-db = client.get_database()
-
-users_collection = db.users
+import time
 
 class UserModel:
-    @staticmethod
-    def create_user(phone):
-        """创建新用户"""
-        user = {
-            "phone": phone,
-            "createTime": datetime.now(),
-            "lastLoginTime": datetime.now(),
-            "status": "active"
-        }
-        result = users_collection.insert_one(user)
-        user['_id'] = str(result.inserted_id)
-        return user
+    def __init__(self):
+        mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
+        self.client = MongoClient(mongo_uri)
+        self.db = self.client.get_database()
+        self.collection = self.db.users
+        
+        # 创建索引
+        self.collection.create_index("wechat_openid", unique=True, sparse=True)
+        self.collection.create_index("phone", unique=True, sparse=True)
     
-    @staticmethod
-    def find_by_phone(phone):
-        """通过手机号查找用户"""
-        user = users_collection.find_one({"phone": phone})
-        if user:
-            user['_id'] = str(user['_id'])
-        return user
+    def find_by_wechat_openid(self, openid):
+        """根据微信openid查找用户"""
+        return self.collection.find_one({"wechat_openid": openid})
     
-    @staticmethod
-    def find_by_id(user_id):
-        """通过ID查找用户"""
-        user = users_collection.find_one({"_id": ObjectId(user_id)})
-        if user:
-            user['_id'] = str(user['_id'])
-        return user
+    def find_by_id(self, user_id):
+        """根据用户ID查找用户"""
+        if isinstance(user_id, str):
+            user_id = ObjectId(user_id)
+        return self.collection.find_one({"_id": user_id})
     
-    @staticmethod
-    def update_last_login(user_id):
-        """更新最后登录时间"""
-        result = users_collection.find_one_and_update(
-            {"_id": ObjectId(user_id)},
-            {"$set": {"lastLoginTime": datetime.now()}},
-            return_document=ReturnDocument.AFTER
+    def create_wechat_user(self, user_info):
+        """创建微信用户"""
+        user_info['created_at'] = time.time()
+        user_info['updated_at'] = time.time()
+        result = self.collection.insert_one(user_info)
+        return result.inserted_id
+    
+    def update_user(self, user_id, update_data):
+        """更新用户信息"""
+        if isinstance(user_id, str):
+            user_id = ObjectId(user_id)
+        update_data['updated_at'] = time.time()
+        return self.collection.update_one(
+            {"_id": user_id},
+            {"$set": update_data}
         )
-        if result:
-            result['_id'] = str(result['_id'])
-        return result 
