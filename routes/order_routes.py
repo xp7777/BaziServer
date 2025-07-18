@@ -1134,110 +1134,102 @@ def wechat_notify_v3():
 # 添加手动更新支付状态API
 @order_bp.route('/manual_update/<order_id>', methods=['GET'])
 def manual_update_order(order_id):
-    """手动更新订单状态，用于支付回调失败时使用"""
-    # 先从数据库查询订单
-    order = OrderModel.find_by_id(order_id)
-    
-    if not order:
-        return jsonify(code=404, message="订单不存在"), 404
-    
-    # 如果订单已支付，直接返回
-    if order['status'] == 'paid':
-        return jsonify(
-            code=200,
-            message="订单已支付",
-            data={
-                "orderId": order['_id'],
-                "status": order['status'],
-                "resultId": order.get('resultId'),
-                "paymentMethod": order.get('paymentMethod')
-            }
-        )
-    
-    # 手动更新订单状态为已支付
-    OrderModel.update_status(order_id, 'paid')
-    
-    # 生成结果ID (如果没有)
-    result_id = order.get('resultId')
-    if not result_id:
-        result_id = f"RES{order_id.replace('BZ', '')}"
-        OrderModel.update_order_result_id(order_id, result_id)
-    
-    # 添加支付信息
-    payment_info = {
-        'paymentTime': datetime.now(),
-        'transactionId': 'manual_update',
-        'paymentMethod': order.get('paymentMethod', 'wechat'),
-        'apiVersion': 'manual'
-    }
-    OrderModel.update_payment_info(order_id, payment_info)
-    
-    # 创建八字分析记录（如果不存在）
-    bazi_result = BaziResultModel.find_by_id(result_id)
-    if not bazi_result:
-        logging.info(f"手动更新时创建八字分析记录: {result_id}")
-        # 从订单中获取必要的参数
-        birth_date = order.get('birthDate')
-        birth_time = order.get('birthTime')
-        gender = order.get('gender')
-        focus_areas = order.get('focusAreas', [])
+    """手动更新订单状态并生成分析结果"""
+    try:
+        logging.info(f"手动更新订单: {order_id}")
         
-        if birth_date and birth_time and gender:
-            # 创建初始的八字分析结果记录
-            initial_result = {
-                "_id": result_id,
-                "orderId": order_id,
-                "gender": gender,
-                "birthTime": birth_time,
-                "birthDate": birth_date, 
-                "focusAreas": focus_areas,
-                "baziChart": {
-                    'yearPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
-                    'monthPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
-                    'dayPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
-                    'hourPillar': {'heavenlyStem': '?', 'earthlyBranch': '?'},
-                    'fiveElements': {'metal': 0, 'wood': 0, 'water': 0, 'fire': 0, 'earth': 0},
-                    'gender': gender,
-                    'birthDate': birth_date,
-                    'birthTime': birth_time
-                },
-                "aiAnalysis": {
-                    'overall': '正在分析整体运势...',
-                    'health': '正在分析健康运势...',
-                    'wealth': '正在分析财运...',
-                    'career': '正在分析事业运势...',
-                    'relationship': '正在分析感情运势...',
-                    'children': '正在分析子女运势...'
-                },
-                "status": "processing",
-                "createTime": datetime.now()
+        # 查找订单
+        order = orders_collection.find_one({'_id': order_id})
+        if not order:
+            logging.warning(f"订单不存在: {order_id}")
+            return jsonify(code=404, message="订单不存在"), 404
+        
+        logging.info(f"订单状态: {order.get('status')}, 结果ID: {order.get('resultId')}")
+        logging.info(f"订单数据: {order}")
+        
+        # 如果订单已支付但没有结果ID，生成结果ID
+        if order.get('status') == 'paid' and not order.get('resultId'):
+            # 生成结果ID
+            result_id = 'RES' + order_id[2:] if order_id.startswith('BZ') else 'RES' + order_id
+            
+            # 更新订单的结果ID
+            orders_collection.update_one(
+                {'_id': order_id},
+                {'$set': {'resultId': result_id}}
+            )
+            
+            # 创建分析结果记录
+            result_data = {
+                '_id': result_id,
+                'orderId': order_id,
+                'userId': order.get('userId', ''),
+                'gender': order.get('orderData', {}).get('gender', 'male'),
+                'birthTime': order.get('orderData', {}).get('birthTime', {}),
+                'focusAreas': order.get('orderData', {}).get('focusAreas', []),
+                'createdAt': datetime.now(),
+                'baziChart': {},  # 初始为空，后续分析填充
+                'aiAnalysis': {}  # 初始为空，后续分析填充
             }
             
-            try:
-                # 直接使用insert_one插入记录
-                mongo_uri = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/bazi_system')
-                client = MongoClient(mongo_uri)
-                db = client.get_database()
-                results_collection = db.bazi_results
-                results_collection.insert_one(initial_result)
-                logging.info(f"成功创建初始八字分析记录: {result_id}")
-            except Exception as e:
-                logging.error(f"创建初始八字分析记录失败: {str(e)}")
-                logging.error(traceback.format_exc())
-        else:
-            logging.error(f"订单缺少必要的出生信息，无法创建八字分析记录: {order_id}")
+            logging.info(f"准备创建分析结果记录: {result_data}")
+            
+            # 插入结果记录
+            db.bazi_results.insert_one(result_data)
+            logging.info(f"已创建分析结果记录: {result_id}")
+            
+            return jsonify({
+                'code': 200,
+                'message': '订单已支付',
+                'data': {
+                    'resultId': result_id
+                }
+            })
+        
+        # 如果订单已有结果ID
+        elif order.get('resultId'):
+            result_id = order.get('resultId')
+            
+            # 检查结果记录是否存在
+            result = db.bazi_results.find_one({'_id': result_id})
+            if not result:
+                # 创建分析结果记录
+                result_data = {
+                    '_id': result_id,
+                    'orderId': order_id,
+                    'userId': order.get('userId', ''),
+                    'gender': order.get('gender', 'male'),
+                    'birthTime': order.get('birthTime', {}),
+                    'focusAreas': order.get('focusAreas', []),
+                    'createdAt': datetime.now(),
+                    'baziChart': {},  # 初始为空，后续分析填充
+                    'aiAnalysis': {}  # 初始为空，后续分析填充
+                }
+                
+                # 插入结果记录
+                db.bazi_results.insert_one(result_data)
+                logging.info(f"已创建缺失的分析结果记录: {result_id}")
+            
+            return jsonify({
+                'code': 200,
+                'message': '订单已支付',
+                'data': {
+                    'resultId': result_id
+                }
+            })
+        
+        # 其他情况
+        return jsonify({
+            'code': 200,
+            'message': f'订单状态: {order.get("status", "unknown")}',
+            'data': {
+                'orderId': order_id,
+                'status': order.get('status', 'unknown')
+            }
+        })
     
-    # 返回更新后的订单状态
-    return jsonify(
-        code=200,
-        message="订单已手动更新为已支付状态",
-        data={
-            "orderId": order_id,
-            "status": 'paid',
-            "resultId": result_id,
-            "paymentMethod": order.get('paymentMethod')
-        }
-    ) 
+    except Exception as e:
+        logging.error(f"手动更新订单错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'更新失败: {str(e)}'}), 500
 
 @order_bp.route('/my', methods=['GET'])
 @jwt_required()
@@ -1246,16 +1238,24 @@ def get_user_orders():
     try:
         user_id = get_jwt_identity()
         
+        # 获取查询参数
+        status = request.args.get('status')
+        
+        # 构建查询条件
+        query = {'userId': user_id}
+        if status:
+            query['status'] = status
+        
         # 从数据库获取用户的订单，包含更多字段
         orders = list(orders_collection.find(
-            {'userId': user_id},
+            query,
             {
                 '_id': 1, 
                 'orderType': 1, 
                 'amount': 1, 
                 'status': 1, 
                 'createdAt': 1,
-                'createTime': 1,  # 添加这个字段
+                'createTime': 1,
                 'payTime': 1,
                 'resultId': 1
             }

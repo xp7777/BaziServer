@@ -68,7 +68,7 @@
             <p>正在加载支付二维码...</p>
           </div>
         </div>
-        <p>支付金额: ¥9.90</p>
+        <p style="color: #000000;">支付金额: ¥9.90</p>
         <van-button type="primary" block @click="checkPaymentStatus">
           我已完成支付
         </van-button>

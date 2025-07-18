@@ -145,14 +145,13 @@ export default {
     };
     
     // 获取订单列表
-    const loadOrders = async () => {
-      if (!isLoggedIn.value) return;
-      
+    const loadOrderList = async () => {
       loading.value = true;
       try {
         const token = localStorage.getItem('userToken');
         const response = await axios.get('/api/order/my', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          params: { status: 'paid' } // 添加查询参数，只获取已支付订单
         });
         
         if (response.data.code === 200) {
@@ -244,7 +243,7 @@ export default {
       loadUserInfo();
       if (isLoggedIn.value) {
         loadHistoryRecords();
-        loadOrders();
+        loadOrderList();
       }
     });
     

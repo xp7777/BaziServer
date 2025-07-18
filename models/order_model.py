@@ -13,20 +13,31 @@ orders_collection = db.orders
 
 class OrderModel:
     @staticmethod
-    def create_order(user_id, amount):
-        """创建新订单"""
-        order = {
-            "userId": user_id,
-            "amount": amount,
-            "status": "pending",  # pending, paid, failed
-            "paymentMethod": None,  # wechat, alipay
-            "createTime": datetime.now(),
-            "payTime": None,
-            "resultId": None
-        }
-        result = orders_collection.insert_one(order)
-        order['_id'] = str(result.inserted_id)
-        return order
+    def create(order_data):
+        """创建订单"""
+        # 确保订单数据包含必要字段
+        required_fields = ['userId', 'orderType', 'amount', 'status']
+        for field in required_fields:
+            if field not in order_data:
+                raise ValueError(f"订单数据缺少必要字段: {field}")
+        
+        # 如果是八字分析订单，确保包含出生信息
+        if order_data.get('orderType') == 'analysis':
+            if 'orderData' not in order_data:
+                order_data['orderData'] = {}
+            
+            # 确保orderData包含必要的分析信息
+            if 'birthTime' not in order_data['orderData']:
+                raise ValueError("订单数据缺少出生时间信息")
+            
+            if 'gender' not in order_data['orderData']:
+                raise ValueError("订单数据缺少性别信息")
+            
+            if 'focusAreas' not in order_data['orderData']:
+                order_data['orderData']['focusAreas'] = ['health', 'wealth', 'career']
+        
+        # 插入订单
+        return db.orders.insert_one(order_data)
     
     @staticmethod
     def find_by_id(order_id):
