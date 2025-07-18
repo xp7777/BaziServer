@@ -905,49 +905,59 @@ def create_payment(order_id):
 
 # 简化版订单创建API (不需要JWT认证)
 @order_bp.route('/create/simple', methods=['POST'])
-def create_simple_order():
-    """创建简化版订单，不需要用户登录"""
-    data = request.json
-    
-    gender = data.get('gender')
-    birth_date = data.get('birthDate')
-    birth_time = data.get('birthTime')
-    focus_areas = data.get('focusAreas', [])
-    
-    if not gender or not birth_date or not birth_time:
-        return jsonify(code=400, message="请提供性别和出生日期时间信息"), 400
-    
-    # 计算订单金额: 基础费用9.9元
-    total_amount = 1
-    
+def create_order_simple():
+    """创建简化版订单（支持游客和微信用户）"""
     try:
+        data = request.json
+        
+        # 获取用户信息
+        user_id = "guest"  # 默认游客
+        user_token = request.headers.get('Authorization')
+        
+        if user_token and user_token.startswith('Bearer '):
+            try:
+                from flask_jwt_extended import decode_token
+                token = user_token.replace('Bearer ', '')
+                decoded_token = decode_token(token)
+                user_id = decoded_token['sub']  # 这是微信的 openid
+                logging.info(f"微信用户创建订单: {user_id}")
+            except Exception as e:
+                logging.warning(f"解析用户token失败: {str(e)}")
+                user_id = "guest"
+        
         # 生成订单ID
         timestamp = int(time.time() * 1000)
         order_id = f"BZ{timestamp}"
         
+        # 计算订单金额
+        focus_areas = data.get('focusAreas', [])
+        base_price = 1
+        focus_price = 0.00000000001 * len(focus_areas)
+        total_amount = base_price + focus_price
+        
         # 构造订单数据
         order = {
-            "_id": order_id,  # 使用字符串ID
-            "userId": "guest",  # 游客用户
+            "_id": order_id,
+            "userId": user_id,  # 现在是 openid 或 "guest"
             "amount": total_amount,
-            "status": "pending",  # pending, paid, failed
-            "paymentMethod": None,  # wechat, alipay
+            "status": "pending",
+            "paymentMethod": None,
             "createTime": datetime.now(),
             "payTime": None,
             "resultId": None,
-            "birthDate": birth_date,
-            "birthTime": birth_time,
-            "gender": gender,
+            "birthDate": data.get('birthDate'),
+            "birthTime": data.get('birthTime'),
+            "gender": data.get('gender'),
             "focusAreas": focus_areas,
             "birthPlace": data.get('birthPlace', ""),
             "livingPlace": data.get('livingPlace', ""),
             "calendarType": data.get('calendarType', "solar")
         }
         
-        # 直接插入订单
+        # 插入订单
         OrderModel.insert(order)
         
-        logging.info(f"简化版订单创建成功: {order_id}")
+        logging.info(f"订单创建成功: {order_id}, 用户: {user_id}")
         
         return jsonify(
             code=200,
@@ -957,10 +967,10 @@ def create_simple_order():
                 "amount": total_amount
             }
         )
+        
     except Exception as e:
         logging.error(f"创建订单失败: {str(e)}")
-        logging.error(traceback.format_exc())
-        return jsonify(code=500, message=f"创建订单失败: {str(e)}"), 500 
+        return jsonify(code=500, message=f"创建订单失败: {str(e)}"), 500
 
 # 微信支付V3回调处理
 @order_bp.route('/wechat/notify/v3', methods=['POST'])

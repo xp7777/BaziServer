@@ -6,6 +6,7 @@ import routes from './router';
 import Vant from 'vant';
 import 'vant/lib/index.css';
 import './App.css'; // 引入全局样式
+import axios from 'axios';
 
 // 创建路由实例
 const router = createRouter({
@@ -36,3 +37,17 @@ app.use(pinia);
 
 // 挂载应用
 app.mount('#app');
+
+// 添加请求拦截器，自动携带token
+axios.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('userToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
+  }
+);

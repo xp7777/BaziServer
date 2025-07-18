@@ -163,8 +163,8 @@ export default {
               
               Toast.success('登录成功');
               
-              // 跳转到用户中心或返回上一页
-              router.push('/user');
+              // 跳转到八字服务页面
+              router.push('/bazi-service');
             } else if (status === 'expired') {
               // 二维码过期
               clearInterval(loginCheckTimer.value);
@@ -231,9 +231,9 @@ export default {
             
             Toast.success('登录成功');
             
-            // 跳转到用户中心或返回上一页
+            // 跳转到八字服务页面
             setTimeout(() => {
-              router.push('/user');
+              router.push('/bazi-service');
             }, 1000);
           }
         }

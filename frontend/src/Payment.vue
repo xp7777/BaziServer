@@ -118,6 +118,13 @@ export default {
           forbidClick: true
         });
         
+        // 获取用户token
+        const userToken = localStorage.getItem('userToken');
+        const headers = {};
+        if (userToken) {
+          headers.Authorization = `Bearer ${userToken}`;
+        }
+        
         // 调用订单创建API
         const response = await axios.post('/api/order/create/simple', {
           gender,
@@ -127,7 +134,7 @@ export default {
           livingPlace,
           focusAreas: focusAreas || [],
           calendarType: calendarType || 'solar'
-        });
+        }, { headers });
         
         if (response.data.code === 200) {
           orderId.value = response.data.data.orderId;
@@ -590,3 +597,4 @@ export default {
   color: #969799;
 }
 </style>
+

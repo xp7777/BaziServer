@@ -8,10 +8,10 @@
           round
           width="80"
           height="80"
-          src="https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg"
+          :src="userInfo.avatar || 'https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg'"
         />
       </div>
-      <div class="user-name">{{ userInfo.phone || '未登录' }}</div>
+      <div class="user-name">{{ userInfo.nickname || '未登录' }}</div>
       <div class="login-action" v-if="!isLoggedIn">
         <van-button type="primary" size="small" @click="goToLogin">登录/注册</van-button>
       </div>
@@ -45,7 +45,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Toast } from 'vant';
 
@@ -54,12 +54,29 @@ export default {
   setup() {
     const router = useRouter();
     
-    // 模拟用户数据，实际项目中应该从API获取
-    const userInfo = ref({
-      phone: '138****1234',
+    // 从 localStorage 获取用户信息
+    const userInfo = ref({});
+    
+    const isLoggedIn = computed(() => {
+      return !!userInfo.value.openid || !!localStorage.getItem('userToken');
     });
     
-    const isLoggedIn = computed(() => !!userInfo.value.phone);
+    // 获取用户信息
+    const loadUserInfo = () => {
+      const savedUserInfo = localStorage.getItem('userInfo');
+      if (savedUserInfo) {
+        try {
+          userInfo.value = JSON.parse(savedUserInfo);
+        } catch (error) {
+          console.error('解析用户信息失败:', error);
+          userInfo.value = {};
+        }
+      }
+    };
+    
+    onMounted(() => {
+      loadUserInfo();
+    });
     
     // 模拟历史记录数据，实际项目中应该从API获取
     const historyList = ref([
@@ -120,8 +137,13 @@ export default {
     };
     
     const logout = () => {
-      Toast('退出成功');
+      // 清除本地存储
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userInfo');
       userInfo.value = {};
+      Toast('退出成功');
+      // 跳转到登录页面
+      router.push('/login');
     };
     
     return {
