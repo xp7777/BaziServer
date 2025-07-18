@@ -151,7 +151,7 @@ export default {
       loading.value = true;
       try {
         const token = localStorage.getItem('userToken');
-        const response = await axios.get('/api/orders/my', {
+        const response = await axios.get('/api/order/my', {  // 修改路径
           headers: { Authorization: `Bearer ${token}` }
         });
         
