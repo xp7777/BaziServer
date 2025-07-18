@@ -262,7 +262,7 @@
           <!-- 核心分析 -->
           <div class="analysis-section">
             <h3>八字命局核心分析</h3>
-            <template v-if="!aiAnalysis.coreAnalysis || aiAnalysis.coreAnalysis === '暂无' || aiAnalysis.coreAnalysis === '分析生成中...'">
+            <template v-if="!aiAnalysis.coreAnalysis || aiAnalysis.coreAnalysis === '暂无' || aiAnalysis.coreAnalysis === '分析生成中...' || aiAnalysis.coreAnalysis.includes('分析生成中')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -273,7 +273,7 @@
           <!-- 五行旺衰与用神 -->
           <div class="analysis-section">
             <h3>五行旺衰与用神</h3>
-            <template v-if="!aiAnalysis.fiveElements || aiAnalysis.fiveElements === '暂无' || aiAnalysis.fiveElements === '分析生成中...'">
+            <template v-if="!aiAnalysis.fiveElements || aiAnalysis.fiveElements === '暂无' || aiAnalysis.fiveElements === '分析生成中...' || aiAnalysis.fiveElements.includes('分析生成中')">
               <div class="loading-content">
                 <van-loading size="24px" vertical>分析生成中...</van-loading>
               </div>
@@ -501,12 +501,13 @@
           v-for="option in followupOptions" 
           :key="option.id" 
           class="followup-option" 
+          style="color: #000000;"
           :class="{ 'paid': option.paid }"
           @click="selectFollowupOption(option)"
         >
           <div class="option-content">
-            <span class="option-name">{{ option.name }}</span>
-            <span class="option-status" v-if="option.paid">已解锁</span>
+            <span class="option-name" style="color: #000000;">{{ option.name }}</span>
+            <span class="option-status" v-if="option.paid" style="color: #000000;">已解锁</span>
             <span class="option-status" v-else>￥9.9</span>
           </div>
         </div>
@@ -2336,6 +2337,12 @@ const flowingYearsData = ref([]);
 <style scoped>
 .result-container {
   padding-bottom: 20px;
+  background-color: #ffffff; /* 添加白色背景 */
+  min-height: 100vh; /* 确保全屏白色 */
+}
+
+.value {
+  color: #000000;
 }
 
 .result-header {

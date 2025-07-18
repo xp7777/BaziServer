@@ -608,351 +608,59 @@ def analyze_bazi():
 
 @bazi_bp.route('/result/<result_id>', methods=['GET'])
 def get_bazi_result(result_id):
-    """获取分析结果"""
+    """获取八字分析结果"""
     try:
+        logging.info(f"尝试查找结果ID: {result_id}")
+        
         # 查找结果
         result = BaziResultModel.find_by_id(result_id)
         
         if not result:
+            logging.warning(f"未找到结果: {result_id}")
             return jsonify(code=404, message="结果不存在"), 404
         
-        # 检查是否正在分析中
-        if result_id in analyzing_results:
-            logging.info(f"结果ID {result_id} 正在分析中，等待时间：{analyzing_results[result_id]}")
-            return jsonify(
-                code=202,  # 使用202表示请求已接受但尚未处理完成
-                message=f"分析正在进行中，请稍候再试（已等待{analyzing_results[result_id]}秒）",
-                data={
-                    "status": "analyzing",
-                    "waitTime": analyzing_results[result_id],
-                    "baziChart": result.get('baziChart', {}),
-                    "aiAnalysis": result.get('aiAnalysis', {})
-                }
-            ), 202
+        logging.info(f"找到结果记录: {result_id}")
         
-        # 如果已经分析过或有AI分析结果，直接返回
-        if result.get('analyzed') or (result.get('aiAnalysis') and result.get('aiAnalysis').get('overall') != '正在分析中...'):
-            logging.info(f"结果已分析，直接返回: {result_id}")
-            return jsonify(
-                code=200,
-                message="获取结果成功",
-                data=result
-            )
+        # 构建返回数据
+        response_data = {
+            "resultId": result['_id'],
+            "status": result.get('status', 'pending'),
+            "analysisProgress": result.get('analysisProgress', 0),
+            "baziChart": result.get('baziChart'),
+            "aiAnalysis": result.get('aiAnalysis'),
+            "followupAnalysis": result.get('followupAnalysis', {}),
+            "createTime": result.get('createTime').isoformat() if result.get('createTime') else None,
+            "updateTime": result.get('updateTime').isoformat() if result.get('updateTime') else None
+        }
         
-        # 如果尚未分析但需要异步分析
-        # 检查是否有八字信息
-        if not result.get('birthDate') or not result.get('birthTime') or not result.get('gender'):
-            logging.warning(f"结果ID {result_id} 缺少必要的出生信息，但会使用现有的分析数据")
-            
-            # 检查是否已经有八字命盘数据
-            existing_bazi_chart = result.get('baziChart', {})
-            existing_ai_analysis = result.get('aiAnalysis', {})
-            
-            # 记录现有数据的情况
-            if existing_bazi_chart:
-                logging.info(f"结果ID {result_id} 已有八字命盘数据")
-                # 记录关键信息用于调试
-                if 'yearPillar' in existing_bazi_chart:
-                    logging.info(f"年柱: {existing_bazi_chart['yearPillar']}")
-                if 'fiveElements' in existing_bazi_chart:
-                    logging.info(f"五行分布: {existing_bazi_chart['fiveElements']}")
-            else:
-                logging.warning(f"结果ID {result_id} 没有八字命盘数据，将使用默认值")
-                
-            if existing_ai_analysis and existing_ai_analysis.get('overall') != '正在分析中...':
-                logging.info(f"结果ID {result_id} 已有AI分析数据")
-            else:
-                logging.warning(f"结果ID {result_id} 没有AI分析数据或分析未完成，将使用默认值")
-            
-            # 创建默认分析数据，仅在缺少时使用
-            default_ai_analysis = {
-                "health": "您的八字中五行分布较为平衡。从健康角度看，建议保持规律作息，避免过度劳累和情绪波动。定期体检，保持良好生活习惯。",
-                "wealth": "您的财运有发展空间，适合稳健的理财方式。投资方面，建议分散投资组合，避免投机性强的项目。",
-                "career": "您的事业发展有良好前景，具有一定的组织能力和执行力。建议持续提升专业技能，扩展人脉关系。",
-                "relationship": "您的婚姻感情关系值得经营。已婚者需注意与伴侣的沟通，单身者有望遇到合适的对象。",
-                "children": "您与子女关系和谐。教育方面，建议采用引导式的方法，尊重子女的兴趣发展。",
-                "personality": "您具有较为稳定的性格特点，做事认真负责，有良好的判断力。在人际交往中展现出亲和力，善于与人沟通合作。",
-                "education": "学习能力较强，具有较好的理解力和记忆力。建议在学习中保持专注，培养良好的学习习惯，注重基础知识的掌握。",
-                "parents": "与父母关系和谐，相互理解与支持。建议加强沟通，增进情感交流，尊重彼此的生活方式和选择。",
-                "social": "人际关系良好，善于与人相处。建议在社交中保持真诚态度，合理表达自我，同时尊重他人的不同观点。",
-                "future": "未来五年运势平稳，有望在事业和个人发展方面取得进步。建议把握机会，持续学习成长，保持积极心态。",
-                "overall": "您的八字展现出潜力，人生发展有诸多可能。建议在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。"
-            }
-            
-            # 创建默认八字命盘数据，仅在缺少时使用
-            default_bazi_chart = {
-                "yearPillar": {
-                    "heavenlyStem": "甲",
-                    "earthlyBranch": "子",
-                    "element": "水"
-                },
-                "monthPillar": {
-                    "heavenlyStem": "丙",
-                    "earthlyBranch": "寅",
-                    "element": "木"
-                },
-                "dayPillar": {
-                    "heavenlyStem": "戊",
-                    "earthlyBranch": "午",
-                    "element": "火"
-                },
-                "hourPillar": {
-                    "heavenlyStem": "庚",
-                    "earthlyBranch": "申",
-                    "element": "金"
-                },
-                "fiveElements": {
-                    "wood": 2,
-                    "fire": 2,
-                    "earth": 1,
-                    "metal": 2,
-                    "water": 1
-                },
-                "shenSha": {
-                    "dayChong": "午日冲子",
-                    "zhiShen": "破",
-                    "xiShen": "东北",
-                    "fuShen": "西北",
-                    "caiShen": "正北",
-                    "pengZuGan": "戊不受田田主不祥",
-                    "pengZuZhi": "午不苫盖屋主更张",
-                    "benMing": ["驿马", "华盖", "将星", "天德贵人"]
-                },
-                "daYun": {
-                    "startAge": 8,
-                    "startYear": 2025,
-                    "daYunList": [
-                        {
-                            "index": 1,
-                            "heavenlyStem": "丁",
-                            "earthlyBranch": "丑",
-                            "element": "火",
-                            "startYear": 2025,
-                            "endYear": 2034
-                        },
-                        {
-                            "index": 2,
-                            "heavenlyStem": "戊",
-                            "earthlyBranch": "寅",
-                            "element": "土",
-                            "startYear": 2035,
-                            "endYear": 2044
-                        },
-                        {
-                            "index": 3,
-                            "heavenlyStem": "己",
-                            "earthlyBranch": "卯",
-                            "element": "土",
-                            "startYear": 2045,
-                            "endYear": 2054
-                        }
-                    ]
-                },
-                "flowingYears": [
-                    {
-                        "year": 2025,
-                        "heavenlyStem": "乙",
-                        "earthlyBranch": "巳",
-                        "element": "木"
-                    },
-                    {
-                        "year": 2026,
-                        "heavenlyStem": "丙",
-                        "earthlyBranch": "午",
-                        "element": "火"
-                    },
-                    {
-                        "year": 2027,
-                        "heavenlyStem": "丁",
-                        "earthlyBranch": "未",
-                        "element": "火"
-                    },
-                    {
-                        "year": 2028,
-                        "heavenlyStem": "戊",
-                        "earthlyBranch": "申",
-                        "element": "土"
-                    },
-                    {
-                        "year": 2029,
-                        "heavenlyStem": "己",
-                        "earthlyBranch": "酉",
-                        "element": "土"
-                    }
-                ]
-            }
-            
-            # 合并现有数据和默认数据
-            final_bazi_chart = existing_bazi_chart or default_bazi_chart
-            final_ai_analysis = {}
-            
-            # 如果现有AI分析不为空且分析已完成，使用现有分析结果
-            if existing_ai_analysis and existing_ai_analysis.get('overall') != '正在分析中...':
-                final_ai_analysis = existing_ai_analysis
-            else:
-                # 否则使用默认分析结果
-                final_ai_analysis = default_ai_analysis
-            
-            # 更新数据库中的分析结果
-            try:
-                # 只有在没有现有数据时才更新数据库
-                if not existing_bazi_chart or not existing_ai_analysis or existing_ai_analysis.get('overall') == '正在分析中...':
-                    logging.info(f"更新结果ID {result_id} 的数据")
-                    BaziResultModel.update_full_analysis(result_id, final_bazi_chart, final_ai_analysis)
-                
-                # 返回结果给前端
-                result['baziChart'] = final_bazi_chart
-                result['aiAnalysis'] = final_ai_analysis
-                result['analyzed'] = True
-                return jsonify(
-                    code=200,
-                    message="获取结果成功",
-                    data=result
-                )
-            except Exception as update_error:
-                logging.error(f"更新默认分析数据失败: {str(update_error)}")
-                # 即使更新失败，也返回带有最终数据的结果
-                result['baziChart'] = final_bazi_chart
-                result['aiAnalysis'] = final_ai_analysis
-                return jsonify(
-                    code=200,
-                    message="获取结果成功（但未保存）",
-                    data=result
-                )
+        # 添加详细日志
+        logging.info(f"返回数据结构:")
+        logging.info(f"- status: {response_data['status']}")
+        logging.info(f"- analysisProgress: {response_data['analysisProgress']}")
+        logging.info(f"- baziChart存在: {bool(response_data['baziChart'])}")
+        logging.info(f"- aiAnalysis存在: {bool(response_data['aiAnalysis'])}")
         
-        # 获取出生信息，重新计算八字
-        birth_date = result.get('birthDate')
-        birth_time = result.get('birthTime')
-        gender = result.get('gender')
-        
-        # 确保日期格式正确
-        if birth_date and '/' in birth_date:
-            # 将格式从YYYY/MM/DD转换为YYYY-MM-DD
-            parts = birth_date.split('/')
-            if len(parts) == 3:
-                birth_date = f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
-                logging.info(f"日期格式已转换: {birth_date}")
-        
-        logging.info(f"准备计算八字: 生日={birth_date}, 时间={birth_time}")
-        
-        # 记录开始分析的时间
-        analyzing_results[result_id] = 0
-        
-        # 在单独的线程中进行分析
-        def perform_analysis():
-            try:
-                from time import sleep, time
-                start_time = time()
-                
-                # 更新等待时间
-                def update_wait_time():
-                    while result_id in analyzing_results:
-                        current_time = time()
-                        analyzing_results[result_id] = int(current_time - start_time)
-                        sleep(1)
-                
-                # 启动计时线程
-                timer_thread = threading.Thread(target=update_wait_time)
-                timer_thread.daemon = True
-                timer_thread.start()
-                
-                # 重新计算八字命盘信息
-                logging.info(f"重新计算八字命盘信息: {result_id}, 生日={birth_date}, 时间={birth_time}")
-                new_bazi_chart = calculate_bazi(birth_date, birth_time, gender)
-                
-                if not new_bazi_chart:
-                    logging.error(f"重新计算八字失败: {result_id}")
-                    # 使用原始八字信息
-                    new_bazi_chart = result.get('baziChart', {})
+        if response_data['aiAnalysis']:
+            ai_analysis = response_data['aiAnalysis']
+            logging.info(f"AI分析字段:")
+            for key, value in ai_analysis.items():
+                if isinstance(value, str):
+                    logging.info(f"  - {key}: {len(value)}字符, 前50字符: {value[:50]}")
                 else:
-                    # 计算成功后立即更新八字命盘信息，这样前端可以先显示命盘信息
-                    logging.info(f"八字命盘计算成功，立即更新数据库: {result_id}")
-                    
-                    # 创建临时AI分析数据，表示正在分析中
-                    temp_ai_analysis = {
-                        "overall": "正在分析中...",
-                        "health": "正在分析中...",
-                        "wealth": "正在分析中...",
-                        "career": "正在分析中...",
-                        "relationship": "正在分析中...",
-                        "children": "正在分析中..."
-                    }
-                    
-                    # 先更新八字命盘数据，让前端可以显示
-                    BaziResultModel.update_full_analysis(result_id, new_bazi_chart, temp_ai_analysis)
-                    logging.info(f"八字命盘数据已更新到数据库: {result_id}")
-                
-                # 获取分析结果
-                new_analysis = generate_ai_analysis(new_bazi_chart, result.get('focusAreas', ["health", "wealth", "career", "relationship"]), gender, birth_date, birth_time)
-                
-                # 更新数据库
-                if new_analysis:
-                    # 确保包含性格特点和学业发展字段
-                    if 'personality' not in new_analysis:
-                        new_analysis['personality'] = "您具有较为稳定的性格特点，做事认真负责，有良好的判断力。在人际交往中展现出亲和力，善于与人沟通合作。"
-                    
-                    if 'education' not in new_analysis:
-                        if age is not None and age < 18:
-                            new_analysis['education'] = "学习能力较强，具有较好的理解力和记忆力。建议在学习中保持专注，培养良好的学习习惯，注重基础知识的掌握，同时发展个人兴趣爱好。"
-                        else:
-                            new_analysis['education'] = "学习能力较强，具有较好的理解力和记忆力。建议持续学习，拓展知识面，提升专业技能，保持终身学习的态度。"
-                    
-                    # 完整更新数据库
-                    logging.info(f"DeepSeek AI分析完成，更新完整分析结果: {result_id}")
-                    BaziResultModel.update_full_analysis(result_id, new_bazi_chart, new_analysis)
-                else:
-                    logging.info("DeepSeek API未返回有效分析结果")
-            except Exception as e:
-                logging.error(f"调用DeepSeek API出错: {str(e)}")
-                logging.info("使用默认分析数据更新")
-                
-                # 确保默认分析数据包含必要字段
-                default_ai_analysis = {
-                    "health": "您的八字中五行分布较为平衡。从健康角度看，建议保持规律作息，避免过度劳累和情绪波动。定期体检，保持良好生活习惯。",
-                    "wealth": "您的财运有发展空间，适合稳健的理财方式。投资方面，建议分散投资组合，避免投机性强的项目。",
-                    "career": "您的事业发展有良好前景，具有一定的组织能力和执行力。建议持续提升专业技能，扩展人脉关系。",
-                    "relationship": "您的婚姻感情关系值得经营。已婚者需注意与伴侣的沟通，单身者有望遇到合适的对象。",
-                    "children": "您与子女关系和谐。教育方面，建议采用引导式的方法，尊重子女的兴趣发展。",
-                    "personality": "您具有较为稳定的性格特点，做事认真负责，有良好的判断力。在人际交往中展现出亲和力，善于与人沟通合作。",
-                    "education": "学习能力较强，具有较好的理解力和记忆力。建议在学习中保持专注，培养良好的学习习惯，注重基础知识的掌握。",
-                    "parents": "与父母关系和谐，相互理解与支持。建议加强沟通，增进情感交流，尊重彼此的生活方式和选择。",
-                    "social": "人际关系良好，善于与人相处。建议在社交中保持真诚态度，合理表达自我，同时尊重他人的不同观点。",
-                    "future": "未来五年运势平稳，有望在事业和个人发展方面取得进步。建议把握机会，持续学习成长，保持积极心态。",
-                    "overall": "您的八字展现出潜力，人生发展有诸多可能。建议在事业上积极进取，在健康上注意保养，在人际关系上广结善缘。"
-                }
-                
-                # 使用原始八字命盘和默认分析结果更新数据库
-                BaziResultModel.update_full_analysis(
-                    result_id,
-                    result.get('baziChart', {}),
-                    default_ai_analysis
-                )
-            finally:
-                # 分析完成，移除记录
-                if result_id in analyzing_results:
-                    del analyzing_results[result_id]
+                    logging.info(f"  - {key}: {type(value)}")
         
-        # 启动分析线程
-        analysis_thread = threading.Thread(target=perform_analysis)
-        analysis_thread.daemon = True
-        analysis_thread.start()
+        logging.info(f"成功获取分析结果: {result_id}, 分析状态: {response_data['status']}, 分析进度: {response_data['analysisProgress']}%")
         
-        # 返回正在分析的状态和临时数据
         return jsonify(
-            code=202,
-            message="分析正在进行中，请稍后重试",
-            data={
-                "status": "analyzing",
-                "waitTime": 0,
-                "baziChart": result.get('baziChart', {}),
-                "aiAnalysis": default_ai_analysis,
-                "focusAreas": result.get('focusAreas', ["health", "wealth", "career", "relationship"])
-            }
-        ), 202
-    
+            code=200,
+            message="成功",
+            data=response_data
+        )
+        
     except Exception as e:
-        logging.error(f"获取结果时出错: {str(e)}")
-        return jsonify(code=500, message=f"服务器内部错误: {str(e)}"), 500
+        logging.error(f"获取八字分析结果失败: {str(e)}")
+        logging.error(traceback.format_exc())
+        return jsonify(code=500, message=f"获取结果失败: {str(e)}"), 500
 
 @bazi_bp.route('/pdf/<result_id>', methods=['GET'])
 def get_pdf(result_id):

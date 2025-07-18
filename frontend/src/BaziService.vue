@@ -222,6 +222,8 @@ onMounted(() => {
 <style>
 .home-container {
   padding-bottom: 20px;
+  background-color: #ffffff; /* 添加白色背景 */
+  min-height: 100vh; /* 确保全屏白色 */
 }
 
 .banner {
@@ -269,4 +271,5 @@ onMounted(() => {
   padding: 0;
   background-color: transparent;
 }
+
 </style> 
