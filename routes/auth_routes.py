@@ -83,83 +83,199 @@ def wechat_callback():
         code = request.args.get('code')
         state = request.args.get('state')  # 这是我们的login_token
         
-        logging.info(f"微信登录回调 - code: {code}, state: {state}")
+        logging.info(f"微信登录回调开始 - code: {code}, state: {state}")
         
         if not code or not state:
-            return "缺少必要参数", 400
+            logging.error("缺少必要参数")
+            return render_callback_page("缺少必要参数", False)
         
         # 检查state是否存在
         if state not in login_status:
-            return "登录状态已过期", 400
+            logging.error(f"登录状态不存在: {state}")
+            return render_callback_page("登录状态已过期", False)
         
         # 获取配置
         app_id = os.getenv('WECHAT_LOGIN_APP_ID')
         app_secret = os.getenv('WECHAT_LOGIN_APP_SECRET')
         
+        logging.info(f"使用配置 - APP_ID: {app_id}, APP_SECRET: {'*' * len(app_secret) if app_secret else 'None'}")
+        
+        if not app_id or not app_secret:
+            logging.error("微信登录配置不完整")
+            return render_callback_page("微信登录配置不完整", False)
+        
         # 使用code获取access_token
         token_url = f"https://api.weixin.qq.com/sns/oauth2/access_token?appid={app_id}&secret={app_secret}&code={code}&grant_type=authorization_code"
         
         logging.info(f"请求access_token: {token_url}")
-        token_response = requests.get(token_url)
-        token_data = token_response.json()
         
-        logging.info(f"access_token响应: {token_data}")
+        try:
+            token_response = requests.get(token_url, timeout=10)
+            token_data = token_response.json()
+            logging.info(f"access_token响应: {token_data}")
+        except Exception as e:
+            logging.error(f"请求access_token失败: {str(e)}")
+            return render_callback_page(f"请求access_token失败: {str(e)}", False)
         
         if 'access_token' not in token_data:
-            logging.error(f"获取access_token失败: {token_data}")
-            return f"获取access_token失败: {token_data.get('errmsg', '未知错误')}", 400
+            error_msg = token_data.get('errmsg', '未知错误')
+            logging.error(f"获取access_token失败: {error_msg}")
+            return render_callback_page(f"获取access_token失败: {error_msg}", False)
         
         # 获取用户信息
-        user_info_url = f"https://api.weixin.qq.com/sns/userinfo?access_token={token_data['access_token']}&openid={token_data['openid']}"
+        user_info_url = f"https://api.weixin.qq.com/sns/userinfo?access_token={token_data['access_token']}&openid={token_data['openid']}&lang=zh_CN"
         
         logging.info(f"请求用户信息: {user_info_url}")
-        user_response = requests.get(user_info_url)
-        user_data = user_response.json()
         
-        logging.info(f"用户信息响应: {user_data}")
+        try:
+            user_response = requests.get(user_info_url, timeout=10)
+            user_data = user_response.json()
+            logging.info(f"用户信息响应: {user_data}")
+        except Exception as e:
+            logging.error(f"请求用户信息失败: {str(e)}")
+            return render_callback_page(f"请求用户信息失败: {str(e)}", False)
         
         if 'openid' not in user_data:
-            logging.error(f"获取用户信息失败: {user_data}")
-            return f"获取用户信息失败: {user_data.get('errmsg', '未知错误')}", 400
+            error_msg = user_data.get('errmsg', '未知错误')
+            logging.error(f"获取用户信息失败: {error_msg}")
+            return render_callback_page(f"获取用户信息失败: {error_msg}", False)
         
-        # 这里应该创建或查找用户，生成JWT token
-        # 简化处理，直接生成token
-        from flask_jwt_extended import create_access_token
-        user_token = create_access_token(identity=user_data['openid'])
+        # 生成JWT token
+        try:
+            from flask_jwt_extended import create_access_token
+            user_token = create_access_token(identity=user_data['openid'])
+            logging.info(f"生成JWT token成功")
+        except Exception as e:
+            logging.error(f"生成JWT token失败: {str(e)}")
+            return render_callback_page(f"生成JWT token失败: {str(e)}", False)
         
         # 更新登录状态
-        login_status[state] = {
-            'status': 'success',
-            'userInfo': {
-                'openid': user_data['openid'],
-                'nickname': user_data.get('nickname', '微信用户'),
-                'avatar': user_data.get('headimgurl', '')
-            },
-            'userToken': user_token,
-            'created_at': time.time()
-        }
+        try:
+            login_status[state] = {
+                'status': 'success',
+                'userInfo': {
+                    'openid': user_data['openid'],
+                    'nickname': user_data.get('nickname', '微信用户'),
+                    'avatar': user_data.get('headimgurl', ''),
+                    'sex': user_data.get('sex', 0),
+                    'city': user_data.get('city', ''),
+                    'province': user_data.get('province', ''),
+                    'country': user_data.get('country', '')
+                },
+                'userToken': user_token,
+                'created_at': time.time()
+            }
+            logging.info(f"登录成功，更新状态: {state}")
+        except Exception as e:
+            logging.error(f"更新登录状态失败: {str(e)}")
+            return render_callback_page(f"更新登录状态失败: {str(e)}", False)
         
-        logging.info(f"登录成功，更新状态: {state}")
-        
-        return """
-        <html>
-        <head><title>登录成功</title></head>
-        <body>
-            <h2>登录成功</h2>
-            <p>请关闭此页面，返回应用继续操作</p>
-            <script>
-                // 尝试关闭窗口
-                setTimeout(function() {
-                    window.close();
-                }, 2000);
-            </script>
-        </body>
-        </html>
-        """
+        # 返回成功页面
+        logging.info("准备返回成功页面")
+        return render_callback_page("登录成功", True, state)
         
     except Exception as e:
-        logging.error(f"微信登录回调处理失败: {str(e)}")
-        return f"微信登录回调处理失败: {str(e)}", 500
+        logging.error(f"微信登录回调处理异常: {str(e)}", exc_info=True)
+        return render_callback_page(f"系统错误: {str(e)}", False)
+
+def render_callback_page(message, success=False, token=None):
+    """渲染回调页面"""
+    logging.info(f"渲染回调页面 - message: {message}, success: {success}, token: {token}")
+    
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>微信登录结果</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            text-align: center; 
+            padding: 50px 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        .container {{
+            background: white;
+            border-radius: 15px;
+            padding: 40px 30px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }}
+        .success {{ color: #52c41a; }}
+        .error {{ color: #ff4d4f; }}
+        .icon {{ font-size: 64px; margin-bottom: 20px; }}
+        .message {{ font-size: 20px; font-weight: 600; margin-bottom: 15px; }}
+        .tips {{ color: #666; font-size: 14px; line-height: 1.5; margin-top: 20px; }}
+        .countdown {{ color: #1890ff; font-weight: 600; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">{'🎉' if success else '❌'}</div>
+        <div class="message {'success' if success else 'error'}">{message}</div>
+        <div class="tips">
+            {'窗口将在 <span class="countdown" id="countdown">3</span> 秒后自动关闭' if success else '请关闭此窗口重试'}
+        </div>
+    </div>
+    
+    <script>
+        console.log('微信登录回调页面加载完成');
+        console.log('登录结果:', {str(success).lower()});
+        console.log('Token:', '{token or ''}');
+        
+        // 向父窗口发送消息
+        if (window.opener && !window.opener.closed) {{
+            console.log('向父窗口发送登录结果消息');
+            try {{
+                window.opener.postMessage({{
+                    type: 'WECHAT_LOGIN_RESULT',
+                    success: {str(success).lower()},
+                    message: '{message}',
+                    token: '{token or ''}'
+                }}, '*');
+                console.log('消息发送成功');
+            }} catch (e) {{
+                console.error('发送消息失败:', e);
+            }}
+        }} else {{
+            console.log('没有父窗口或父窗口已关闭');
+        }}
+        
+        // 倒计时关闭窗口
+        let countdown = 3;
+        const countdownEl = document.getElementById('countdown');
+        
+        if (countdownEl) {{
+            const timer = setInterval(() => {{
+                countdown--;
+                countdownEl.textContent = countdown;
+                
+                if (countdown <= 0) {{
+                    clearInterval(timer);
+                    console.log('准备关闭窗口');
+                    try {{
+                        window.close();
+                    }} catch (e) {{
+                        console.error('关闭窗口失败:', e);
+                        document.querySelector('.tips').innerHTML = '请手动关闭此窗口';
+                    }}
+                }}
+            }}, 1000);
+        }}
+    </script>
+</body>
+</html>"""
+    
+    logging.info("HTML内容生成完成，准备返回响应")
+    return html_content
+
 
 @auth_bp.route('/wechat/check/<token>', methods=['GET'])
 def check_wechat_login(token):

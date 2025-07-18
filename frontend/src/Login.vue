@@ -185,17 +185,63 @@ export default {
     
     // 监听来自弹窗的消息
     const handleMessage = (event) => {
-      // 确保消息来源安全
-      if (event.origin !== window.location.origin) {
-        return;
-      }
+      console.log('收到弹窗消息:', event);
       
-      if (event.data.type === 'WECHAT_LOGIN_SUCCESS') {
-        console.log('收到登录成功消息:', event.data);
-        // 可以在这里直接处理登录成功
+      // 检查消息类型
+      if (event.data && event.data.type === 'WECHAT_LOGIN_RESULT') {
+        console.log('收到微信登录结果:', event.data);
+        
+        if (event.data.success) {
+          console.log('微信登录成功，停止轮询');
+          // 登录成功，停止轮询
+          if (loginCheckTimer.value) {
+            clearInterval(loginCheckTimer.value);
+            loginCheckTimer.value = null;
+          }
+          
+          // 关闭登录窗口
+          if (loginWindow.value && !loginWindow.value.closed) {
+            loginWindow.value.close();
+          }
+          
+          // 这里可以直接处理登录成功，但为了保险起见，仍然通过轮询确认
+          Toast.success('登录成功，正在跳转...');
+          
+          // 立即检查一次登录状态
+          checkLoginStatusOnce();
+        } else {
+          console.log('微信登录失败:', event.data.message);
+          Toast.fail(event.data.message || '登录失败');
+        }
       }
     };
-    
+
+    // 立即检查一次登录状态
+    const checkLoginStatusOnce = async () => {
+      try {
+        const response = await axios.get(`/api/auth/wechat/check/${loginToken.value}`);
+        
+        if (response.data.code === 200) {
+          const { status, userInfo, token } = response.data.data;
+          
+          if (status === 'success') {
+            // 保存用户信息和token
+            localStorage.setItem('userToken', token);
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
+            
+            Toast.success('登录成功');
+            
+            // 跳转到用户中心或返回上一页
+            setTimeout(() => {
+              router.push('/user');
+            }, 1000);
+          }
+        }
+      } catch (error) {
+        console.error('检查登录状态失败:', error);
+      }
+    };
+
     onMounted(() => {
       window.addEventListener('message', handleMessage);
     });
