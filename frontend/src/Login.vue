@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <van-nav-bar
-      title="微信登录"
+      title="登录"
       left-text="返回"
       left-arrow
       @click-left="onClickLeft"
@@ -14,15 +14,24 @@
       <div class="wechat-login-section">
         <div class="wechat-qr-container" v-if="showQRCode">
           <div class="qr-title">请使用微信扫描二维码登录</div>
+          <!-- 显示自生成的二维码图片 -->
           <div class="qr-code">
-            <img :src="qrCodeUrl" alt="微信登录二维码" v-if="qrCodeUrl" />
-            <van-loading v-else>生成二维码中...</van-loading>
+            <img v-if="qrCodeImage" :src="qrCodeImage" alt="微信登录二维码" @click="openWechatLogin" style="cursor: pointer;" />
+            <div v-else class="loading">正在生成二维码...</div>
           </div>
           <div class="qr-tips">
-            <p>1. 打开微信扫一扫</p>
-            <p>2. 扫描上方二维码</p>
+            <p>1. 使用微信扫描上方二维码</p>
+            <p>2. 或者点击二维码在新窗口中登录</p>
             <p>3. 在微信中确认登录</p>
           </div>
+          <van-button 
+            type="primary" 
+            size="small" 
+            @click="openWechatLogin"
+            style="margin-top: 10px;"
+          >
+            在新窗口中登录
+          </van-button>
         </div>
         
         <div class="login-buttons">
@@ -45,31 +54,11 @@
         <span class="link" @click="showPrivacy">《隐私政策》</span>
       </div>
     </div>
-    
-    <van-popup v-model:show="showAgreementPopup" round position="bottom" style="height: 70%">
-      <div class="popup-content">
-        <h3>用户协议</h3>
-        <p>这里是用户协议内容...</p>
-        <van-button type="primary" block @click="showAgreementPopup = false">
-          我已阅读并同意
-        </van-button>
-      </div>
-    </van-popup>
-    
-    <van-popup v-model:show="showPrivacyPopup" round position="bottom" style="height: 70%">
-      <div class="popup-content">
-        <h3>隐私政策</h3>
-        <p>这里是隐私政策内容...</p>
-        <van-button type="primary" block @click="showPrivacyPopup = false">
-          我已阅读并同意
-        </van-button>
-      </div>
-    </van-popup>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onUnmounted, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Toast } from 'vant';
 import axios from 'axios';
@@ -79,12 +68,12 @@ export default {
   setup() {
     const router = useRouter();
     const showQRCode = ref(false);
-    const qrCodeUrl = ref('');
+    const qrCodeImage = ref('');
+    const wechatLoginUrl = ref('');
     const isLoading = ref(false);
-    const showAgreementPopup = ref(false);
-    const showPrivacyPopup = ref(false);
     const loginCheckTimer = ref(null);
     const loginToken = ref('');
+    const loginWindow = ref(null);
     
     const onClickLeft = () => {
       router.go(-1);
@@ -103,8 +92,9 @@ export default {
         const response = await axios.post('/api/auth/wechat/qrcode');
         
         if (response.data.code === 200) {
-          qrCodeUrl.value = response.data.data.qrCodeUrl;
           loginToken.value = response.data.data.token;
+          wechatLoginUrl.value = response.data.data.loginUrl;
+          qrCodeImage.value = response.data.data.qrCodeImage;
           showQRCode.value = true;
           
           Toast.clear();
@@ -123,6 +113,33 @@ export default {
       }
     };
     
+    const openWechatLogin = () => {
+      if (!wechatLoginUrl.value) {
+        Toast.fail('请先生成登录二维码');
+        return;
+      }
+      
+      // 在新窗口中打开微信登录页面
+      const width = 500;
+      const height = 600;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+      
+      loginWindow.value = window.open(
+        wechatLoginUrl.value,
+        'wechatLogin',
+        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+      );
+      
+      // 监听弹窗关闭
+      const checkClosed = setInterval(() => {
+        if (loginWindow.value && loginWindow.value.closed) {
+          clearInterval(checkClosed);
+          console.log('登录窗口已关闭');
+        }
+      }, 1000);
+    };
+    
     const startLoginCheck = () => {
       loginCheckTimer.value = setInterval(async () => {
         try {
@@ -134,6 +151,11 @@ export default {
             if (status === 'success') {
               // 登录成功
               clearInterval(loginCheckTimer.value);
+              
+              // 关闭登录窗口
+              if (loginWindow.value && !loginWindow.value.closed) {
+                loginWindow.value.close();
+              }
               
               // 保存用户信息和token
               localStorage.setItem('userToken', token);
@@ -148,6 +170,11 @@ export default {
               clearInterval(loginCheckTimer.value);
               Toast.fail('二维码已过期，请重新获取');
               showQRCode.value = false;
+              
+              // 关闭登录窗口
+              if (loginWindow.value && !loginWindow.value.closed) {
+                loginWindow.value.close();
+              }
             }
           }
         } catch (error) {
@@ -156,29 +183,49 @@ export default {
       }, 2000); // 每2秒检查一次
     };
     
+    // 监听来自弹窗的消息
+    const handleMessage = (event) => {
+      // 确保消息来源安全
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      
+      if (event.data.type === 'WECHAT_LOGIN_SUCCESS') {
+        console.log('收到登录成功消息:', event.data);
+        // 可以在这里直接处理登录成功
+      }
+    };
+    
+    onMounted(() => {
+      window.addEventListener('message', handleMessage);
+    });
+    
     const showAgreement = () => {
-      showAgreementPopup.value = true;
+      // 显示用户协议
     };
     
     const showPrivacy = () => {
-      showPrivacyPopup.value = true;
+      // 显示隐私政策
     };
     
-    // 组件卸载时清理定时器
+    // 组件卸载时清理定时器和事件监听
     onUnmounted(() => {
       if (loginCheckTimer.value) {
         clearInterval(loginCheckTimer.value);
       }
+      if (loginWindow.value && !loginWindow.value.closed) {
+        loginWindow.value.close();
+      }
+      window.removeEventListener('message', handleMessage);
     });
     
     return {
       showQRCode,
-      qrCodeUrl,
+      qrCodeImage,
       isLoading,
-      showAgreementPopup,
-      showPrivacyPopup,
       onClickLeft,
       startWechatLogin,
+      openWechatLogin,
       showAgreement,
       showPrivacy
     };
@@ -188,91 +235,88 @@ export default {
 
 <style scoped>
 .login-container {
-  padding-bottom: 20px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .login-form {
-  padding: 30px 16px;
+  padding: 20px;
   text-align: center;
 }
 
 .login-form h2 {
-  margin: 0 0 10px;
-  font-size: 20px;
-  color: #323233;
+  color: white;
+  margin-bottom: 10px;
 }
 
 .login-form p {
-  margin: 0 0 30px;
-  font-size: 14px;
-  color: #969799;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 30px;
 }
 
 .wechat-login-section {
-  margin: 30px 0;
-}
-
-.wechat-qr-container {
-  margin: 20px 0;
+  background: white;
+  border-radius: 15px;
+  padding: 30px 20px;
+  margin-bottom: 20px;
 }
 
 .qr-title {
   font-size: 16px;
-  color: #323233;
+  font-weight: bold;
   margin-bottom: 20px;
+  color: #333;
 }
 
 .qr-code {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin: 20px 0;
   min-height: 200px;
+  margin-bottom: 20px;
 }
 
 .qr-code img {
   width: 200px;
   height: 200px;
-  border: 1px solid #eee;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  transition: transform 0.2s;
+}
+
+.qr-code img:hover {
+  transform: scale(1.05);
+}
+
+.loading {
+  color: #666;
+  font-size: 14px;
 }
 
 .qr-tips {
-  margin-top: 20px;
+  color: #666;
   font-size: 14px;
-  color: #969799;
+  line-height: 1.5;
 }
 
 .qr-tips p {
   margin: 5px 0;
+  color: #666;
 }
 
 .login-buttons {
-  margin: 20px 0;
+  margin-top: 20px;
 }
 
 .agreement {
-  margin-top: 20px;
+  color: rgba(255, 255, 255, 0.8);
   font-size: 12px;
-  color: #969799;
-  text-align: center;
+  line-height: 1.5;
 }
 
 .link {
-  color: #1989fa;
+  color: #4fc3f7;
+  text-decoration: underline;
   cursor: pointer;
-}
-
-.popup-content {
-  padding: 20px;
-}
-
-.popup-content h3 {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-.popup-content p {
-  margin-bottom: 30px;
-  line-height: 1.6;
 }
 </style>
