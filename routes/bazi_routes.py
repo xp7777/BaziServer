@@ -21,32 +21,35 @@ def get_user_history():
     try:
         user_id = get_jwt_identity()
         
-        # 从数据库获取用户的分析历史
-        # 1. 先获取用户的订单
+        # 从数据库获取用户的已支付订单，包含更多字段
         user_orders = list(orders_collection.find(
             {'userId': user_id, 'status': 'paid'},
-            {'_id': 1, 'resultId': 1, 'createdAt': 1, 'orderType': 1}
+            {
+                '_id': 1, 
+                'resultId': 1, 
+                'createdAt': 1, 
+                'createTime': 1,  # 添加这个字段
+                'orderType': 1,
+                'birthDate': 1,   # 从订单中获取出生日期
+                'birthTime': 1,   # 从订单中获取出生时间
+                'gender': 1,      # 从订单中获取性别
+                'focusAreas': 1   # 从订单中获取关注领域
+            }
         ).sort('createdAt', -1))
         
-        # 提取所有结果ID
-        result_ids = [order.get('resultId') for order in user_orders if order.get('resultId')]
-        
-        # 2. 直接从数据库获取八字分析结果
+        # 格式化输出
         results = []
-        bazi_results_collection = db.bazi_results  # 直接使用数据库集合
-        
-        for result_id in result_ids:
-            # 直接查询数据库而不是使用模型方法
-            result = bazi_results_collection.find_one({'_id': result_id})
-            if result:
-                # 提取需要的字段
-                birth_time = result.get('birthTime', {})
+        for order in user_orders:
+            if order.get('resultId'):
+                # 优先使用 createdAt，如果没有则使用 createTime
+                created_time = order.get('createdAt') or order.get('createTime')
+                
                 results.append({
-                    'resultId': result_id,
-                    'birthDate': birth_time.get('date', '') if isinstance(birth_time, dict) else '',
-                    'gender': result.get('gender', ''),
-                    'focusAreas': result.get('focusAreas', []),
-                    'createdAt': result.get('createdAt', '')
+                    'resultId': order.get('resultId'),
+                    'birthDate': order.get('birthDate', ''),
+                    'gender': order.get('gender', ''),
+                    'focusAreas': order.get('focusAreas', []),
+                    'createdAt': created_time
                 })
         
         return jsonify({

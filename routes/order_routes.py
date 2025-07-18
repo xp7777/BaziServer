@@ -1246,7 +1246,7 @@ def get_user_orders():
     try:
         user_id = get_jwt_identity()
         
-        # 从数据库获取用户的订单
+        # 从数据库获取用户的订单，包含更多字段
         orders = list(orders_collection.find(
             {'userId': user_id},
             {
@@ -1254,7 +1254,8 @@ def get_user_orders():
                 'orderType': 1, 
                 'amount': 1, 
                 'status': 1, 
-                'createdAt': 1, 
+                'createdAt': 1,
+                'createTime': 1,  # 添加这个字段
                 'payTime': 1,
                 'resultId': 1
             }
@@ -1263,8 +1264,19 @@ def get_user_orders():
         # 格式化输出
         result = []
         for order in orders:
-            order['_id'] = str(order['_id'])
-            result.append(order)
+            # 确保日期字段存在
+            created_time = order.get('createdAt') or order.get('createTime')
+            
+            formatted_order = {
+                '_id': str(order['_id']),
+                'orderType': order.get('orderType', 'analysis'),
+                'amount': order.get('amount', 0),
+                'status': order.get('status', 'pending'),
+                'createdAt': created_time,
+                'payTime': order.get('payTime'),
+                'resultId': order.get('resultId')
+            }
+            result.append(formatted_order)
         
         return jsonify({
             'code': 200,

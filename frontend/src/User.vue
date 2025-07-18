@@ -127,11 +127,11 @@ export default {
         
         if (response.data.code === 200) {
           historyList.value = response.data.data.map(item => ({
-            id: item.resultId || item.analysis_id,
-            date: formatDate(item.created_at || item.createdAt),
+            id: item.resultId,
+            date: formatDate(item.createdAt),
             focusAreas: item.focusAreas || [],
             gender: item.gender || '',
-            birthDate: item.birthDate || item.basic_info?.birth_date || ''
+            birthDate: item.birthDate || ''
           }));
           console.log('历史记录加载成功:', historyList.value);
         } else {
@@ -151,7 +151,7 @@ export default {
       loading.value = true;
       try {
         const token = localStorage.getItem('userToken');
-        const response = await axios.get('/api/order/my', {  // 修改路径
+        const response = await axios.get('/api/order/my', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -181,10 +181,25 @@ export default {
       if (!dateString) return '未知日期';
       
       try {
-        const date = new Date(dateString);
+        let date;
+        
+        // 如果是 MongoDB 的日期对象格式
+        if (typeof dateString === 'object' && dateString.$date) {
+          date = new Date(dateString.$date);
+        } else {
+          date = new Date(dateString);
+        }
+        
+        // 检查日期是否有效
+        if (isNaN(date.getTime())) {
+          console.warn('无效日期:', dateString);
+          return '未知日期';
+        }
+        
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       } catch (e) {
-        return dateString;
+        console.error('日期格式化错误:', e, dateString);
+        return '未知日期';
       }
     };
     
