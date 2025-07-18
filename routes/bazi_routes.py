@@ -35,81 +35,62 @@ analyzing_results = {}
 
 @bazi_bp.route('/result/<result_id>', methods=['GET'])
 def get_bazi_result(result_id):
+    """获取八字分析结果"""
     try:
         logging.info(f"尝试查找结果ID: {result_id}")
         
         # 从数据库获取结果
         result = BaziResultModel.find_by_id(result_id)
+        
         if not result:
-            logging.error(f"未找到结果记录: {result_id}")
+            logging.warning(f"未找到结果记录: {result_id}")
             return jsonify(code=404, message="未找到分析结果"), 404
             
         logging.info(f"找到结果记录: {result_id}")
         
-        # 检查八字数据是否完整
-        if not result.get('baziChart') or not result['baziChart'].get('yearPillar'):
-            logging.error(f"八字数据不完整: {result_id}")
-            return jsonify(code=500, message="八字数据不完整，请重新生成"), 500
-            
-        # 检查神煞数据
-        if not result['baziChart'].get('shenSha'):
-            logging.warning(f"神煞数据不存在，初始化空数据")
-            result['baziChart']['shenSha'] = {
-                'dayChong': '',
-                'zhiShen': '',
-                'pengZuGan': '',
-                'pengZuZhi': '',
-                'xiShen': '',
-                'fuShen': '',
-                'caiShen': '',
-                'benMing': [],
-                'yearGan': [],
-                'yearZhi': [],
-                'dayGan': [],
-                'dayZhi': []
-            }
-            
-        # 检查大运数据
-        if not result['baziChart'].get('daYun'):
-            logging.warning(f"大运数据不存在，初始化空数据")
-            result['baziChart']['daYun'] = {
-                'startAge': 1,
-                'startYear': 2025,
-                'isForward': True,
-                'daYunList': []
-            }
-            
-        # 检查流年数据
-        if not result['baziChart'].get('flowingYears'):
-            logging.warning(f"流年数据不存在，初始化空数据")
-            result['baziChart']['flowingYears'] = []
+        # 获取分析状态
+        analysis_status = result.get('analysisStatus', 'pending')
+        analysis_progress = result.get('analysisProgress', 0)
         
-        # 检查分析状态和进度
-        if 'analysisStatus' not in result:
-            result['analysisStatus'] = 'completed'  # 默认为已完成
-        if 'analysisProgress' not in result:
-            result['analysisProgress'] = 100  # 默认为100%完成
-            
-        # 检查分析内容是否存在，如果存在则标记为已完成
-        if result.get('analysis') or result.get('aiAnalysis'):
-            result['analysisStatus'] = 'completed'
-            result['analysisProgress'] = 100
-            
-        # 如果分析状态是completed但进度不是100%，强制设置为100%
-        if result.get('analysisStatus') == 'completed' and result.get('analysisProgress') != 100:
-            result['analysisProgress'] = 100
-            
-        # 如果分析状态是pending但不在分析队列中，标记为已完成
-        if result.get('analysisStatus') == 'pending' and result_id not in analyzing_results:
-            result['analysisStatus'] = 'completed'
-            result['analysisProgress'] = 100
-            
-        logging.info(f"成功获取分析结果: {result_id}, 分析状态: {result.get('analysisStatus')}, 分析进度: {result.get('analysisProgress')}%")
-        return jsonify(code=200, data=result)
+        # 检查AI分析是否真正完成 - 关键修改点
+        ai_analysis = result.get('aiAnalysis', {})
+        ai_analysis_complete = True
+        
+        # 检查关键字段是否包含"正在分析"或"分析生成中"
+        if ai_analysis:
+            for key, value in ai_analysis.items():
+                if isinstance(value, str) and any(phrase in value for phrase in 
+                                                ['正在分析', '分析生成中', '暂无']):
+                    ai_analysis_complete = False
+                    analysis_status = 'pending'  # 强制设置为进行中
+                    break
+        else:
+            # 如果没有AI分析数据，也视为未完成
+            ai_analysis_complete = False
+            analysis_status = 'pending'
+        
+        # 只有当AI分析真正完成时，才返回completed状态
+        if ai_analysis_complete:
+            analysis_status = 'completed'
+            analysis_progress = 100
+        
+        logging.info(f"成功获取分析结果: {result_id}, 分析状态: {analysis_status}, 分析进度: {analysis_progress}%")
+        
+        # 返回结果
+        return jsonify(
+            code=200,
+            message="获取成功",
+            data={
+                "resultId": result_id,
+                "baziChart": result.get('baziChart', {}),
+                "aiAnalysis": result.get('aiAnalysis', {}),
+                "analysisStatus": analysis_status,
+                "analysisProgress": analysis_progress
+            }
+        )
     except Exception as e:
-        logging.error(f"获取八字分析结果失败: {str(e)}")
-        logging.error(traceback.format_exc())
-        return jsonify(code=500, message=str(e)), 500
+        logging.error(f"获取八字分析结果出错: {str(e)}")
+        return jsonify(code=500, message=f"获取分析结果出错: {str(e)}"), 500
 
 # 新增API端点：更新八字分析数据
 @bazi_bp.route('/update/<result_id>', methods=['POST', 'OPTIONS'])

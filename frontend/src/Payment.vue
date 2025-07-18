@@ -60,7 +60,7 @@
     
     <van-popup :show="showQRCode" @update:show="showQRCode = $event" round>
       <div class="qrcode-container">
-        <h3>请扫码支付</h3>
+        <h3 style="color: #000000;">请扫码支付</h3>
         <div class="qrcode">
           <img v-if="qrCodeUrl && qrCodeUrl.startsWith('data:')" :src="qrCodeUrl" alt="支付二维码" />
           <iframe v-else-if="qrCodeUrl" :src="qrCodeUrl" frameborder="0" width="200" height="200"></iframe>
@@ -381,7 +381,7 @@ export default {
               updateSuccess = true;
               Toast.success('命盘数据生成中');
               
-              // 确保延迟足够长，以便后端完成八字数据处理
+              // 延迟后触发AI分析
               setTimeout(async () => {
                 try {
                   console.log('正在请求八字深度分析:', resultId);
@@ -389,15 +389,19 @@ export default {
                     useDeepseekAPI: true
                   });
                   console.log('八字深度分析响应:', analyzeResponse.data);
-                  Toast.success('命盘分析已开始');
+                  
+                  if (analyzeResponse.data.code === 200) {
+                    Toast.success('AI分析已开始，正在生成详细报告...');
+                  } else {
+                    Toast.success('命盘分析已开始');
+                  }
                 } catch (analyzeError) {
                   console.error('深度分析请求失败:', analyzeError);
-                  // 即使分析请求失败，也继续流程，不阻止用户查看结果
-                  Toast.fail('命盘深度分析请求失败，但可以继续查看基础结果');
+                  Toast.fail('AI分析请求失败，但可以继续查看基础结果');
                 }
-              }, 3000); // 延长等待时间到3秒
+              }, 3000);
               
-              break; // 成功后跳出循环
+              break;
             } else {
               console.error('八字数据更新失败:', updateResponse.data.message);
               // 失败后重试
@@ -445,20 +449,24 @@ export default {
     
     // 添加结果页面跳转函数
     const redirectToResultPage = (resultId) => {
-      // 延迟跳转，给用户体验更好的过渡
+      console.log('跳转到结果页面，resultId:', resultId);
+      
+      // 添加提示信息
+      Toast.loading({
+        message: 'AI分析正在进行中，请稍候...',
+        duration: 2000
+      });
+      
+      // 延迟跳转，给AI分析一些时间
       setTimeout(() => {
         router.push({
           path: `/result/${resultId}`,
-          query: {
-            birthDate,
-            birthTime,
-            gender,
-            birthPlace,
-            livingPlace,
-            originalOrderId: orderId.value // 传递原始订单ID
+          query: { 
+            from: 'payment',
+            analyzing: 'true' // 标记正在分析中
           }
         });
-      }, 1000);
+      }, 2000);
     };
     
     const checkPaymentStatus = async () => {
@@ -597,4 +605,5 @@ export default {
   color: #969799;
 }
 </style>
+
 

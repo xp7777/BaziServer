@@ -22,7 +22,7 @@
       class="analysis-progress-notice"
     >
       <div class="analysis-progress">
-        <p>AI正在生成八字分析结果，这可能需要30-60秒</p>
+        <p>正在生成AI分析结果，这可能需要30-60秒</p>
         <van-progress :percentage="analysisProgress" :show-pivot="false" color="#1989fa" />
       </div>
     </van-notice-bar>
@@ -244,21 +244,7 @@
             </van-notice-bar>
           </div>
           
-          <!-- 添加全局分析状态提示 -->
-          <van-notice-bar
-            v-if="analysisStatus === 'pending'"
-            color="#1989fa"
-            background="#ecf9ff"
-            left-icon="info-o"
-            :scrollable="false"
-            class="analysis-progress-notice"
-          >
-            <div class="analysis-progress">
-              <p>AI正在生成八字分析结果，这可能需要30-60秒</p>
-              <van-progress :percentage="analysisProgress" :show-pivot="false" color="#1989fa" />
-            </div>
-          </van-notice-bar>
-          
+                   
           <!-- 核心分析 -->
           <div class="analysis-section">
             <h3>八字命局核心分析</h3>
@@ -473,15 +459,7 @@
       <van-button plain type="primary" block style="margin-top: 10px;" @click="shareResult">
         分享结果
       </van-button>
-      
-      <!-- 本地生成PDF按钮 -->
-      <van-button plain type="info" 
-                  block 
-                  style="margin-top: 10px;" 
-                  @click="handleLocalPDFGeneration">
-        本地生成PDF
-      </van-button>
-      
+           
       <!-- 调试按钮 -->
       <van-button plain type="warning" 
                   block 
@@ -1755,6 +1733,154 @@ const pollFollowupStatus = async () => {
   const startTime = new Date().getTime();
   const timeoutMs = 120000; // 120秒超时
   let attempts = 0;
+
+// 修改 getBaziResult 方法，确保检查后端返回的分析状态
+const getBaziResult = async () => {
+  loading.value = true;
+  error.value = '';
+  
+  try {
+    console.log(`获取八字分析结果，ID: ${resultId.value}`);
+    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
+    
+    if (response.data.code === 200) {
+      const result = response.data.data;
+      
+      // 更新八字命盘数据
+      if (result.baziChart) {
+        baziChart.value = result.baziChart;
+        console.log('八字命盘数据已获取');
+      }
+      
+      // 更新AI分析结果
+      if (result.aiAnalysis) {
+        aiAnalysis.value = result.aiAnalysis;
+      }
+      
+      // 检查后端返回的分析状态 - 关键修改点
+      const analysisStatus = result.analysisStatus || 'pending';
+      const analysisProgress = result.analysisProgress || 0;
+      
+      console.log(`分析状态: ${analysisStatus}, 进度: ${analysisProgress}%`);
+      
+      if (analysisStatus === 'pending') {
+        console.log('分析仍在进行中，开始轮询...');
+        Toast.loading({
+          message: '正在生成AI分析结果，这可能需要30-60秒...',
+          duration: 0
+        });
+        
+        // 设置分析状态和进度
+        isAnalyzing.value = true;
+        analyzeProgress.value = analysisProgress;
+        
+        // 启动轮询
+        await pollAnalysisStatus();
+        
+        Toast.clear();
+        Toast.success('AI分析完成');
+      } else {
+        console.log('分析已完成');
+        isAnalyzing.value = false;
+        analyzeProgress.value = 100;
+      }
+      
+      loading.value = false;
+      return true;
+    }
+  } catch (e) {
+    console.error('获取八字分析结果出错:', e);
+    error.value = e.message || '获取分析结果出错';
+    loading.value = false;
+    return false;
+  }
+};
+
+// 轮询等待分析完成
+const pollAnalysisStatus = async () => {
+  let attempts = 0;
+  const maxAttempts = 60; // 最多等待120秒（60次 * 2秒）
+  
+  // 启动模拟进度条
+  if (!analyzeTimer.value) {
+    let progress = analyzeProgress.value || 0;
+    analyzeTimer.value = setInterval(() => {
+      if (progress < 95) {
+        progress += Math.random() * 2;
+        if (progress > 95) progress = 95;
+        analyzeProgress.value = Math.floor(progress);
+      }
+    }, 1000);
+  }
+  
+  return new Promise((resolve) => {
+    const checkInterval = setInterval(async () => {
+      attempts++;
+      console.log(`轮询检查分析状态 (${attempts}/${maxAttempts})`);
+      
+      try {
+        const response = await axios.get(`/api/bazi/result/${resultId.value}?t=${Date.now()}`);
+        
+        if (response.data.code === 200) {
+          const result = response.data.data;
+          
+          // 更新AI分析结果
+          if (result.aiAnalysis) {
+            aiAnalysis.value = result.aiAnalysis;
+          }
+          
+          // 获取后端返回的分析状态
+          const analysisStatus = result.analysisStatus || 'pending';
+          const analysisProgress = result.analysisProgress || 0;
+          
+          console.log(`轮询结果: 状态=${analysisStatus}, 进度=${analysisProgress}%`);
+          
+          // 更新进度
+          if (analysisProgress > analyzeProgress.value) {
+            analyzeProgress.value = analysisProgress;
+          }
+          
+          // 检查分析是否完成
+          if (analysisStatus === 'completed') {
+            console.log('分析已完成，停止轮询');
+            clearInterval(checkInterval);
+            
+            // 清除模拟进度定时器
+            if (analyzeTimer.value) {
+              clearInterval(analyzeTimer.value);
+              analyzeTimer.value = null;
+            }
+            
+            // 设置进度为100%
+            analyzeProgress.value = 100;
+            isAnalyzing.value = false;
+            
+            resolve(true);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('轮询检查分析状态失败:', error);
+      }
+      
+      // 超时处理
+      if (attempts >= maxAttempts) {
+        clearInterval(checkInterval);
+        
+        // 清除模拟进度定时器
+        if (analyzeTimer.value) {
+          clearInterval(analyzeTimer.value);
+          analyzeTimer.value = null;
+        }
+        
+        console.log('分析轮询超时，停止等待');
+        Toast.fail('分析超时，请手动刷新');
+        isAnalyzing.value = false;
+        resolve(false);
+      }
+    }, 2000); // 每2秒检查一次
+  });
+};
   const maxAttempts = 60; // 最多等待120秒（60次 * 2秒）
   let isComplete = false;
   
