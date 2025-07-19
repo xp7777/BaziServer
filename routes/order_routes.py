@@ -325,7 +325,7 @@ def create_followup_order():
     order = {
         "_id": order_id,
         "userId": result.get('userId', 'anonymous'),
-        "amount": 0.00001,
+        "amount": 1, #支付金额设置
         "status": "pending",
         "orderType": "followup",
         "resultId": result_id,

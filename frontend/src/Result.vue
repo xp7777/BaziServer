@@ -1605,9 +1605,8 @@ const payForFollowup = async () => {
         duration: 0
       });
       
-      // 获取微信支付参数
-      const paymentResponse = await axios.post('/api/order/payment', {
-        orderId: followupOrderId,
+      // 获取微信支付参数 - 使用不需要JWT认证的API
+      const paymentResponse = await axios.post(`/api/order/create/payment/${followupOrderId}`, {
         paymentMethod: 'wechat',
         deviceType: 'pc',
         returnQrCode: true // 返回二维码图片
