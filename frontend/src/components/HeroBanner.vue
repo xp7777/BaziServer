@@ -37,14 +37,18 @@
     </div>
     
     <!-- Banner Indicators -->
-    <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-2">
+    <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-3 z-50">
       <button
         v-for="(_, index) in banners"
         :key="index"
-        @click="setCurrentBanner(index)"
-        class="w-3 h-3 rounded-full transition-all duration-300"
-        :class="index === currentBanner ? 'bg-white' : 'bg-white/50'"
-      ></button>
+        @click.stop="setCurrentBanner(index)"
+        style="color: #000000; line-height: 1"
+        class="w-6 h-6 rounded-full transition-all duration-300 cursor-pointer hover:scale-125 border-2 border-white flex items-center justify-center text-xs font-bold "
+        :class="index === currentBanner ? 'bg-red-500 text-white' : 'bg-blue-500 text-white hover:bg-green-500'"
+        :style="{ minWidth: '24px', minHeight: '24px' }"
+      >
+        {{ index + 1 }}
+      </button>
     </div>
   </section>
 </template>
