@@ -456,10 +456,7 @@
       <van-button type="primary" block @click="downloadPDF">
         下载PDF报告
       </van-button>
-      <van-button plain type="primary" block style="margin-top: 10px;" @click="shareResult">
-        分享结果
-      </van-button>
-           
+               
       <!-- 调试按钮 -->
       <van-button plain type="warning" 
                   block 
@@ -512,12 +509,15 @@
       v-model:show="showFollowupDialog"
       title="深度分析"
       confirm-button-text="支付 ￥9.9"
+      show-cancel-button
+      cancel-button-text="取消"
       @confirm="payForFollowup"
       :before-close="() => !isLoadingFollowup"
+      style="color: #000000;"
     >
       <div class="followup-dialog-content">
-        <p>您选择了「{{ currentFollowup?.name }}」深度分析</p>
-        <p>支付后，AI将根据您的八字和流年运势，为您提供专业的命理分析</p>
+        <p style="color: #000000;">您选择了「{{ currentFollowup?.name }}」深度分析</p>
+        <p style="color: #000000;">支付后，AI将根据您的八字和流年运势，为您提供专业的命理分析</p>
       </div>
     </van-dialog>
   </div>
