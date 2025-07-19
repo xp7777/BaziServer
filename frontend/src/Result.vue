@@ -14,7 +14,7 @@
     
     <!-- 添加全局分析状态提示 -->
     <van-notice-bar
-      v-if="analysisStatus === 'pending'"
+      v-if="analysisStatus === 'pending' && !isAnalysisContentLoaded()"
       color="#1989fa"
       background="#ecf9ff"
       left-icon="info-o"
@@ -687,6 +687,24 @@ const getAnalysisContent = (sectionName) => {
 // 修改数据初始化
 const focusAreas = ref([]);
 const analysisResult = ref({});
+
+// 检查分析内容是否已经加载
+const isAnalysisContentLoaded = () => {
+  if (!aiAnalysis.value) return false;
+  
+  // 检查核心分析部分是否已加载
+  const hasCore = aiAnalysis.value.coreAnalysis && 
+                 !aiAnalysis.value.coreAnalysis.includes('分析生成中') &&
+                 aiAnalysis.value.coreAnalysis !== '暂无';
+                 
+  // 检查五行分析部分是否已加载
+  const hasFiveElements = aiAnalysis.value.fiveElements && 
+                         !aiAnalysis.value.fiveElements.includes('分析生成中') &&
+                         aiAnalysis.value.fiveElements !== '暂无';
+  
+  // 如果核心分析和五行分析都已加载，认为分析内容已就绪
+  return hasCore && hasFiveElements;
+};
 
 // 初始化八字数据
 const baziData = ref({
@@ -1426,6 +1444,13 @@ const pollAnalysisStatus = async (resultId) => {
           return true;
         }
         
+        // 检查分析内容是否已加载，如果已加载则认为已完成
+        if (isAnalysisContentLoaded()) {
+          analysisStatus.value = 'completed';
+          analysisProgress.value = 100;
+          return true;
+        }
+        
         // 检查内容是否已生成（即使状态未更新）
         const allGenerated = !Object.values(aiAnalysis.value).some(
           value => typeof value === 'string' && value.includes('正在分析')
@@ -1492,12 +1517,22 @@ const reloadBaziData = async () => {
         aiAnalysis.value = response.data.data.aiAnalysis;
       }
       
-      // 检查分析状态和进度
+      // 更新用户信息
+      if (response.data.data.gender) {
+        userGender.value = response.data.data.gender === 'male' ? '男' : '女';
+      }
+      
+      if (response.data.data.birthTime) {
+        userBirthTime.value = response.data.data.birthTime;
+      }
+      
+      // 更新分析状态
       analysisStatus.value = response.data.data.analysisStatus || 'completed';
       analysisProgress.value = response.data.data.analysisProgress || 100;
       
-      // 如果分析已完成但进度条未达到100%，强制设置为100%
-      if (analysisStatus.value === 'completed' && analysisProgress.value < 100) {
+      // 检查分析内容是否已加载，如果已加载则强制更新状态为completed
+      if (isAnalysisContentLoaded()) {
+        analysisStatus.value = 'completed';
         analysisProgress.value = 100;
       }
       
@@ -2139,6 +2174,12 @@ const getBaziResult = async () => {
         // 更新分析状态
         analysisStatus.value = result.analysisStatus || 'completed';
         analysisProgress.value = result.analysisProgress || 100;
+        
+        // 检查分析内容是否已加载，如果已加载则强制更新状态为completed
+        if (isAnalysisContentLoaded()) {
+          analysisStatus.value = 'completed';
+          analysisProgress.value = 100;
+        }
         
         // 更新订单ID
         orderId.value = result.orderId || '';
