@@ -56,15 +56,31 @@ def generate_wechat_qrcode():
             'created_at': time.time()
         }
         
+        # 生成二维码图片
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(wechat_login_url)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffered = BytesIO()
+        img.save(buffered)
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+
         logging.info(f"生成登录二维码成功，token: {login_token}")
-        
-        # 直接返回微信登录URL，让前端使用微信官方的二维码显示方式
+
+        # 返回包含二维码图片的响应
         return jsonify({
             'code': 200,
             'message': '二维码生成成功',
             'data': {
                 'loginUrl': wechat_login_url,
                 'token': login_token,
+                'qrCodeImage': f"data:image/png;base64,{img_str}",
                 'debug_info': {
                     'app_id': app_id,
                     'redirect_uri': redirect_uri
