@@ -521,6 +521,26 @@
       </div>
     </van-dialog>
   </div>
+  <!-- 在 template 部分添加支付二维码弹窗 -->
+  <van-popup :show="showQRCode" @update:show="showQRCode = $event" round>
+    <div class="qrcode-container">
+      <h3 style="color: #000000;">请扫码支付</h3>
+      <div class="qrcode">
+        <img v-if="qrCodeUrl && qrCodeUrl.startsWith('data:')" :src="qrCodeUrl" alt="支付二维码" />
+        <iframe v-else-if="qrCodeUrl" :src="qrCodeUrl" frameborder="0" width="200" height="200"></iframe>
+        <div v-else class="qrcode-placeholder">
+          <p>正在加载支付二维码...</p>
+        </div>
+      </div>
+      <p style="color: #000000;">支付金额: ¥9.90</p>
+      <van-button type="primary" block @click="checkPaymentStatus">
+        我已完成支付
+      </van-button>
+      <van-button plain block @click="showQRCode = false" style="margin-top: 10px">
+        取消
+      </van-button>
+    </div>
+  </van-popup>
 </template>
 
 <script setup>
@@ -1571,7 +1591,11 @@ const selectFollowupOption = async (option) => {
   showFollowupDialog.value = true;
 };
 
-// 支付追问费用
+// 在 script setup 部分添加弹窗状态
+const showQRCode = ref(false);
+const qrCodeUrl = ref('');
+
+// 修改支付追问费用函数
 const payForFollowup = async () => {
   if (!currentFollowup.value) return;
   
@@ -1585,9 +1609,6 @@ const payForFollowup = async () => {
       duration: 0
     });
     
-    // 获取URL参数
-    const urlParams = new URLSearchParams(window.location.search);
-    
     // 创建追问订单
     const orderResponse = await axios.post('/api/order/create/followup', {
       resultId: resultId.value,
@@ -1596,118 +1617,38 @@ const payForFollowup = async () => {
     
     if (orderResponse.data.code === 200) {
       const followupOrderId = orderResponse.data.data.orderId;
+      window.currentFollowupOrderId = followupOrderId; // 保存订单ID
       console.log('追问订单创建成功:', followupOrderId);
       
       // 调用微信支付
       Toast.loading({
-        message: '正在准备支付...',
+        message: '正在获取支付二维码...',
         forbidClick: true,
         duration: 0
       });
       
-      // 获取微信支付参数 - 使用不需要JWT认证的API
+      // 获取微信支付参数
       const paymentResponse = await axios.post(`/api/order/create/payment/${followupOrderId}`, {
         paymentMethod: 'wechat',
         deviceType: 'pc',
-        returnQrCode: true // 返回二维码图片
+        returnQrCode: true
       });
       
       if (paymentResponse.data.code === 200) {
         Toast.clear();
         
-        // 显示微信支付二维码
-        const paymentData = paymentResponse.data.data;
-        const qrCodeImage = paymentData.qr_image;
-        
-        Dialog.confirm({
-          title: '微信支付',
-          message: `
-            <div style="text-align: center">
-              <p>请使用微信扫描下方二维码支付</p>
-              <p>金额: ￥9.9</p>
-              <img src="${qrCodeImage}" style="width: 200px; height: 200px" />
-              <p style="font-size: 12px; color: #999">付款完成后，请点击"已完成支付"按钮</p>
-            </div>
-          `,
-          messageAlign: 'center',
-          confirmButtonText: '已完成支付',
-          cancelButtonText: '取消',
-          showCancelButton: true,
-        })
-        .then(async () => {
-          // 用户点击"已完成支付"
-          Toast.loading({
-            message: '正在确认支付结果...',
-            forbidClick: true,
-            duration: 0
-          });
-          
-          // 轮询检查支付结果
-          let checkCount = 0;
-          const maxChecks = 10;
-          let isPaid = false;
-          
-          while (checkCount < maxChecks && !isPaid) {
-            try {
-              const statusResponse = await axios.get(`/api/order/status/${followupOrderId}`);
-              
-              if (statusResponse.data.code === 200) {
-                const orderStatus = statusResponse.data.data.status;
-                
-                if (orderStatus === 'paid') {
-                  isPaid = true;
-                  
-                  // 如果有返回新的resultId，更新它
-                  if (statusResponse.data.data.resultId) {
-                    resultId.value = statusResponse.data.data.resultId;
-                    localStorage.setItem('resultId', statusResponse.data.data.resultId);
-                  }
-                  
-                  break;
-                }
-              }
-            } catch (error) {
-              console.error('检查支付状态出错:', error);
-            }
-            
-            // 等待2秒后再次检查
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            checkCount++;
-          }
-          
-          Toast.clear();
-          
-          if (isPaid) {
-            // 支付成功
-            Toast.success('支付成功');
-            
-            // 更新UI，将当前追问项标记为已付费
-            const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
-            if (index !== -1) {
-              followupOptions.value[index].paid = true;
-              followupOptions.value = [...followupOptions.value]; // 强制Vue更新
-            }
-            
-            // 加载分析结果
-            Toast.loading({
-              message: '正在生成分析结果，这可能需要30-60秒...',
-              forbidClick: true,
-              duration: 0
-            });
-            
-            // 轮询检查分析结果状态
-            const area = currentFollowup.value.id;
-            await pollFollowupStatus();
-          } else {
-            // 支付未完成
-            Toast.fail('未检测到支付完成，请稍后再试');
-          }
-        })
-        .catch(() => {
-          // 用户取消支付
-          Toast.clear();
-          Toast.info('已取消支付');
-        });
+        // 解析支付二维码返回数据
+        if (paymentResponse.data.data.qr_image) {
+          // 直接使用Base64二维码图片
+          qrCodeUrl.value = paymentResponse.data.data.qr_image;
+          showQRCode.value = true;
+        } else if (paymentResponse.data.data.code_url) {
+          // 生成二维码图片
+          qrCodeUrl.value = paymentResponse.data.data.code_url;
+          showQRCode.value = true;
+        } else {
+          Toast.fail('未获取到支付二维码');
+        }
       } else {
         Toast.clear();
         Toast.fail(paymentResponse.data.message || '获取支付参数失败');
@@ -1720,6 +1661,81 @@ const payForFollowup = async () => {
     Toast.fail('处理失败，请重试');
   } finally {
     isLoadingFollowup.value = false;
+  }
+};
+
+// 添加检查支付状态函数
+const checkPaymentStatus = async () => {
+  if (!currentFollowup.value) return;
+  
+  try {
+    Toast.loading({
+      message: '正在确认支付结果...',
+      forbidClick: true,
+      duration: 0
+    });
+    
+    // 这里需要获取当前的订单ID，可能需要在支付时保存
+    // 暂时使用一个临时变量存储
+    const followupOrderId = window.currentFollowupOrderId;
+    
+    if (!followupOrderId) {
+      Toast.fail('订单信息丢失，请重新支付');
+      return;
+    }
+    
+    // 轮询检查支付结果
+    let checkCount = 0;
+    const maxChecks = 10;
+    let isPaid = false;
+    
+    while (checkCount < maxChecks && !isPaid) {
+      try {
+        const statusResponse = await axios.get(`/api/order/status/${followupOrderId}`);
+        
+        if (statusResponse.data.code === 200) {
+          const orderStatus = statusResponse.data.data.status;
+          
+          if (orderStatus === 'paid') {
+            isPaid = true;
+            break;
+          }
+        }
+      } catch (error) {
+        console.error('检查支付状态出错:', error);
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      checkCount++;
+    }
+    
+    Toast.clear();
+    
+    if (isPaid) {
+      Toast.success('支付成功');
+      showQRCode.value = false;
+      
+      // 更新UI，将当前追问项标记为已付费
+      const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
+      if (index !== -1) {
+        followupOptions.value[index].paid = true;
+        followupOptions.value = [...followupOptions.value];
+      }
+      
+      // 加载分析结果
+      Toast.loading({
+        message: '正在生成分析结果，这可能需要30-60秒...',
+        forbidClick: true,
+        duration: 0
+      });
+      
+      await pollFollowupStatus();
+    } else {
+      Toast.fail('未检测到支付完成，请稍后再试');
+    }
+  } catch (error) {
+    console.error('支付处理出错:', error);
+    Toast.fail('支付处理出错，请重试');
   }
 };
 
@@ -2891,5 +2907,34 @@ const flowingYearsData = ref([]);
   margin-top: 10px;
   color: #999;
   font-size: 14px;
+}
+
+/* 在 style 部分添加二维码样式 */
+.qrcode-container {
+  padding: 20px;
+  text-align: center;
+}
+
+.qrcode {
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.qrcode img,
+.qrcode iframe {
+  border: 1px solid #eee;
+  border-radius: 8px;
+}
+
+.qrcode-placeholder {
+  width: 200px;
+  height: 200px;
+  border: 1px dashed #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
 }
 </style>
