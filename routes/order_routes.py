@@ -325,7 +325,7 @@ def create_followup_order():
     order = {
         "_id": order_id,
         "userId": result.get('userId', 'anonymous'),
-        "amount": 1, #支付金额设置
+        "amount": 1, #追问支付金额设置
         "status": "pending",
         "orderType": "followup",
         "resultId": result_id,
@@ -931,7 +931,7 @@ def create_order_simple():
         
         # 计算订单金额
         focus_areas = data.get('focusAreas', [])
-        base_price = 1
+        base_price = 1 #八字计算支付金额设置
         focus_price = 0.00000000001 * len(focus_areas)
         total_amount = base_price + focus_price
         

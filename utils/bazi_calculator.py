@@ -626,7 +626,7 @@ def calculate_flowing_years(gender, bazi_data):
                 ji_xiong = calculate_ji_xiong(year_gan + year_zhi)  # 使用接受单个gan_zhi参数的版本
                 
                 # 计算与出生年的年龄差
-                age = year - birth_year + 1  # 虚岁
+                age = year - birth_year   # 虚岁 改为周岁 去掉+1
                 
                 # 添加流年信息
                 flowing_years.append({
@@ -646,7 +646,7 @@ def calculate_flowing_years(gender, bazi_data):
                 # 如果没有lunar-python库，返回基本信息
                 flowing_years.append({
                     "year": year,
-                    "age": year - birth_year + 1,
+                    "age": year - birth_year ,
                     "heavenlyStem": "",
                     "earthlyBranch": "",
                     "ganElement": "",
@@ -1102,7 +1102,7 @@ def calculate_da_yun(year, month, day, hour, gender):
         # 计算起运年龄
         birth_date = datetime(year, month, day)
         days_diff = (next_jie_qi_date - birth_date).days
-        start_age = max(1, days_diff // 3)  # 每3天为1岁
+        start_age = max(0, days_diff // 3)  # 每3天为1岁 改为从0开始
         
         # 确定大运顺序（阳男阴女顺行，阴男阳女逆行）
         year_gan = lunar.getYearGan()
@@ -1575,7 +1575,7 @@ def get_liu_nian(year, birth_year):
         
         return {
             "year": year,
-            "age": year - birth_year + 1,  # 虚岁
+            "age": year - birth_year ,  # 虚岁
             "gan": gan,
             "zhi": zhi,
             "ganElement": gan_element,
