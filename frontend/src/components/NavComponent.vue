@@ -1,7 +1,7 @@
 <template>
-  <nav class="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-gray-800">
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-gray-800" h-20>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
+      <div class="flex items-center justify-between h-20">
         <!-- Logo -->
         <div class="flex items-center space-x-3">
           <img src="../assets/logo.png" alt="捭阖学宫" class="h-10 w-auto" />
@@ -24,6 +24,7 @@
         <div class="md:hidden">
           <button
             @click="toggleMenu"
+            style="color: #000000;"
             class="text-gray-300 hover:text-white p-2 "
           >
             <span v-if="isMenuOpen" class="block w-6 h-6">✕</span>
@@ -39,6 +40,7 @@
             v-for="item in navItems"
             :key="item.id"
             @click="scrollToSection(item.id)"
+            style="color: #000000;"
             class="block w-full text-left px-3 py-2 text-gray-300 hover:text-white text-base font-medium transition-colors"
           >
             {{ item.label }}
