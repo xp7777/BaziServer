@@ -1594,6 +1594,74 @@ const selectFollowupOption = async (option) => {
 // 在 script setup 部分添加弹窗状态
 const showQRCode = ref(false);
 const qrCodeUrl = ref('');
+let followupPaymentInterval = null; // 添加轮询定时器变量
+
+// 监听二维码显示状态，自动启动轮询
+watch(showQRCode, (newVal) => {
+  if (newVal) {
+    // 显示二维码时，启动轮询
+    startFollowupPaymentPolling();
+  } else if (followupPaymentInterval) {
+    // 隐藏二维码时，停止轮询
+    clearInterval(followupPaymentInterval);
+  }
+});
+
+// 组件卸载时清除定时器
+onUnmounted(() => {
+  if (followupPaymentInterval) {
+    clearInterval(followupPaymentInterval);
+  }
+});
+
+// 添加轮询支付状态的函数
+const startFollowupPaymentPolling = () => {
+  // 每3秒查询一次支付状态
+  followupPaymentInterval = setInterval(async () => {
+    try {
+      const followupOrderId = window.currentFollowupOrderId;
+      if (!followupOrderId) return;
+      
+      console.log('自动轮询追问支付状态:', followupOrderId);
+      const statusResponse = await axios.get(`/api/order/query/${followupOrderId}`);
+      
+      if (statusResponse.data.code === 200) {
+        const orderStatus = statusResponse.data.data.status;
+        console.log(`支付状态查询结果: ${orderStatus}`, statusResponse.data);
+        
+        if (orderStatus === 'paid') {
+          // 支付成功，停止轮询并处理
+          clearInterval(followupPaymentInterval);
+          followupPaymentInterval = null;
+          
+          // 关闭二维码弹窗
+          showQRCode.value = false;
+          
+          // 执行支付成功后的操作
+          Toast.success('支付成功');
+          
+          // 更新UI，将当前追问项标记为已付费
+          const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
+          if (index !== -1) {
+            followupOptions.value[index].paid = true;
+            followupOptions.value = [...followupOptions.value];
+          }
+          
+          // 加载分析结果
+          Toast.loading({
+            message: '正在生成分析结果，这可能需要30-60秒...',
+            forbidClick: true,
+            duration: 0
+          });
+          
+          await pollFollowupStatus();
+        }
+      }
+    } catch (error) {
+      console.error('轮询追问支付状态失败:', error);
+    }
+  }, 3000);
+};
 
 // 修改支付追问费用函数
 const payForFollowup = async () => {
@@ -1691,10 +1759,12 @@ const checkPaymentStatus = async () => {
     
     while (checkCount < maxChecks && !isPaid) {
       try {
-        const statusResponse = await axios.get(`/api/order/status/${followupOrderId}`);
+        // 使用不需要认证的query接口替代status接口
+        const statusResponse = await axios.get(`/api/order/query/${followupOrderId}`);
         
         if (statusResponse.data.code === 200) {
           const orderStatus = statusResponse.data.data.status;
+          console.log(`支付状态查询结果: ${orderStatus}`, statusResponse.data);
           
           if (orderStatus === 'paid') {
             isPaid = true;
@@ -1748,156 +1818,38 @@ const pollFollowupStatus = async () => {
   const startTime = new Date().getTime();
   const timeoutMs = 120000; // 120秒超时
   let attempts = 0;
-
-// 修改 getBaziResult 方法，确保检查后端返回的分析状态
-const getBaziResult = async () => {
-  loading.value = true;
-  error.value = '';
-  
-  try {
-    console.log(`获取八字分析结果，ID: ${resultId.value}`);
-    const response = await axios.get(`/api/bazi/result/${resultId.value}`);
-    
-    if (response.data.code === 200) {
-      const result = response.data.data;
-      
-      // 更新八字命盘数据
-      if (result.baziChart) {
-        baziChart.value = result.baziChart;
-        console.log('八字命盘数据已获取');
-      }
-      
-      // 更新AI分析结果
-      if (result.aiAnalysis) {
-        aiAnalysis.value = result.aiAnalysis;
-      }
-      
-      // 检查后端返回的分析状态 - 关键修改点
-      const analysisStatus = result.analysisStatus || 'pending';
-      const analysisProgress = result.analysisProgress || 0;
-      
-      console.log(`分析状态: ${analysisStatus}, 进度: ${analysisProgress}%`);
-      
-      if (analysisStatus === 'pending') {
-        console.log('分析仍在进行中，开始轮询...');
-        Toast.loading({
-          message: '正在生成AI分析结果，这可能需要30-60秒...',
-          duration: 0
-        });
-        
-        // 设置分析状态和进度
-        isAnalyzing.value = true;
-        analyzeProgress.value = analysisProgress;
-        
-        // 启动轮询
-        await pollAnalysisStatus();
-        
-        Toast.clear();
-        Toast.success('AI分析完成');
-      } else {
-        console.log('分析已完成');
-        isAnalyzing.value = false;
-        analyzeProgress.value = 100;
-      }
-      
-      loading.value = false;
-      return true;
-    }
-  } catch (e) {
-    console.error('获取八字分析结果出错:', e);
-    error.value = e.message || '获取分析结果出错';
-    loading.value = false;
-    return false;
-  }
-};
-
-// 轮询等待分析完成
-const pollAnalysisStatus = async () => {
-  let attempts = 0;
-  const maxAttempts = 60; // 最多等待120秒（60次 * 2秒）
-  
-  // 启动模拟进度条
-  if (!analyzeTimer.value) {
-    let progress = analyzeProgress.value || 0;
-    analyzeTimer.value = setInterval(() => {
-      if (progress < 95) {
-        progress += Math.random() * 2;
-        if (progress > 95) progress = 95;
-        analyzeProgress.value = Math.floor(progress);
-      }
-    }, 1000);
-  }
-  
-  return new Promise((resolve) => {
-    const checkInterval = setInterval(async () => {
-      attempts++;
-      console.log(`轮询检查分析状态 (${attempts}/${maxAttempts})`);
-      
-      try {
-        const response = await axios.get(`/api/bazi/result/${resultId.value}?t=${Date.now()}`);
-        
-        if (response.data.code === 200) {
-          const result = response.data.data;
-          
-          // 更新AI分析结果
-          if (result.aiAnalysis) {
-            aiAnalysis.value = result.aiAnalysis;
-          }
-          
-          // 获取后端返回的分析状态
-          const analysisStatus = result.analysisStatus || 'pending';
-          const analysisProgress = result.analysisProgress || 0;
-          
-          console.log(`轮询结果: 状态=${analysisStatus}, 进度=${analysisProgress}%`);
-          
-          // 更新进度
-          if (analysisProgress > analyzeProgress.value) {
-            analyzeProgress.value = analysisProgress;
-          }
-          
-          // 检查分析是否完成
-          if (analysisStatus === 'completed') {
-            console.log('分析已完成，停止轮询');
-            clearInterval(checkInterval);
-            
-            // 清除模拟进度定时器
-            if (analyzeTimer.value) {
-              clearInterval(analyzeTimer.value);
-              analyzeTimer.value = null;
-            }
-            
-            // 设置进度为100%
-            analyzeProgress.value = 100;
-            isAnalyzing.value = false;
-            
-            resolve(true);
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('轮询检查分析状态失败:', error);
-      }
-      
-      // 超时处理
-      if (attempts >= maxAttempts) {
-        clearInterval(checkInterval);
-        
-        // 清除模拟进度定时器
-        if (analyzeTimer.value) {
-          clearInterval(analyzeTimer.value);
-          analyzeTimer.value = null;
-        }
-        
-        console.log('分析轮询超时，停止等待');
-        Toast.fail('分析超时，请手动刷新');
-        isAnalyzing.value = false;
-        resolve(false);
-      }
-    }, 2000); // 每2秒检查一次
-  });
-};
   const maxAttempts = 60; // 最多等待120秒（60次 * 2秒）
   let isComplete = false;
+  
+  // 首先，主动触发追问分析
+  try {
+    console.log(`主动触发追问分析: ${resultId.value}, 领域: ${area}`);
+    const triggerResponse = await axios.post(`/api/bazi/followup/${resultId.value}`, {
+      area: area
+    });
+    
+    if (triggerResponse.data.code === 200) {
+      console.log('成功触发追问分析:', triggerResponse.data);
+    } else {
+      console.warn('触发追问分析返回非200状态:', triggerResponse.data);
+    }
+  } catch (error) {
+    // 如果是404错误，可能是API路径不对，尝试另一个路径
+    if (error.response && error.response.status === 404) {
+      try {
+        console.log(`尝试备用API路径触发追问分析: ${resultId.value}/${area}`);
+        const backupResponse = await axios.post(`/api/bazi/followup/${resultId.value}/${area}`, {});
+        console.log('备用API触发结果:', backupResponse.data);
+      } catch (backupError) {
+        console.warn('备用API触发也失败:', backupError);
+      }
+    } else {
+      console.error('触发追问分析失败:', error);
+    }
+  }
+  
+  // 等待几秒，让后端有时间开始处理
+  await new Promise(resolve => setTimeout(resolve, 3000));
   
   while (attempts < maxAttempts && !isComplete) {
     attempts++;
@@ -1916,16 +1868,26 @@ const pollAnalysisStatus = async () => {
       console.log(`尝试第${attempts}次获取追问分析: ${area}`);
       const response = await axios.get(`/api/bazi/followup/${resultId.value}/${area}`);
       
-      if (response.data.code === 200 && response.data.data && response.data.data.analysis) {
+      if (response.data.code === 200 && response.data.data) {
+        console.log(`获取到追问分析响应:`, response.data);
+        
         // 检查分析内容是否为"正在分析"
-        const analysis = response.data.data.analysis;
-        if (typeof analysis === 'string' && !analysis.includes('正在分析')) {
-          console.log(`成功获取追问分析结果: ${area}`);
+        let analysis = null;
+        if (response.data.data.analysis) {
+          analysis = response.data.data.analysis;
+        } else if (typeof response.data.data === 'string') {
+          analysis = response.data.data;
+        } else if (response.data.data[area]) {
+          analysis = response.data.data[area];
+        }
+        
+        if (analysis && typeof analysis === 'string' && !analysis.includes('正在分析')) {
+          console.log(`成功获取追问分析结果: ${area}, 内容长度: ${analysis.length}`);
           isComplete = true;
           followupAnalysis.value[area] = analysis;
           break;
         } else {
-          console.log(`追问分析结果还在生成中: ${area}`);
+          console.log(`追问分析结果还在生成中: ${area}, 当前内容:`, analysis ? analysis.substring(0, 50) + '...' : '无内容');
         }
       }
     } catch (error) {

@@ -101,7 +101,7 @@ def get_bazi_result(result_id):
         if not result:
             logging.warning(f"未找到结果记录: {result_id}")
             return jsonify(code=404, message="未找到分析结果"), 404
-            
+        
         logging.info(f"找到结果记录: {result_id}")
         
         # 获取分析状态
@@ -494,3 +494,250 @@ def get_followup_list(result_id):
         logging.error(f"获取追问列表失败: {str(e)}")
         logging.error(traceback.format_exc())
         return jsonify(code=500, message=str(e)), 500 
+
+@bazi_bp.route('/followup/<result_id>', methods=['POST'])
+def followup_analysis(result_id):
+    """处理用户追问请求，生成特定领域的详细分析
+    
+    接收参数:
+    - area: 追问领域，如'relationship', 'career', 'health'等
+    - orderId: 支付订单ID (可选，如果提供则会更新订单状态)
+    
+    返回:
+    - 该领域的详细分析结果
+    """
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        
+        if not data:
+            return jsonify(code=400, message="请提供追问信息"), 400
+        
+        # 获取追问领域
+        area = data.get('area')
+        order_id = data.get('orderId')
+        
+        # 验证追问领域
+        valid_areas = ["relationship", "career", "wealth", "health", "children", 
+                      "parents", "education", "study", "social", "future", "fiveYears", "personality"]
+        
+        if not area:
+            return jsonify(code=400, message="请提供追问领域"), 400
+        
+        # 如果不是标准领域，尝试映射
+        if area not in valid_areas:
+            area_mapping = {
+                "marriage": "relationship",
+                "work": "career",
+                "money": "wealth",
+                "friends": "social",
+                "lifePlan": "future"
+            }
+            if area in area_mapping:
+                logging.info(f"将非标准领域 {area} 映射为 {area_mapping[area]}")
+                area = area_mapping[area]
+        
+        # 查找分析结果
+        result = BaziResultModel.find_by_id(result_id)
+        
+        if not result:
+            return jsonify(code=404, message="找不到分析结果"), 404
+        
+        # 检查是否有八字命盘数据
+        if not result.get('baziChart'):
+            return jsonify(code=400, message="分析结果缺少八字命盘数据"), 400
+        
+        # 获取基本信息
+        bazi_chart = result.get('baziChart', {})
+        gender = result.get('gender', 'male')
+        birth_date = result.get('birthDate')
+        birth_time = result.get('birthTime')
+        
+        # 检查是否已经有该领域的分析
+        if result.get('followups') and isinstance(result['followups'], dict) and area in result['followups']:
+            # 如果已经有分析结果，直接返回
+            analysis = result['followups'][area]
+            if analysis and not analysis.startswith('正在分析'):
+                logging.info(f"已有追问分析，直接返回: {result_id}, {area}")
+                return jsonify(
+                    code=200,
+                    message="分析已存在",
+                    data={
+                        "area": area,
+                        "analysis": analysis
+                    }
+                )
+        
+        # 如果没有分析结果或者分析结果是"正在分析"，启动异步分析
+        logging.info(f"启动异步追问分析: {result_id}, {area}")
+        
+        # 先在数据库中标记为正在分析
+        if not result.get('followups'):
+            result['followups'] = {}
+        result['followups'][area] = '正在分析中，请稍候...'
+        BaziResultModel.update(result_id, result)
+        
+        # 启动异步线程进行分析
+        import threading
+        threading.Thread(
+            target=async_generate_followup,
+            args=(result_id, area, birth_date, birth_time, gender)
+        ).start()
+        
+        return jsonify(
+            code=200,
+            message="分析已启动",
+            data={
+                "area": area,
+                "analysis": "正在分析中，请稍候..."
+            }
+        )
+    except Exception as e:
+        logging.error(f"启动追问分析失败: {str(e)}")
+        logging.error(traceback.format_exc())
+        return jsonify(code=500, message=str(e)), 500
+
+# 异步生成追问分析的函数
+def async_generate_followup(result_id, area, birth_date=None, birth_time=None, gender=None):
+    """异步生成追问分析"""
+    try:
+        logging.info(f"开始异步生成追问分析: {result_id}, {area}")
+        
+        # 查找分析结果
+        result = BaziResultModel.find_by_id(result_id)
+        if not result:
+            logging.error(f"找不到分析结果: {result_id}")
+            return
+        
+        # 获取基本信息
+        bazi_chart = result.get('baziChart', {})
+        gender = gender or result.get('gender', 'male')
+        gender_cn = '男' if gender == 'male' else '女'
+        birth_date = birth_date or result.get('birthDate')
+        birth_time = birth_time or result.get('birthTime')
+        
+        # 构建性别信息
+        gender_text = "男性" if gender == "male" else "女性"
+        
+        # 计算年龄
+        if birth_date:
+            try:
+                birth_year = int(birth_date.split('-')[0])
+                current_year = datetime.now().year
+                age = current_year - birth_year
+            except:
+                age = None
+        else:
+            age = None
+        
+        # 根据年龄确定分析类型
+        age_category = "成人"
+        if age is not None:
+            if age < 3:
+                age_category = "婴幼儿"
+            elif age < 12:
+                age_category = "儿童"
+            elif age < 18:
+                age_category = "青少年"
+            elif age < 30:
+                age_category = "青年"
+            elif age < 50:
+                age_category = "中年"
+            else:
+                age_category = "老年"
+        
+        # 构建针对特定领域的提示词
+        area_prompts = {
+            "relationship": "请详细分析此人的婚姻感情状况，包括感情特点、婚姻质量、伴侣选择、相处方式、情感挑战及应对策略等。分析内容至少200字，要具体、专业、有针对性。",
+            "career": "请详细分析此人的事业发展情况，包括事业特点、职业方向、发展建议、职场人际关系、晋升机会、创业可能性等。分析内容至少200字，要具体、专业、有针对性。",
+            "wealth": "请详细分析此人的财运情况，包括财运特点、财富来源、适合行业、理财建议、投资方向、财运高低期等。分析内容至少200字，要具体、专业、有针对性。",
+            "health": "请详细分析此人的身体健康状况，包括体质特点、五行与健康的关系、易发疾病、养生建议、饮食调理、作息建议等。分析内容至少200字，要具体、专业、有针对性。",
+            "children": "请详细分析此人的子女缘分，包括子女数量、性别倾向、亲子关系、教育方式、子女发展方向、注意事项等。分析内容至少200字，要具体、专业、有针对性。",
+            "parents": "请详细分析此人与父母的关系，包括与父母的关系特点、相处模式、沟通方式、孝道表现、潜在冲突及化解方法等。分析内容至少200字，要具体、专业、有针对性。",
+            "education": "请详细分析此人的学业情况，包括学习能力、适合的学习方式、学科优势、学业发展建议、考试应对等。分析内容至少200字，要具体、专业、有针对性。",
+            "social": "请详细分析此人的人际关系，包括人际交往特点、社交能力、朋友圈特征、人脉发展、团队合作能力、社交策略等。分析内容至少200字，要具体、专业、有针对性。",
+            "future": "请详细分析此人未来五年的运势，包括事业、财运、健康、感情等方面的变化趋势，重大转折点，机遇与挑战，以及应对策略。分析内容至少200字，要具体、专业、有针对性。",
+            "personality": "请详细分析此人的性格特点，包括性格优势、劣势、人际交往特点、情绪特点、思维方式、行为模式等。分析内容至少200字，要具体、专业、有针对性。",
+            "fiveYears": "请详细分析此人未来五年的运势，包括事业、财运、健康、感情等方面的变化趋势，重大转折点，机遇与挑战，以及应对策略。分析内容至少200字，要具体、专业、有针对性。",
+            "study": "请详细分析此人的学业情况，包括学习能力、适合的学习方式、学科优势、学业发展建议、考试应对等。分析内容至少200字，要具体、专业、有针对性。"
+        }
+        
+        # 获取对应领域的提示词
+        area_prompt = area_prompts.get(area, "请详细分析此人的情况。分析内容至少200字，要具体、专业、有针对性。")
+        
+        # 构建完整提示词
+        prompt = f"""
+        请你作为一位专业的命理师，为一位{gender_text}分析八字命盘中关于【{area}】方面的详细情况。
+        
+        【基本信息】
+        性别: {gender_text}
+        出生日期: {birth_date}
+        出生时间: {birth_time}
+        年龄: {age}岁
+        年龄类别: {age_category}
+        
+        【八字命盘信息】
+        年柱: {bazi_chart.get('yearPillar', {}).get('heavenlyStem', '')}{bazi_chart.get('yearPillar', {}).get('earthlyBranch', '')}
+        月柱: {bazi_chart.get('monthPillar', {}).get('heavenlyStem', '')}{bazi_chart.get('monthPillar', {}).get('earthlyBranch', '')}
+        日柱: {bazi_chart.get('dayPillar', {}).get('heavenlyStem', '')}{bazi_chart.get('dayPillar', {}).get('earthlyBranch', '')}
+        时柱: {bazi_chart.get('hourPillar', {}).get('heavenlyStem', '')}{bazi_chart.get('hourPillar', {}).get('earthlyBranch', '')}
+        
+        【五行分布】
+        金: {bazi_chart.get('fiveElements', {}).get('metal', 0)}
+        木: {bazi_chart.get('fiveElements', {}).get('wood', 0)}
+        水: {bazi_chart.get('fiveElements', {}).get('water', 0)}
+        火: {bazi_chart.get('fiveElements', {}).get('fire', 0)}
+        土: {bazi_chart.get('fiveElements', {}).get('earth', 0)}
+        
+        【神煞信息】
+        日冲: {bazi_chart.get('shenSha', {}).get('dayChong', '无')}
+        值神: {bazi_chart.get('shenSha', {}).get('zhiShen', '无')}
+        喜神方位: {bazi_chart.get('shenSha', {}).get('xiShen', '无')}
+        福神方位: {bazi_chart.get('shenSha', {}).get('fuShen', '无')}
+        财神方位: {bazi_chart.get('shenSha', {}).get('caiShen', '无')}
+        本命神煞: {', '.join(bazi_chart.get('shenSha', {}).get('benMing', ['无']))}
+        
+        【分析要求】
+        {area_prompt}
+        
+        请直接给出分析内容，无需标题，无需前言，直接开始分析。
+        """
+        
+        # 调用DeepSeek API生成分析
+        from utils.ai_service import call_deepseek_api
+        
+        # 尝试调用AI服务
+        try:
+            ai_text = call_deepseek_api(prompt)
+            
+            if ai_text:
+                logging.info(f"成功获取DeepSeek API响应: {ai_text[:100]}...")
+                
+                # 更新数据库中的分析结果
+                if not result.get('followups'):
+                    result['followups'] = {}
+                result['followups'][area] = ai_text
+                BaziResultModel.update(result_id, result)
+                
+                logging.info(f"成功更新追问分析: {result_id}, {area}")
+                return ai_text
+            else:
+                logging.error(f"DeepSeek API返回空结果")
+                # 更新为错误信息
+                if not result.get('followups'):
+                    result['followups'] = {}
+                result['followups'][area] = "分析生成失败，请稍后重试"
+                BaziResultModel.update(result_id, result)
+                return None
+        except Exception as api_error:
+            logging.error(f"调用DeepSeek API失败: {str(api_error)}")
+            # 更新为错误信息
+            if not result.get('followups'):
+                result['followups'] = {}
+            result['followups'][area] = f"分析生成失败: {str(api_error)[:50]}"
+            BaziResultModel.update(result_id, result)
+            return None
+    except Exception as e:
+        logging.error(f"异步生成追问分析失败: {str(e)}")
+        logging.error(traceback.format_exc())
+        return None 
