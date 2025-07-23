@@ -92,9 +92,10 @@ def generate_wechat_qrcode():
         logging.error(f"生成二维码失败: {str(e)}")
         return jsonify({'code': 500, 'message': f'生成二维码失败: {str(e)}'}), 500
 
+# PC端微信登录回调
 @auth_bp.route('/wechat/callback', methods=['GET'])
 def wechat_callback():
-    """微信登录回调处理"""
+    """PC端微信登录回调"""
     try:
         code = request.args.get('code')
         state = request.args.get('state')  # 这是我们的login_token
@@ -156,11 +157,11 @@ def wechat_callback():
             logging.error(f"获取用户信息失败: {error_msg}")
             return render_callback_page(f"获取用户信息失败: {error_msg}", False)
         
-        # 生成JWT token
+        # 生成JWT token，使用openid作为用户标识
         try:
             from flask_jwt_extended import create_access_token
             user_token = create_access_token(identity=user_data['openid'])
-            logging.info(f"生成JWT token成功")
+            logging.info(f"PC端生成JWT token成功，用户ID: {user_data['openid']}")
         except Exception as e:
             logging.error(f"生成JWT token失败: {str(e)}")
             return render_callback_page(f"生成JWT token失败: {str(e)}", False)
@@ -172,7 +173,8 @@ def wechat_callback():
                 'userInfo': {
                     'openid': user_data['openid'],
                     'nickname': user_data.get('nickname', '微信用户'),
-                    'avatar': user_data.get('headimgurl', ''),
+                    'avatar': user_data.get('headimgurl', ''),  # 统一使用avatar字段
+                    'headimgurl': user_data.get('headimgurl', ''),  # 保留原字段
                     'sex': user_data.get('sex', 0),
                     'city': user_data.get('city', ''),
                     'province': user_data.get('province', ''),
@@ -181,7 +183,7 @@ def wechat_callback():
                 'userToken': user_token,
                 'created_at': time.time()
             }
-            logging.info(f"登录成功，更新状态: {state}")
+            logging.info(f"PC端登录成功，更新状态: {state}")
         except Exception as e:
             logging.error(f"更新登录状态失败: {str(e)}")
             return render_callback_page(f"更新登录状态失败: {str(e)}", False)
@@ -191,12 +193,15 @@ def wechat_callback():
         return render_callback_page("登录成功", True, state)
         
     except Exception as e:
-        logging.error(f"微信登录回调处理异常: {str(e)}", exc_info=True)
-        return render_callback_page(f"系统错误: {str(e)}", False)
+        logging.error(f"微信登录回调失败: {str(e)}")
+        return render_callback_page(f"登录处理失败: {str(e)}", False)
 
 def render_callback_page(message, success=False, token=None):
     """渲染回调页面"""
     logging.info(f"渲染回调页面 - message: {message}, success: {success}, token: {token}")
+    
+    # 从环境变量获取前端地址
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:8080')
     
     html_content = f"""<!DOCTYPE html>
 <html>
@@ -245,6 +250,7 @@ def render_callback_page(message, success=False, token=None):
         console.log('微信登录回调页面加载完成');
         console.log('登录结果:', {str(success).lower()});
         console.log('Token:', '{token or ''}');
+        console.log('前端地址:', '{frontend_url}');
         
         // 向父窗口发送消息（PC端弹窗）
         if (window.opener && !window.opener.closed) {{
@@ -279,14 +285,14 @@ def render_callback_page(message, success=False, token=None):
                 document.getElementById('tips').innerHTML = '登录成功！正在跳转...';
                 
                 setTimeout(() => {{
-                    // 跳转到本地前端开发环境
-                    console.log('跳转到本地前端');
-                    window.location.href = 'http://localhost:8080/login?wechat_success=true&state={token or ''}';
+                    // 跳转到配置的前端地址
+                    console.log('跳转到前端:', '{frontend_url}');
+                    window.location.href = '{frontend_url}/login?wechat_success=true&state={token or ''}';
                 }}, 1500);
             }} else {{
-                // 登录失败，跳转到本地前端
+                // 登录失败，跳转到前端登录页
                 setTimeout(() => {{
-                    window.location.href = 'http://localhost:8080/login';
+                    window.location.href = '{frontend_url}/login';
                 }}, 2000);
             }}
         }}
@@ -440,11 +446,11 @@ def wechat_phone_callback():
             logging.error(f"获取用户信息失败: {error_msg}")
             return render_callback_page(f"获取用户信息失败: {error_msg}", False)
         
-        # 生成JWT token（和PC端保持一致）
+        # 生成JWT token，使用openid作为用户标识
         try:
             from flask_jwt_extended import create_access_token
             user_token = create_access_token(identity=user_data.get('openid'))
-            logging.info(f"手机端生成JWT token成功")
+            logging.info(f"手机端生成JWT token成功，用户ID: {user_data.get('openid')}")
         except Exception as e:
             logging.error(f"手机端生成JWT token失败: {str(e)}")
             return render_callback_page(f"生成JWT token失败: {str(e)}", False)
@@ -455,13 +461,14 @@ def wechat_phone_callback():
             'userInfo': {
                 'openid': user_data.get('openid'),
                 'nickname': user_data.get('nickname'),
-                'headimgurl': user_data.get('headimgurl'),
+                'avatar': user_data.get('headimgurl'),  # 统一使用avatar字段
+                'headimgurl': user_data.get('headimgurl'),  # 保留原字段
                 'sex': user_data.get('sex'),
                 'city': user_data.get('city'),
                 'province': user_data.get('province'),
                 'country': user_data.get('country')
             },
-            'userToken': user_token,  # 使用真正的JWT token
+            'userToken': user_token,
             'created_at': time.time()
         }
         

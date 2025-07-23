@@ -248,9 +248,15 @@ export default {
               Toast.clear();
               Toast.success('登录成功');
               
-              // 跳转到用户页面而不是八字服务页面
+              // 手机端跳转到八字服务页面，PC端跳转到用户页面
               setTimeout(() => {
-                router.push('/user');
+                if (isWechatBrowser.value) {
+                  // 手机端微信浏览器跳转到八字服务页面
+                  router.push('/bazi-service');
+                } else {
+                  // PC端跳转到用户页面
+                  router.push('/user');
+                }
               }, 1000);
             } else if (status === 'expired') {
               // 二维码过期
@@ -281,9 +287,9 @@ export default {
             Toast.clear();
             Toast.success('登录成功');
             
-            // 跳转到八字服务页面
+            // PC端跳转到用户页面
             setTimeout(() => {
-              router.push('/bazi-service');
+              router.push('/user');
             }, 1000);
           }
         }
@@ -292,16 +298,22 @@ export default {
       }
     };
 
-    // 监听来自弹窗的消息
+    // 监听来自弹窗的消息（只处理PC端弹窗消息）
     const handleMessage = (event) => {
       console.log('收到弹窗消息:', event);
+      
+      // 只处理PC端弹窗消息，手机端不处理
+      if (isWechatBrowser.value) {
+        console.log('手机端忽略弹窗消息');
+        return;
+      }
       
       // 检查消息类型
       if (event.data && event.data.type === 'WECHAT_LOGIN_RESULT') {
         console.log('收到微信登录结果:', event.data);
         
         if (event.data.success) {
-          console.log('微信登录成功，停止轮询');
+          console.log('PC端微信登录成功，停止轮询');
           // 登录成功，停止轮询
           if (loginCheckTimer.value) {
             clearInterval(loginCheckTimer.value);
@@ -313,10 +325,9 @@ export default {
             loginWindow.value.close();
           }
           
-          // 这里可以直接处理登录成功，但为了保险起见，仍然通过轮询确认
           Toast.success('登录成功，正在跳转...');
           
-          // 立即检查一次登录状态
+          // PC端立即检查一次登录状态
           checkLoginStatusOnce();
         } else {
           console.log('微信登录失败:', event.data.message);
@@ -332,7 +343,7 @@ export default {
       // 处理微信授权回调
       handleWechatCallback();
       
-      // 添加消息监听
+      // 添加消息监听（只在PC端生效）
       window.addEventListener('message', handleMessage);
     });
     
@@ -387,7 +398,7 @@ export default {
         // 开始轮询检查登录状态
         startLoginCheck();
         
-        // 清理URL参数
+        // 清理URL参数，避免重复处理
         const newUrl = window.location.pathname;
         window.history.replaceState({}, document.title, newUrl);
       }

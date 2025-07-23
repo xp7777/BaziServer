@@ -905,72 +905,56 @@ def create_payment(order_id):
 
 # 简化版订单创建API (不需要JWT认证)
 @order_bp.route('/create/simple', methods=['POST'])
-def create_order_simple():
-    """创建简化版订单（支持游客和微信用户）"""
+@jwt_required()
+def create_simple_order():
+    """创建简单订单"""
     try:
+        user_id = get_jwt_identity()
+        logging.info(f"创建订单，用户ID: {user_id}")
+        
         data = request.json
         
-        # 获取用户信息
-        user_id = "guest"  # 默认游客
-        user_token = request.headers.get('Authorization')
-        
-        if user_token and user_token.startswith('Bearer '):
-            try:
-                from flask_jwt_extended import decode_token
-                token = user_token.replace('Bearer ', '')
-                decoded_token = decode_token(token)
-                user_id = decoded_token['sub']  # 这是微信的 openid
-                logging.info(f"微信用户创建订单: {user_id}")
-            except Exception as e:
-                logging.warning(f"解析用户token失败: {str(e)}")
-                user_id = "guest"
-        
-        # 生成订单ID
-        timestamp = int(time.time() * 1000)
-        order_id = f"BZ{timestamp}"
-        
-        # 计算订单金额
-        focus_areas = data.get('focusAreas', [])
-        base_price = 1 #八字计算支付金额设置
-        focus_price = 0.00000000001 * len(focus_areas)
-        total_amount = base_price + focus_price
-        
-        # 构造订单数据
-        order = {
-            "_id": order_id,
-            "userId": user_id,  # 现在是 openid 或 "guest"
-            "amount": total_amount,
-            "status": "pending",
-            "paymentMethod": None,
-            "createTime": datetime.now(),
-            "payTime": None,
-            "resultId": None,
-            "birthDate": data.get('birthDate'),
-            "birthTime": data.get('birthTime'),
-            "gender": data.get('gender'),
-            "focusAreas": focus_areas,
-            "birthPlace": data.get('birthPlace', ""),
-            "livingPlace": data.get('livingPlace', ""),
-            "calendarType": data.get('calendarType', "solar")
+        # 创建订单数据
+        order_data = {
+            'userId': user_id,  # 使用JWT中的用户ID
+            'openid': user_id,  # 同时保存openid字段，确保兼容性
+            'orderType': 'bazi_analysis',
+            'amount': 9.9,
+            'status': 'pending',
+            'gender': data.get('gender'),
+            'birthDate': data.get('birthDate'),
+            'birthTime': data.get('birthTime'),
+            'birthPlace': data.get('birthPlace'),
+            'livingPlace': data.get('livingPlace'),
+            'focusAreas': data.get('focusAreas', []),
+            'calendarType': data.get('calendarType', 'solar'),
+            'createdAt': datetime.utcnow(),
+            'createTime': datetime.utcnow()
         }
         
-        # 插入订单
-        OrderModel.insert(order)
+        # 生成结果ID
+        result_id = str(uuid.uuid4())
+        order_data['resultId'] = result_id
         
-        logging.info(f"订单创建成功: {order_id}, 用户: {user_id}")
+        # 插入订单到数据库
+        result = orders_collection.insert_one(order_data)
+        order_id = str(result.inserted_id)
         
-        return jsonify(
-            code=200,
-            message="订单创建成功",
-            data={
-                "orderId": order_id,
-                "amount": total_amount
+        logging.info(f"订单创建成功: {order_id}, 用户ID: {user_id}, 结果ID: {result_id}")
+        
+        return jsonify({
+            'code': 200,
+            'message': '订单创建成功',
+            'data': {
+                'orderId': order_id,
+                'resultId': result_id,
+                'amount': 9.9
             }
-        )
+        })
         
     except Exception as e:
         logging.error(f"创建订单失败: {str(e)}")
-        return jsonify(code=500, message=f"创建订单失败: {str(e)}"), 500
+        return jsonify({'code': 500, 'message': f'创建订单失败: {str(e)}'}), 500
 
 # 微信支付V3回调处理
 @order_bp.route('/wechat/notify/v3', methods=['POST'])
@@ -1237,14 +1221,22 @@ def get_user_orders():
     """获取用户的订单列表"""
     try:
         user_id = get_jwt_identity()
+        logging.info(f"获取用户订单列表，用户ID: {user_id}")
         
         # 获取查询参数
         status = request.args.get('status')
         
         # 构建查询条件
-        query = {'userId': user_id}
+        query = {
+            '$or': [
+                {'userId': user_id},  # 兼容旧的userId字段
+                {'openid': user_id}   # 新的openid字段
+            ]
+        }
         if status:
             query['status'] = status
+        
+        logging.info(f"查询条件: {query}")
         
         # 从数据库获取用户的订单，包含更多字段
         orders = list(orders_collection.find(
@@ -1257,33 +1249,34 @@ def get_user_orders():
                 'createdAt': 1,
                 'createTime': 1,
                 'payTime': 1,
-                'resultId': 1
+                'resultId': 1,
+                'userId': 1,
+                'openid': 1
             }
         ).sort('createdAt', -1))
         
-        # 格式化输出
-        result = []
+        logging.info(f"找到 {len(orders)} 条订单记录")
+        logging.info(f"订单详情: {[{'_id': str(order['_id']), 'userId': order.get('userId'), 'openid': order.get('openid'), 'status': order.get('status')} for order in orders]}")
+        
+        # 格式化返回数据
+        order_data = []
         for order in orders:
-            # 确保日期字段存在
-            created_time = order.get('createdAt') or order.get('createTime')
-            
-            formatted_order = {
+            order_data.append({
                 '_id': str(order['_id']),
-                'orderType': order.get('orderType', 'analysis'),
+                'orderType': order.get('orderType', ''),
                 'amount': order.get('amount', 0),
-                'status': order.get('status', 'pending'),
-                'createdAt': created_time,
+                'status': order.get('status', ''),
+                'createdAt': order.get('createdAt') or order.get('createTime'),
                 'payTime': order.get('payTime'),
                 'resultId': order.get('resultId')
-            }
-            result.append(formatted_order)
+            })
         
         return jsonify({
             'code': 200,
             'message': '获取成功',
-            'data': result
+            'data': order_data
         })
-    
+        
     except Exception as e:
         logging.error(f"获取用户订单列表错误: {str(e)}", exc_info=True)
-        return jsonify({'code': 500, 'message': f'获取失败: {str(e)}'}), 500
+        return jsonify({'code': 500, 'message': f'服务器错误: {str(e)}'}), 500

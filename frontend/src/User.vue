@@ -8,7 +8,7 @@
           round
           width="80"
           height="80"
-          :src="userInfo.avatar || 'https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg'"
+          :src="userInfo.avatar || userInfo.headimgurl || 'https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg'"
         />
       </div>
       <div class="user-name">{{ userInfo.nickname || '未登录' }}</div>

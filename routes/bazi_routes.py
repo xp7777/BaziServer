@@ -52,9 +52,18 @@ def get_user_history():
             logging.error("JWT token中没有用户ID")
             return jsonify({'code': 401, 'message': '用户未认证'}), 401
         
-        # 从数据库获取用户的已支付订单
+        # 先查看数据库中所有订单的用户ID（调试用）
+        all_orders = list(orders_collection.find({}, {'userId': 1, 'openid': 1, '_id': 1}))
+        logging.info(f"数据库中所有订单的用户ID: {[{'_id': str(order['_id']), 'userId': order.get('userId'), 'openid': order.get('openid')} for order in all_orders]}")
+        
+        # 从数据库获取用户的订单，使用openid作为用户标识
         user_orders = list(orders_collection.find(
-            {'userId': user_id, 'status': 'paid'},
+            {
+                '$or': [
+                    {'userId': user_id},  # 兼容旧的userId字段
+                    {'openid': user_id}   # 新的openid字段
+                ]
+            },
             {
                 '_id': 1, 
                 'resultId': 1, 
@@ -64,11 +73,14 @@ def get_user_history():
                 'birthDate': 1,
                 'birthTime': 1,
                 'gender': 1,
-                'focusAreas': 1
+                'focusAreas': 1,
+                'userId': 1,
+                'openid': 1
             }
         ).sort('createdAt', -1))
         
-        logging.info(f"找到 {len(user_orders)} 条历史记录")
+        logging.info(f"找到 {len(user_orders)} 条历史记录，用户ID: {user_id}")
+        logging.info(f"匹配的订单详情: {[{'_id': str(order['_id']), 'userId': order.get('userId'), 'openid': order.get('openid')} for order in user_orders]}")
         
         # 格式化返回数据
         history_data = []
@@ -744,4 +756,9 @@ def async_generate_followup(result_id, area, birth_date=None, birth_time=None, g
         logging.error(f"异步生成追问分析失败: {str(e)}")
         logging.error(traceback.format_exc())
         return None 
+
+
+
+
+
 
