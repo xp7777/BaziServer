@@ -1,5 +1,57 @@
 <template>
   <div class="result-container">
+    <van-nav-bar title="分析结果" />
+    
+    <!-- 步骤面包屑 -->
+    <div class="step-breadcrumb">
+      <div class="step completed">
+        <van-icon name="passed" class="step-icon" />
+        <span class="step-text">填写信息</span>
+      </div>
+      <div class="step-line completed"></div>
+      <div class="step completed">
+        <van-icon name="passed" class="step-icon" />
+        <span class="step-text">确认支付</span>
+      </div>
+      <div class="step-line completed"></div>
+      <div class="step active">
+        <van-icon name="description" class="step-icon" />
+        <span class="step-text">查看结果</span>
+      </div>
+    </div>
+    
+    <!-- 路径面包屑 -->
+    <div class="breadcrumb">
+      <router-link to="/" class="breadcrumb-item">
+        <van-icon name="home-o" size="14" />
+        首页
+      </router-link>
+      <van-icon name="arrow" class="breadcrumb-arrow" />
+      <router-link to="/bazi-service" class="breadcrumb-item">
+        <van-icon name="balance-o" size="14" />
+        八字服务
+      </router-link>
+      <van-icon name="arrow" class="breadcrumb-arrow" />
+      <span class="breadcrumb-item current">
+        <van-icon name="description" size="14" />
+        分析结果
+      </span>
+    </div>
+    
+    <!-- 快捷操作 -->
+    <div class="quick-actions">
+      <van-button 
+        type="primary" 
+        size="large" 
+        @click="goToBaziService"
+        class="action-button"
+      >
+        <van-icon name="replay" />
+        重新测算
+      </van-button>
+    </div>
+    
+    <!-- 现有结果内容 -->
     <van-nav-bar
       title="八字分析结果"
       left-text="返回"
@@ -2941,3 +2993,5 @@ const flowingYearsData = ref([]);
   border-radius: 8px;
 }
 </style>
+
+

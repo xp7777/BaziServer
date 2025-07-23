@@ -1,11 +1,46 @@
 <template>
   <div class="payment-container">
-    <van-nav-bar
-      title="订单支付"
-      left-text="返回"
-      left-arrow
-      @click-left="onClickLeft"
-    />
+    <van-nav-bar title="订单支付" left-arrow @click-left="goBack">
+      <template #left>
+        <van-icon name="arrow-left" />
+      </template>
+    </van-nav-bar>
+    
+    <!-- 步骤面包屑 -->
+    <div class="step-breadcrumb">
+      <div class="step completed">
+        <van-icon name="passed" class="step-icon" />
+        <span class="step-text">填写信息</span>
+      </div>
+      <div class="step-line completed"></div>
+      <div class="step active">
+        <van-icon name="credit-pay" class="step-icon" />
+        <span class="step-text">确认支付</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <van-icon name="description" class="step-icon" />
+        <span class="step-text">查看结果</span>
+      </div>
+    </div>
+    
+    <!-- 路径面包屑 -->
+    <div class="breadcrumb">
+      <router-link to="/" class="breadcrumb-item">
+        <van-icon name="home-o" size="14" />
+        首页
+      </router-link>
+      <van-icon name="arrow" class="breadcrumb-arrow" />
+      <router-link to="/bazi-service" class="breadcrumb-item">
+        <van-icon name="balance-o" size="14" />
+        八字服务
+      </router-link>
+      <van-icon name="arrow" class="breadcrumb-arrow" />
+      <span class="breadcrumb-item current">
+        <van-icon name="credit-pay" size="14" />
+        订单支付
+      </span>
+    </div>
     
     <van-card
       title="八字命理AI人生指导"
@@ -150,8 +185,8 @@ export default {
       }
     });
     
-    const onClickLeft = () => {
-      router.go(-1);
+    const goBack = () => {
+      router.push('/bazi-service');
     };
     
     const onPayment = () => {
@@ -540,7 +575,7 @@ export default {
       showQRCode,
       qrCodeUrl,
       isProcessing,
-      onClickLeft,
+      goBack,
       onPayment,
       onPaymentSuccess,
       checkPaymentStatus
@@ -603,6 +638,101 @@ export default {
   justify-content: center;
   height: 100%;
   color: #969799;
+}
+
+.step-breadcrumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: white;
+  margin-bottom: 8px;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  max-width: 80px;
+}
+
+.step-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f7f8fa;
+  color: #c8c9cc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.step.completed .step-icon {
+  background: #07c160;
+  color: white;
+}
+
+.step.active .step-icon {
+  background: #1989fa;
+  color: white;
+}
+
+.step-text {
+  font-size: 12px;
+  color: #969799;
+}
+
+.step.completed .step-text {
+  color: #07c160;
+}
+
+.step.active .step-text {
+  color: #1989fa;
+  font-weight: 500;
+}
+
+.step-line {
+  flex: 1;
+  height: 2px;
+  background: #f7f8fa;
+  margin: 0 8px;
+  margin-top: -12px;
+}
+
+.step-line.completed {
+  background: #07c160;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f7f8fa;
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #1989fa;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.breadcrumb-item.current {
+  color: #323233;
+  font-weight: 500;
+}
+
+.breadcrumb-arrow {
+  margin: 0 8px;
+  color: #c8c9cc;
+  font-size: 12px;
+  flex-shrink: 0;
 }
 </style>
 

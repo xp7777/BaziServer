@@ -2,6 +2,22 @@
   <div class="user-container">
     <van-nav-bar title="个人中心" />
     
+    <!-- 使用通用面包屑组件 -->
+    <Breadcrumb :items="breadcrumbItems" />
+    
+    <!-- 快捷操作 -->
+    <div class="quick-actions">
+      <van-button 
+        type="primary" 
+        size="large" 
+        @click="goToBaziService"
+        class="action-button"
+      >
+        <van-icon name="arrow-left" />
+        继续使用八字服务
+      </van-button>
+    </div>
+    
     <div class="user-info">
       <div class="avatar">
         <van-image
@@ -83,8 +99,12 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Toast } from 'vant';
 import axios from 'axios';
+import Breadcrumb from './components/Breadcrumb.vue';
 
 export default {
+  components: {
+    Breadcrumb
+  },
   name: 'UserPage',
   setup() {
     const router = useRouter();
@@ -350,6 +370,16 @@ export default {
       showOrderList.value = true;
     };
     
+    const goToBaziService = () => {
+      router.push('/bazi-service');
+    };
+    
+    const breadcrumbItems = [
+      { text: '首页', icon: 'home-o', to: '/' },
+      { text: '八字服务', icon: 'star-o', to: '/bazi-service' }, // 星星图标
+      { text: '个人中心', icon: 'user-o' }
+    ];
+    
     return {
       userInfo,
       isLoggedIn,
@@ -367,7 +397,9 @@ export default {
       viewOrder,
       logout,
       toggleHistoryList,
-      toggleOrderList
+      toggleOrderList,
+      goToBaziService,
+      breadcrumbItems
     };
   }
 };
@@ -411,5 +443,58 @@ export default {
   padding: 20px 0;
   display: flex;
   justify-content: center;
+}
+
+.back-button {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f7f8fa;
+  font-size: 13px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #1989fa;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.breadcrumb-item.current {
+  color: #323233;
+  font-weight: 500;
+}
+
+.breadcrumb-arrow {
+  margin: 0 8px;
+  color: #c8c9cc;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.quick-actions {
+  padding: 16px;
+  background: white;
+  margin-bottom: 8px;
+}
+
+.action-button {
+  width: 100%;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 </style>
