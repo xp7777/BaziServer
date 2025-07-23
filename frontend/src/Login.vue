@@ -11,10 +11,30 @@
       <h2>欢迎使用八字命理AI人生指导</h2>
       <p>请使用微信登录</p>
       
-      <div class="wechat-login-section">
+      <!-- 手机端微信内置浏览器检测 -->
+      <div class="wechat-login-section" v-if="isWechatBrowser">
+        <div class="wechat-auth-container">
+          <div class="wechat-icon">
+            <van-icon name="wechat" size="60" color="#07c160" />
+          </div>
+          <p class="auth-tip">检测到您在微信中打开，可直接授权登录</p>
+          <van-button 
+            round 
+            block 
+            type="primary" 
+            @click="startWechatPhoneLogin"
+            :loading="isPhoneLoading"
+            style="background: #07c160; border-color: #07c160;"
+          >
+            {{ isPhoneLoading ? '正在跳转授权...' : '微信授权登录' }}
+          </van-button>
+        </div>
+      </div>
+      
+      <!-- PC端二维码登录 -->
+      <div class="wechat-login-section" v-else>
         <div class="wechat-qr-container" v-if="showQRCode">
           <div class="qr-title">请使用微信扫描二维码登录</div>
-          <!-- 显示自生成的二维码图片 -->
           <div class="qr-code">
             <img v-if="qrCodeImage" :src="qrCodeImage" alt="微信登录二维码" @click="openWechatLogin" style="cursor: pointer;" />
             <div v-else class="loading">正在生成二维码...</div>
@@ -71,14 +91,52 @@ export default {
     const qrCodeImage = ref('');
     const wechatLoginUrl = ref('');
     const isLoading = ref(false);
+    const isPhoneLoading = ref(false);
     const loginCheckTimer = ref(null);
     const loginToken = ref('');
     const loginWindow = ref(null);
+    const isWechatBrowser = ref(false);
     
+    // 返回按钮点击事件
     const onClickLeft = () => {
       router.go(-1);
     };
     
+    // 检测是否在微信浏览器中
+    const checkWechatBrowser = () => {
+      const ua = navigator.userAgent.toLowerCase();
+      isWechatBrowser.value = ua.includes('micromessenger');
+    };
+    
+    // 手机端微信网页授权登录
+    const startWechatPhoneLogin = async () => {
+      try {
+        isPhoneLoading.value = true;
+        Toast.loading({
+          message: '正在跳转微信授权...',
+          duration: 0,
+          forbidClick: true
+        });
+        
+        // 调用后端API获取微信网页授权URL
+        const response = await axios.post('/api/auth/wechatPhone/authorize');
+        
+        if (response.data.code === 200) {
+          Toast.clear();
+          // 直接跳转到微信授权页面
+          window.location.href = response.data.data.authorizeUrl;
+        } else {
+          Toast.fail(response.data.message || '获取授权链接失败');
+        }
+      } catch (error) {
+        console.error('微信网页授权失败:', error);
+        Toast.fail('网络错误，请重试');
+      } finally {
+        isPhoneLoading.value = false;
+      }
+    };
+    
+    // PC端微信登录
     const startWechatLogin = async () => {
       try {
         isLoading.value = true;
@@ -183,6 +241,58 @@ export default {
       }, 2000); // 每2秒检查一次
     };
     
+    // 检查URL参数，处理微信授权回调
+    const handleWechatCallback = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      
+      if (code && state) {
+        // 处理微信授权回调
+        processWechatCallback(code, state);
+      }
+    };
+    
+    // 处理微信授权回调
+    const processWechatCallback = async (code, state) => {
+      try {
+        Toast.loading({
+          message: '正在处理授权信息...',
+          duration: 0,
+          forbidClick: true
+        });
+        
+        const response = await axios.post('/api/auth/wechatPhone/callback', {
+          code,
+          state
+        });
+        
+        if (response.data.code === 200) {
+          const { userInfo, token } = response.data.data;
+          
+          // 保存用户信息和token
+          localStorage.setItem('userToken', token);
+          localStorage.setItem('userInfo', JSON.stringify(userInfo));
+          
+          Toast.clear();
+          Toast.success('登录成功');
+          
+          // 清理URL参数
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          // 跳转到八字服务页面
+          setTimeout(() => {
+            router.push('/bazi-service');
+          }, 1000);
+        } else {
+          Toast.fail(response.data.message || '授权登录失败');
+        }
+      } catch (error) {
+        console.error('处理微信授权回调失败:', error);
+        Toast.fail('授权处理失败，请重试');
+      }
+    };
+
     // 监听来自弹窗的消息
     const handleMessage = (event) => {
       console.log('收到弹窗消息:', event);
@@ -243,6 +353,12 @@ export default {
     };
 
     onMounted(() => {
+      // 检测微信浏览器
+      checkWechatBrowser();
+      
+      // 处理微信授权回调
+      handleWechatCallback();
+      
       window.addEventListener('message', handleMessage);
     });
     
@@ -253,6 +369,16 @@ export default {
     const showPrivacy = () => {
       // 显示隐私政策
     };
+
+    onMounted(() => {
+      // 检测微信浏览器
+      checkWechatBrowser();
+      
+      // 处理微信授权回调
+      handleWechatCallback();
+      
+      window.addEventListener('message', handleMessage);
+    });
     
     // 组件卸载时清理定时器和事件监听
     onUnmounted(() => {
@@ -269,8 +395,11 @@ export default {
       showQRCode,
       qrCodeImage,
       isLoading,
+      isPhoneLoading,
+      isWechatBrowser,
       onClickLeft,
       startWechatLogin,
+      startWechatPhoneLogin,
       openWechatLogin,
       showAgreement,
       showPrivacy
@@ -364,5 +493,24 @@ export default {
   color: #4fc3f7;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.wechat-auth-container {
+  background: white;
+  border-radius: 15px;
+  padding: 40px 20px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.wechat-icon {
+  margin-bottom: 20px;
+}
+
+.auth-tip {
+  color: #666;
+  font-size: 16px;
+  margin-bottom: 30px;
+  line-height: 1.5;
 }
 </style>

@@ -334,3 +334,137 @@ def check_wechat_login(token):
     except Exception as e:
         logging.error(f"检查登录状态失败: {str(e)}")
         return jsonify({'code': 500, 'message': f'检查登录状态失败: {str(e)}'}), 500
+
+@auth_bp.route('/wechatPhone/authorize', methods=['POST'])
+def wechat_phone_authorize():
+    """生成微信网页授权链接"""
+    try:
+        # 获取手机端微信登录配置
+        app_id = os.getenv('WECHAT_PHONE_LOGIN_APP_ID')
+        redirect_uri = os.getenv('WECHAT_PHONE_LOGIN_REDIRECT_URI')
+        
+        logging.info(f"手机端微信登录配置 - APP_ID: {app_id}, REDIRECT_URI: {redirect_uri}")
+        
+        if not app_id or not redirect_uri:
+            logging.error("手机端微信登录配置不完整")
+            return jsonify({'code': 500, 'message': '微信登录配置不完整'}), 500
+        
+        # 生成state参数
+        state = str(uuid.uuid4())
+        
+        # 构建微信网页授权URL
+        from urllib.parse import quote
+        redirect_uri_encoded = quote(redirect_uri, safe='')
+        authorize_url = (
+            f"https://open.weixin.qq.com/connect/oauth2/authorize?"
+            f"appid={app_id}&"
+            f"redirect_uri={redirect_uri_encoded}&"
+            f"response_type=code&"
+            f"scope=snsapi_userinfo&"
+            f"state={state}#wechat_redirect"
+        )
+        
+        # 存储授权状态
+        login_status[state] = {
+            'status': 'waiting',
+            'type': 'phone',
+            'created_at': time.time()
+        }
+        
+        logging.info(f"生成手机端微信授权URL: {authorize_url}")
+        
+        return jsonify({
+            'code': 200,
+            'message': '授权链接生成成功',
+            'data': {
+                'authorizeUrl': authorize_url,
+                'state': state
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f"生成手机端微信授权链接失败: {str(e)}")
+        return jsonify({'code': 500, 'message': f'生成授权链接失败: {str(e)}'}), 500
+
+@auth_bp.route('/wechatPhone/callback', methods=['GET', 'POST'])
+def wechat_phone_callback():
+    """手机端微信网页授权回调"""
+    try:
+        if request.method == 'GET':
+            # 微信回调的GET请求，重定向到前端页面
+            code = request.args.get('code')
+            state = request.args.get('state')
+            
+            if code and state:
+                # 重定向到前端登录页面，携带授权码
+                return redirect(f"https://baihexuegong.cn/login?code={code}&state={state}")
+            else:
+                return redirect("https://baihexuegong.cn/login?error=授权失败")
+        
+        # POST请求处理授权码
+        data = request.json
+        code = data.get('code')
+        state = data.get('state')
+        
+        logging.info(f"手机端微信授权回调 - code: {code}, state: {state}")
+        
+        if not code or not state:
+            return jsonify({'code': 400, 'message': '缺少授权码或状态参数'}), 400
+        
+        # 检查state是否存在
+        if state not in login_status:
+            return jsonify({'code': 400, 'message': '授权状态已过期'}), 400
+        
+        # 获取配置
+        app_id = os.getenv('WECHAT_PHONE_LOGIN_APP_ID')
+        app_secret = os.getenv('WECHAT_PHONE_LOGIN_APP_SECRET')
+        
+        if not app_id or not app_secret:
+            return jsonify({'code': 500, 'message': '微信登录配置不完整'}), 500
+        
+        # 获取access_token
+        token_url = f"https://api.weixin.qq.com/sns/oauth2/access_token?appid={app_id}&secret={app_secret}&code={code}&grant_type=authorization_code"
+        
+        token_response = requests.get(token_url, timeout=10)
+        token_data = token_response.json()
+        
+        if 'access_token' not in token_data:
+            error_msg = token_data.get('errmsg', '获取access_token失败')
+            return jsonify({'code': 400, 'message': error_msg}), 400
+        
+        # 获取用户信息
+        user_info_url = f"https://api.weixin.qq.com/sns/userinfo?access_token={token_data['access_token']}&openid={token_data['openid']}&lang=zh_CN"
+        
+        user_response = requests.get(user_info_url, timeout=10)
+        user_data = user_response.json()
+        
+        if 'openid' not in user_data:
+            error_msg = user_data.get('errmsg', '获取用户信息失败')
+            return jsonify({'code': 400, 'message': error_msg}), 400
+        
+        # 生成用户token
+        user_token = str(uuid.uuid4())
+        
+        # 清理登录状态
+        del login_status[state]
+        
+        return jsonify({
+            'code': 200,
+            'message': '授权登录成功',
+            'data': {
+                'userInfo': {
+                    'openid': user_data['openid'],
+                    'nickname': user_data.get('nickname', '微信用户'),
+                    'avatar': user_data.get('headimgurl', ''),
+                    'sex': user_data.get('sex', 0),
+                    'city': user_data.get('city', ''),
+                    'province': user_data.get('province', ''),
+                    'country': user_data.get('country', '')
+                },
+                'token': user_token
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f"手机端微信授权回调处理失败: {str(e)}")
+        return jsonify({'code': 500, 'message': f'授权处理失败: {str(e)}'}), 500

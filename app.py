@@ -48,8 +48,41 @@ def validate_wechat_login_vars():
     logging.info("微信登录配置验证通过")
     return True
 
+# 手机端微信登录配置
+os.environ['WECHAT_PHONE_LOGIN_APP_ID'] = os.getenv('WECHAT_PHONE_LOGIN_APP_ID', '')
+os.environ['WECHAT_PHONE_LOGIN_APP_SECRET'] = os.getenv('WECHAT_PHONE_LOGIN_APP_SECRET', '')
+os.environ['WECHAT_PHONE_LOGIN_REDIRECT_URI'] = os.getenv('WECHAT_PHONE_LOGIN_REDIRECT_URI', 'https://baihexuegong.cn/api/auth/wechatPhone/callback')
+
+# 验证手机端微信登录配置
+def validate_wechat_phone_login_vars():
+    wechat_phone_vars = {
+        'WECHAT_PHONE_LOGIN_APP_ID': os.getenv('WECHAT_PHONE_LOGIN_APP_ID'),
+        'WECHAT_PHONE_LOGIN_APP_SECRET': os.getenv('WECHAT_PHONE_LOGIN_APP_SECRET'),
+        'WECHAT_PHONE_LOGIN_REDIRECT_URI': os.getenv('WECHAT_PHONE_LOGIN_REDIRECT_URI')
+    }
+    
+    logging.info("=== 手机端微信登录配置检查 ===")
+    for key, value in wechat_phone_vars.items():
+        if not value:
+            logging.error(f"{key} 未配置")
+        else:
+            if 'SECRET' in key:
+                display_value = f"{value[:8]}..." if len(value) > 8 else "***"
+            else:
+                display_value = value
+            logging.info(f"{key}: {display_value}")
+    
+    missing_vars = [key for key, value in wechat_phone_vars.items() if not value]
+    if missing_vars:
+        logging.error(f"手机端微信登录配置缺失: {', '.join(missing_vars)}")
+        return False
+    
+    logging.info("手机端微信登录配置验证通过")
+    return True
+
 # 调用验证函数
 validate_wechat_login_vars()
+validate_wechat_phone_login_vars()
 
 # PDF生成使用简易HTML模式
 logging.info("PDF生成功能已配置为使用HTML模式")
