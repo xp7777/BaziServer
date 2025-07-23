@@ -240,23 +240,12 @@ export default {
               localStorage.setItem('userToken', token);
               localStorage.setItem('userInfo', JSON.stringify(userInfo));
               
-              // 验证保存是否成功
-              const savedToken = localStorage.getItem('userToken');
-              const savedUserInfo = localStorage.getItem('userInfo');
-              console.log('验证保存结果:', { savedToken, savedUserInfo });
-              
               Toast.clear();
               Toast.success('登录成功');
               
-              // 手机端跳转到八字服务页面，PC端跳转到用户页面
+              // 统一跳转到八字服务页面
               setTimeout(() => {
-                if (isWechatBrowser.value) {
-                  // 手机端微信浏览器跳转到八字服务页面
-                  router.push('/bazi-service');
-                } else {
-                  // PC端跳转到用户页面
-                  router.push('/user');
-                }
+                router.push('/bazi-service');
               }, 1000);
             } else if (status === 'expired') {
               // 二维码过期
@@ -287,9 +276,9 @@ export default {
             Toast.clear();
             Toast.success('登录成功');
             
-            // PC端跳转到用户页面
+            // PC端也跳转到八字服务页面
             setTimeout(() => {
-              router.push('/user');
+              router.push('/bazi-service');
             }, 1000);
           }
         }
