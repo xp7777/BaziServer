@@ -122,9 +122,22 @@ export default {
         const response = await axios.post('/api/auth/wechatPhone/authorize');
         
         if (response.data.code === 200) {
+          // 保存登录token用于轮询
+          loginToken.value = response.data.data.state;
+          
+          // 开始轮询检查登录状态
+          startLoginCheck();
+          
           Toast.clear();
+          Toast.loading({
+            message: '正在授权登录...',
+            duration: 0,
+            forbidClick: true
+          });
+          
           // 直接跳转到微信授权页面
           window.location.href = response.data.data.authorizeUrl;
+          
         } else {
           Toast.fail(response.data.message || '获取授权链接失败');
         }
@@ -198,8 +211,19 @@ export default {
       }, 1000);
     };
     
+    // 轮询检查登录状态
     const startLoginCheck = () => {
+      if (loginCheckTimer.value) {
+        clearInterval(loginCheckTimer.value);
+      }
+      
       loginCheckTimer.value = setInterval(async () => {
+        if (!loginToken.value) {
+          console.log('loginToken为空，停止轮询');
+          clearInterval(loginCheckTimer.value);
+          return;
+        }
+        
         try {
           const response = await axios.get(`/api/auth/wechat/check/${loginToken.value}`);
           
@@ -210,86 +234,61 @@ export default {
               // 登录成功
               clearInterval(loginCheckTimer.value);
               
-              // 关闭登录窗口
-              if (loginWindow.value && !loginWindow.value.closed) {
-                loginWindow.value.close();
-              }
+              console.log('登录成功，保存用户信息:', { userInfo, token });
               
               // 保存用户信息和token
               localStorage.setItem('userToken', token);
               localStorage.setItem('userInfo', JSON.stringify(userInfo));
               
+              // 验证保存是否成功
+              const savedToken = localStorage.getItem('userToken');
+              const savedUserInfo = localStorage.getItem('userInfo');
+              console.log('验证保存结果:', { savedToken, savedUserInfo });
+              
+              Toast.clear();
               Toast.success('登录成功');
               
-              // 跳转到八字服务页面
-              router.push('/bazi-service');
+              // 跳转到用户页面而不是八字服务页面
+              setTimeout(() => {
+                router.push('/user');
+              }, 1000);
             } else if (status === 'expired') {
               // 二维码过期
               clearInterval(loginCheckTimer.value);
-              Toast.fail('二维码已过期，请重新获取');
-              showQRCode.value = false;
-              
-              // 关闭登录窗口
-              if (loginWindow.value && !loginWindow.value.closed) {
-                loginWindow.value.close();
-              }
+              Toast.clear();
+              Toast.fail('授权已过期，请重新登录');
+              isPhoneLoading.value = false;
             }
           }
         } catch (error) {
           console.error('检查登录状态失败:', error);
         }
-      }, 2000); // 每2秒检查一次
+      }, 1000);
     };
     
-    // 检查URL参数，处理微信授权回调
-    const handleWechatCallback = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('code');
-      const state = urlParams.get('state');
-      
-      if (code && state) {
-        // 处理微信授权回调
-        processWechatCallback(code, state);
-      }
-    };
-    
-    // 处理微信授权回调
-    const processWechatCallback = async (code, state) => {
+    const checkLoginStatusOnce = async () => {
       try {
-        Toast.loading({
-          message: '正在处理授权信息...',
-          duration: 0,
-          forbidClick: true
-        });
-        
-        const response = await axios.post('/api/auth/wechatPhone/callback', {
-          code,
-          state
-        });
+        const response = await axios.get(`/api/auth/wechat/check/${loginToken.value}`);
         
         if (response.data.code === 200) {
-          const { userInfo, token } = response.data.data;
+          const { status, userInfo, token } = response.data.data;
           
-          // 保存用户信息和token
-          localStorage.setItem('userToken', token);
-          localStorage.setItem('userInfo', JSON.stringify(userInfo));
-          
-          Toast.clear();
-          Toast.success('登录成功');
-          
-          // 清理URL参数
-          window.history.replaceState({}, document.title, window.location.pathname);
-          
-          // 跳转到八字服务页面
-          setTimeout(() => {
-            router.push('/bazi-service');
-          }, 1000);
-        } else {
-          Toast.fail(response.data.message || '授权登录失败');
+          if (status === 'success') {
+            // 保存用户信息和token
+            localStorage.setItem('userToken', token);
+            localStorage.setItem('userInfo', JSON.stringify(userInfo));
+            
+            Toast.clear();
+            Toast.success('登录成功');
+            
+            // 跳转到八字服务页面
+            setTimeout(() => {
+              router.push('/bazi-service');
+            }, 1000);
+          }
         }
       } catch (error) {
-        console.error('处理微信授权回调失败:', error);
-        Toast.fail('授权处理失败，请重试');
+        console.error('检查登录状态失败:', error);
       }
     };
 
@@ -326,32 +325,6 @@ export default {
       }
     };
 
-    // 立即检查一次登录状态
-    const checkLoginStatusOnce = async () => {
-      try {
-        const response = await axios.get(`/api/auth/wechat/check/${loginToken.value}`);
-        
-        if (response.data.code === 200) {
-          const { status, userInfo, token } = response.data.data;
-          
-          if (status === 'success') {
-            // 保存用户信息和token
-            localStorage.setItem('userToken', token);
-            localStorage.setItem('userInfo', JSON.stringify(userInfo));
-            
-            Toast.success('登录成功');
-            
-            // 跳转到八字服务页面
-            setTimeout(() => {
-              router.push('/bazi-service');
-            }, 1000);
-          }
-        }
-      } catch (error) {
-        console.error('检查登录状态失败:', error);
-      }
-    };
-
     onMounted(() => {
       // 检测微信浏览器
       checkWechatBrowser();
@@ -359,6 +332,7 @@ export default {
       // 处理微信授权回调
       handleWechatCallback();
       
+      // 添加消息监听
       window.addEventListener('message', handleMessage);
     });
     
@@ -391,6 +365,34 @@ export default {
       window.removeEventListener('message', handleMessage);
     });
     
+    // 处理微信授权回调
+    const handleWechatCallback = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const wechatSuccess = urlParams.get('wechat_success');
+      const state = urlParams.get('state');
+      
+      if (wechatSuccess === 'true' && state) {
+        console.log('检测到微信授权成功回调:', { state });
+        
+        // 设置登录token
+        loginToken.value = state;
+        
+        // 显示处理中提示
+        Toast.loading({
+          message: '正在处理授权信息...',
+          duration: 0,
+          forbidClick: true
+        });
+        
+        // 开始轮询检查登录状态
+        startLoginCheck();
+        
+        // 清理URL参数
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    };
+
     return {
       showQRCode,
       qrCodeImage,
@@ -402,7 +404,8 @@ export default {
       startWechatPhoneLogin,
       openWechatLogin,
       showAgreement,
-      showPrivacy
+      showPrivacy,
+      handleWechatCallback
     };
   }
 };

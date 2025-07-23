@@ -121,9 +121,20 @@ export default {
       loading.value = true;
       try {
         const token = localStorage.getItem('userToken');
+        console.log('获取历史记录，使用token:', token);
+        
+        if (!token) {
+          console.error('没有找到用户token');
+          Toast('请先登录');
+          router.push('/login');
+          return;
+        }
+        
         const response = await axios.get('/api/bazi/history', {
           headers: { Authorization: `Bearer ${token}` }
         });
+        
+        console.log('历史记录响应:', response.data);
         
         if (response.data.code === 200) {
           historyList.value = response.data.data.map(item => ({
@@ -136,9 +147,24 @@ export default {
           console.log('历史记录加载成功:', historyList.value);
         } else {
           console.error('获取历史记录失败:', response.data.message);
+          Toast(response.data.message || '获取历史记录失败');
         }
       } catch (error) {
         console.error('获取历史记录出错:', error);
+        
+        // 如果是401错误，说明token无效
+        if (error.response && error.response.status === 401) {
+          Toast('登录已过期，请重新登录');
+          localStorage.removeItem('userToken');
+          localStorage.removeItem('userInfo');
+          router.push('/login');
+        } else if (error.response && error.response.status === 422) {
+          console.error('422错误详情:', error.response.data);
+          Toast('请求参数错误，请重新登录');
+          router.push('/login');
+        } else {
+          Toast('网络错误，请稍后重试');
+        }
       } finally {
         loading.value = false;
       }
@@ -240,10 +266,17 @@ export default {
     };
     
     onMounted(() => {
+      console.log('User页面挂载');
+      console.log('localStorage中的token:', localStorage.getItem('userToken'));
+      console.log('localStorage中的userInfo:', localStorage.getItem('userInfo'));
+      
       loadUserInfo();
       if (isLoggedIn.value) {
         loadHistoryRecords();
         loadOrderList();
+      } else {
+        console.log('用户未登录，跳转到登录页');
+        router.push('/login');
       }
     });
     

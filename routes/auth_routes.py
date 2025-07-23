@@ -236,8 +236,8 @@ def render_callback_page(message, success=False, token=None):
     <div class="container">
         <div class="icon">{'🎉' if success else '❌'}</div>
         <div class="message {'success' if success else 'error'}">{message}</div>
-        <div class="tips">
-            {'窗口将在 <span class="countdown" id="countdown">3</span> 秒后自动关闭' if success else '请关闭此窗口重试'}
+        <div class="tips" id="tips">
+            {'登录成功！正在跳转...' if success else '请关闭此窗口重试'}
         </div>
     </div>
     
@@ -246,7 +246,7 @@ def render_callback_page(message, success=False, token=None):
         console.log('登录结果:', {str(success).lower()});
         console.log('Token:', '{token or ''}');
         
-        // 向父窗口发送消息
+        // 向父窗口发送消息（PC端弹窗）
         if (window.opener && !window.opener.closed) {{
             console.log('向父窗口发送登录结果消息');
             try {{
@@ -257,33 +257,38 @@ def render_callback_page(message, success=False, token=None):
                     token: '{token or ''}'
                 }}, '*');
                 console.log('消息发送成功');
-            }} catch (e) {{
-                console.error('发送消息失败:', e);
-            }}
-        }} else {{
-            console.log('没有父窗口或父窗口已关闭');
-        }}
-        
-        // 倒计时关闭窗口
-        let countdown = 3;
-        const countdownEl = document.getElementById('countdown');
-        
-        if (countdownEl) {{
-            const timer = setInterval(() => {{
-                countdown--;
-                countdownEl.textContent = countdown;
                 
-                if (countdown <= 0) {{
-                    clearInterval(timer);
-                    console.log('准备关闭窗口');
+                // PC端弹窗，尝试关闭
+                setTimeout(() => {{
                     try {{
                         window.close();
                     }} catch (e) {{
                         console.error('关闭窗口失败:', e);
-                        document.querySelector('.tips').innerHTML = '请手动关闭此窗口';
+                        document.getElementById('tips').innerHTML = '请手动关闭此窗口';
                     }}
-                }}
-            }}, 1000);
+                }}, 1000);
+            }} catch (e) {{
+                console.error('发送消息失败:', e);
+            }}
+        }} else {{
+            console.log('没有父窗口或父窗口已关闭，手机端访问');
+            
+            // 手机端登录成功后跳转
+            if ({str(success).lower()}) {{
+                console.log('手机端登录成功，准备跳转');
+                document.getElementById('tips').innerHTML = '登录成功！正在跳转...';
+                
+                setTimeout(() => {{
+                    // 跳转到本地前端开发环境
+                    console.log('跳转到本地前端');
+                    window.location.href = 'http://localhost:8080/login?wechat_success=true&state={token or ''}';
+                }}, 1500);
+            }} else {{
+                // 登录失败，跳转到本地前端
+                setTimeout(() => {{
+                    window.location.href = 'http://localhost:8080/login';
+                }}, 2000);
+            }}
         }}
     </script>
 </body>
@@ -321,7 +326,7 @@ def check_wechat_login(token):
                 'data': {
                     'status': 'success',
                     'userInfo': status_info.get('userInfo'),
-                    'token': status_info.get('userToken')
+                    'token': status_info.get('userToken')  # 确保返回正确的JWT token
                 }
             })
         else:
@@ -386,85 +391,85 @@ def wechat_phone_authorize():
         logging.error(f"生成手机端微信授权链接失败: {str(e)}")
         return jsonify({'code': 500, 'message': f'生成授权链接失败: {str(e)}'}), 500
 
-@auth_bp.route('/wechatPhone/callback', methods=['GET', 'POST'])
+@auth_bp.route('/wechatPhone/callback', methods=['GET'])
 def wechat_phone_callback():
     """手机端微信网页授权回调"""
     try:
-        if request.method == 'GET':
-            # 微信回调的GET请求，重定向到前端页面
-            code = request.args.get('code')
-            state = request.args.get('state')
-            
-            if code and state:
-                # 重定向到前端登录页面，携带授权码
-                return redirect(f"https://baihexuegong.cn/login?code={code}&state={state}")
-            else:
-                return redirect("https://baihexuegong.cn/login?error=授权失败")
-        
-        # POST请求处理授权码
-        data = request.json
-        code = data.get('code')
-        state = data.get('state')
+        # 直接处理GET请求，不重定向
+        code = request.args.get('code')
+        state = request.args.get('state')
         
         logging.info(f"手机端微信授权回调 - code: {code}, state: {state}")
         
         if not code or not state:
-            return jsonify({'code': 400, 'message': '缺少授权码或状态参数'}), 400
+            return render_callback_page("缺少授权码或状态参数", False)
         
         # 检查state是否存在
         if state not in login_status:
-            return jsonify({'code': 400, 'message': '授权状态已过期'}), 400
+            return render_callback_page("授权状态已过期", False)
         
-        # 获取配置
+        # 获取手机端微信登录配置
         app_id = os.getenv('WECHAT_PHONE_LOGIN_APP_ID')
         app_secret = os.getenv('WECHAT_PHONE_LOGIN_APP_SECRET')
         
         if not app_id or not app_secret:
-            return jsonify({'code': 500, 'message': '微信登录配置不完整'}), 500
+            return render_callback_page("微信登录配置不完整", False)
         
         # 获取access_token
         token_url = f"https://api.weixin.qq.com/sns/oauth2/access_token?appid={app_id}&secret={app_secret}&code={code}&grant_type=authorization_code"
         
+        logging.info(f"请求微信access_token")
         token_response = requests.get(token_url, timeout=10)
         token_data = token_response.json()
         
         if 'access_token' not in token_data:
             error_msg = token_data.get('errmsg', '获取access_token失败')
-            return jsonify({'code': 400, 'message': error_msg}), 400
+            logging.error(f"获取access_token失败: {error_msg}")
+            return render_callback_page(f"授权失败: {error_msg}", False)
+        
+        access_token = token_data['access_token']
+        openid = token_data['openid']
         
         # 获取用户信息
-        user_info_url = f"https://api.weixin.qq.com/sns/userinfo?access_token={token_data['access_token']}&openid={token_data['openid']}&lang=zh_CN"
-        
+        user_info_url = f"https://api.weixin.qq.com/sns/userinfo?access_token={access_token}&openid={openid}&lang=zh_CN"
         user_response = requests.get(user_info_url, timeout=10)
         user_data = user_response.json()
         
-        if 'openid' not in user_data:
+        if 'errcode' in user_data:
             error_msg = user_data.get('errmsg', '获取用户信息失败')
-            return jsonify({'code': 400, 'message': error_msg}), 400
+            logging.error(f"获取用户信息失败: {error_msg}")
+            return render_callback_page(f"获取用户信息失败: {error_msg}", False)
         
-        # 生成用户token
-        user_token = str(uuid.uuid4())
+        # 生成JWT token（和PC端保持一致）
+        try:
+            from flask_jwt_extended import create_access_token
+            user_token = create_access_token(identity=user_data.get('openid'))
+            logging.info(f"手机端生成JWT token成功")
+        except Exception as e:
+            logging.error(f"手机端生成JWT token失败: {str(e)}")
+            return render_callback_page(f"生成JWT token失败: {str(e)}", False)
         
-        # 清理登录状态
-        del login_status[state]
+        # 更新登录状态
+        login_status[state] = {
+            'status': 'success',
+            'userInfo': {
+                'openid': user_data.get('openid'),
+                'nickname': user_data.get('nickname'),
+                'headimgurl': user_data.get('headimgurl'),
+                'sex': user_data.get('sex'),
+                'city': user_data.get('city'),
+                'province': user_data.get('province'),
+                'country': user_data.get('country')
+            },
+            'userToken': user_token,  # 使用真正的JWT token
+            'created_at': time.time()
+        }
         
-        return jsonify({
-            'code': 200,
-            'message': '授权登录成功',
-            'data': {
-                'userInfo': {
-                    'openid': user_data['openid'],
-                    'nickname': user_data.get('nickname', '微信用户'),
-                    'avatar': user_data.get('headimgurl', ''),
-                    'sex': user_data.get('sex', 0),
-                    'city': user_data.get('city', ''),
-                    'province': user_data.get('province', ''),
-                    'country': user_data.get('country', '')
-                },
-                'token': user_token
-            }
-        })
+        logging.info(f"手机端微信授权成功: {user_data.get('nickname')}")
+        
+        # 返回成功页面
+        return render_callback_page("授权成功", True, state)
         
     except Exception as e:
-        logging.error(f"手机端微信授权回调处理失败: {str(e)}")
-        return jsonify({'code': 500, 'message': f'授权处理失败: {str(e)}'}), 500
+        logging.error(f"手机端微信授权回调失败: {str(e)}")
+        return render_callback_page(f"授权处理失败: {str(e)}", False)

@@ -46,47 +46,50 @@ def get_user_history():
     """获取用户的八字分析历史记录"""
     try:
         user_id = get_jwt_identity()
+        logging.info(f"获取用户历史记录，用户ID: {user_id}")
         
-        # 从数据库获取用户的已支付订单，包含更多字段
+        if not user_id:
+            logging.error("JWT token中没有用户ID")
+            return jsonify({'code': 401, 'message': '用户未认证'}), 401
+        
+        # 从数据库获取用户的已支付订单
         user_orders = list(orders_collection.find(
             {'userId': user_id, 'status': 'paid'},
             {
                 '_id': 1, 
                 'resultId': 1, 
                 'createdAt': 1, 
-                'createTime': 1,  # 添加这个字段
+                'createTime': 1,
                 'orderType': 1,
-                'birthDate': 1,   # 从订单中获取出生日期
-                'birthTime': 1,   # 从订单中获取出生时间
-                'gender': 1,      # 从订单中获取性别
-                'focusAreas': 1   # 从订单中获取关注领域
+                'birthDate': 1,
+                'birthTime': 1,
+                'gender': 1,
+                'focusAreas': 1
             }
         ).sort('createdAt', -1))
         
-        # 格式化输出
-        results = []
+        logging.info(f"找到 {len(user_orders)} 条历史记录")
+        
+        # 格式化返回数据
+        history_data = []
         for order in user_orders:
-            if order.get('resultId'):
-                # 优先使用 createdAt，如果没有则使用 createTime
-                created_time = order.get('createdAt') or order.get('createTime')
-                
-                results.append({
-                    'resultId': order.get('resultId'),
-                    'birthDate': order.get('birthDate', ''),
-                    'gender': order.get('gender', ''),
-                    'focusAreas': order.get('focusAreas', []),
-                    'createdAt': created_time
-                })
+            history_data.append({
+                'resultId': order.get('resultId'),
+                'createdAt': order.get('createdAt') or order.get('createTime'),
+                'focusAreas': order.get('focusAreas', []),
+                'gender': order.get('gender', ''),
+                'birthDate': order.get('birthDate', '')
+            })
         
         return jsonify({
             'code': 200,
             'message': '获取成功',
-            'data': results
+            'data': history_data
         })
-    
+        
     except Exception as e:
-        logging.error(f"获取八字分析历史错误: {str(e)}", exc_info=True)
-        return jsonify({'code': 500, 'message': f'获取失败: {str(e)}'}), 500
+        logging.error(f"获取用户历史记录错误: {str(e)}", exc_info=True)
+        return jsonify({'code': 500, 'message': f'服务器错误: {str(e)}'}), 500
 
 
 @bazi_bp.route('/result/<result_id>', methods=['GET'])
@@ -741,3 +744,4 @@ def async_generate_followup(result_id, area, birth_date=None, birth_time=None, g
         logging.error(f"异步生成追问分析失败: {str(e)}")
         logging.error(traceback.format_exc())
         return None 
+
