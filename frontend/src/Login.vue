@@ -377,11 +377,16 @@ export default {
         // 设置登录token
         loginToken.value = state;
         
-        // 显示处理中提示
-        Toast.loading({
+        // 清除所有现有的Toast，然后显示处理中提示
+        Toast.clear();
+        
+        // 使用更稳定的Toast配置
+        const loadingToast = Toast.loading({
           message: '正在处理授权信息...',
           duration: 0,
-          forbidClick: true
+          forbidClick: true,
+          overlay: true,
+          loadingType: 'spinner'
         });
         
         // 开始轮询检查登录状态
