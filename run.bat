@@ -35,18 +35,24 @@ REM 检查sxtwl包安装情况
 echo 检查sxtwl包安装情况...
 python -c "import sxtwl" > NUL 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo 检测到sxtwl包未正确安装，尝试安装...
-    python install_sxtwl.py
+    echo 检测到sxtwl包未正确安装，尝试手动安装...
+    pip install sxtwl
     if %ERRORLEVEL% NEQ 0 (
-        echo 警告: sxtwl包安装失败，请查看SXTWL_README.md获取手动安装指南
+        echo 警告: sxtwl包安装失败，请手动安装或查看文档
     ) else (
         echo sxtwl包已成功安装
     )
 )
 
-REM 创建PDF目录
+REM 创建必要目录
 if not exist pdfs (
     mkdir pdfs
+)
+if not exist logs (
+    mkdir logs
+)
+if not exist logs\errors (
+    mkdir logs\errors
 )
 
 REM 检查环境变量配置
@@ -66,8 +72,8 @@ echo ===========================================================
 echo 系统使用WeasyPrint生成PDF，无需安装外部依赖
 echo 如果PDF生成出现问题，请检查WeasyPrint库是否正确安装
 echo ===========================================================
-echo 系统使用sxtwl包计算农历和干支，可能需要VC++构建工具
-echo 如果遇到sxtwl相关问题，请查看SXTWL_README.md获取帮助
+echo 日志系统已配置：控制台显示所有日志，文件只记录ERROR级别
+echo 错误日志位置: logs\errors\error.log
 echo ===========================================================
 
 REM 启动应用

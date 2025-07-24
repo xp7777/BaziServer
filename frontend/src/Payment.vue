@@ -74,6 +74,7 @@
         </template>
       </van-cell>
       
+      <!--
       <van-cell clickable @click="paymentMethod = 'alipay'">
         <template #title>
           <div class="payment-method">
@@ -85,6 +86,8 @@
           <van-radio :name="'alipay'" :checked="paymentMethod === 'alipay'" />
         </template>
       </van-cell>
+      -->
+
     </van-cell-group>
     
     <div class="payment-action">
