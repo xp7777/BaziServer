@@ -1,0 +1,19 @@
+2025-07-24 11:41:15,195 - root - INFO - logger_config.py:81 - 日志系统初始化完成
+2025-07-24 11:41:15,195 - root - INFO - logger_config.py:82 - 普通日志目录: logs
+2025-07-24 11:41:15,195 - root - INFO - logger_config.py:83 - 错误日志目录: logs\errors
+2025-07-24 11:41:15,222 - root - INFO - app.py:118 - DeepSeek API KEY: *****...0ed0
+2025-07-24 11:41:15,222 - root - INFO - app.py:119 - DeepSeek API URL: https://api.deepseek.com/v1/chat/completions
+2025-07-24 11:41:15,222 - root - INFO - app.py:120 - MongoDB URI: mongodb://localhost:27017/bazi_system
+2025-07-24 11:41:15,223 - root - INFO - app.py:121 - JWT过期时间: 24小时
+2025-07-24 11:41:15,223 - root - INFO - app.py:122 - 微信支付商户号: 1706110646
+2025-07-24 11:41:15,223 - root - INFO - app.py:123 - 微信支付证书序列号: 69D653B5...
+2025-07-24 11:41:15,363 - utils.wechat_pay_v3 - INFO - wechat_pay_v3.py:52 - 成功加载微信支付证书，商户号=1706110646, 证书序列号=69D653B5EB73DB2B9A5175FEF05AAFE6EDD66083
+2025-07-24 11:41:15,363 - utils.wechat_pay_v3 - INFO - wechat_pay_v3.py:66 - 初始化微信支付V3: 商户号=1706110646, 应用ID=wxa7b459b6aa6e3ad1
+2025-07-24 11:41:15,364 - utils.wechat_pay_v3 - INFO - wechat_pay_v3.py:453 - 微信支付V3接口全局实例创建成功
+2025-07-24 11:41:15,364 - utils.payment_service - INFO - payment_service.py:28 - 使用全局微信支付V3接口实例
+2025-07-24 11:41:16,052 - root - INFO - bazi_routes.py:36 - DeepSeek API密钥前5位: sk-7b...
+2025-07-24 11:41:16,053 - root - INFO - bazi_routes.py:37 - DeepSeek API URL: https://api.deepseek.com/v1/chat/completions
+2025-07-24 11:41:16,071 - root - INFO - app.py:185 - 应用启动于 0.0.0.0:5000，调试模式: True
+2025-07-24 11:41:16,082 - werkzeug - WARNING - _internal.py:224 -  * Debugger is active!
+2025-07-24 11:41:16,091 - werkzeug - INFO - _internal.py:224 -  * Debugger PIN: 110-394-432
+2025-07-24 11:42:06,798 - werkzeug - INFO - _internal.py:224 -  * Detected change in 'D:\\Python\\20250724开发八字命理AI指导功能页码\\开发八字命理AI指导功能页码\\utils\\logger_config.py', reloading

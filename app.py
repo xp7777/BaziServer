@@ -8,6 +8,7 @@ import logging
 import requests
 import json
 import time
+from utils.logger_config import setup_logging
 
 # 加载.env文件
 load_dotenv()
@@ -86,6 +87,9 @@ validate_wechat_phone_login_vars()
 
 # PDF生成使用简易HTML模式
 logging.info("PDF生成功能已配置为使用HTML模式")
+
+# 在创建Flask应用之前设置日志
+setup_logging()
 
 # 创建Flask应用
 app = Flask(__name__, static_folder='static')
