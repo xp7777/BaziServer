@@ -920,7 +920,7 @@ def create_simple_order():
             'userId': user_id,  # 使用JWT中的用户ID
             'openid': user_id,  # 同时保存openid字段，确保兼容性
             'orderType': 'bazi_analysis',
-            'amount': 9.9,
+            'amount': 1,  #八字支付金额设置
             'status': 'pending',
             'gender': data.get('gender'),
             'birthDate': data.get('birthDate'),
