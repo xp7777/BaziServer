@@ -147,6 +147,10 @@ export default {
     const qrCodeUrl = ref('');
     const isProcessing = ref(false);
     
+    // 检测设备类型
+    const isWechatBrowser = /micromessenger/i.test(navigator.userAgent);
+    const deviceType = isWechatBrowser ? 'mobile' : 'pc';
+    
     onMounted(async () => {
       // 调用API创建订单
       try {
@@ -192,6 +196,55 @@ export default {
       router.push('/bazi-service');
     };
     
+    const handlePayment = async (method) => {
+      try {
+        const paymentData = {
+          paymentMethod: method,
+          deviceType: deviceType,
+          returnQrCode: !isWechatBrowser
+        };
+        
+        const response = await axios.post(`/api/order/create/payment/${orderId.value}`, paymentData);
+        
+        if (response.data.code === 200) {
+          const paymentResult = response.data.data;
+          
+          // 手机微信中使用JSAPI支付
+          if (paymentResult.payment_type === 'jsapi' && isWechatBrowser) {
+            // 使用微信JSSDK调起支付
+            if (typeof wx !== 'undefined') {
+              wx.chooseWXPay({
+                timestamp: paymentResult.jsapi_params.timeStamp,
+                nonceStr: paymentResult.jsapi_params.nonceStr,
+                package: paymentResult.jsapi_params.package,
+                signType: paymentResult.jsapi_params.signType,
+                paySign: paymentResult.jsapi_params.paySign,
+                success: function (res) {
+                  Toast.success('支付成功');
+                  checkPaymentStatus();
+                },
+                fail: function (res) {
+                  console.error('支付失败:', res);
+                  Toast.fail('支付失败: ' + res.errMsg);
+                }
+              });
+            } else {
+              Toast.fail('微信环境异常，请在微信中打开');
+            }
+          }
+          // PC端显示二维码
+          else if (paymentResult.payment_type === 'native') {
+            if (paymentResult.qr_image) {
+              qrCodeUrl.value = paymentResult.qr_image;
+              showQRCode.value = true;
+            }
+          }
+        }
+      } catch (error) {
+        Toast.fail('支付失败');
+      }
+    };
+    
     const onPayment = () => {
       // 检查订单ID
       if (!orderId.value) {
@@ -199,58 +252,7 @@ export default {
         return;
       }
       
-      // 根据支付方式获取真实二维码
-      Toast.loading({
-        message: '正在获取支付二维码...',
-        duration: 0,
-        forbidClick: true
-      });
-      
-      // 创建真实支付订单并获取支付二维码
-      const createPayment = async () => {
-        try {
-          const paymentData = {
-            paymentMethod: paymentMethod.value,
-            birthDate,
-            birthTime,
-            gender,
-            focusAreas,
-            calendarType,
-            birthPlace,
-            livingPlace
-          };
-          
-          // 调用真实支付API
-          const response = await axios.post(`/api/order/create/payment/${orderId.value}`, paymentData);
-          
-          if (response.data.code === 200) {
-            Toast.clear();
-            
-            // 解析支付二维码返回数据
-            if (response.data.data.qr_image) {
-              // 直接使用Base64二维码图片
-              qrCodeUrl.value = response.data.data.qr_image;
-              showQRCode.value = true;
-            } else if (response.data.data.code_url) {
-              // 生成二维码图片
-              qrCodeUrl.value = response.data.data.code_url;
-              showQRCode.value = true;
-            } else if (response.data.data.pay_url) {
-              // 支付宝URL
-              window.open(response.data.data.pay_url, '_blank');
-            } else {
-              Toast.fail('未获取到支付二维码');
-            }
-          } else {
-            Toast.fail(response.data.message || '获取支付二维码失败');
-          }
-        } catch (error) {
-          console.error('获取支付二维码出错:', error);
-          Toast.fail('获取支付二维码失败');
-        }
-      };
-      
-      createPayment();
+      handlePayment(paymentMethod.value);
     };
     
     const onPaymentSuccess = async () => {

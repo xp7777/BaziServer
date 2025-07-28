@@ -16,3 +16,12 @@ Traceback (most recent call last):
     parser.Parse(xml_input, True)
 xml.parsers.expat.ExpatError: not well-formed (invalid token): line 1, column 0
 2025-07-28 15:21:02,962 - root - ERROR - order_routes.py:238 - 微信支付验证失败: 未知错误
+2025-07-28 16:21:23,608 - utils.payment_service - ERROR - payment_service.py:332 - 验证微信支付回调异常: not well-formed (invalid token): line 1, column 0
+Traceback (most recent call last):
+  File "D:\Python\20250724开发八字命理AI指导功能页码\开发八字命理AI指导功能页码\utils\payment_service.py", line 315, in verify_wechat_payment
+    result = xmltodict.parse(xml_data)['xml']
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Python\Python312\Lib\site-packages\xmltodict.py", line 359, in parse
+    parser.Parse(xml_input, True)
+xml.parsers.expat.ExpatError: not well-formed (invalid token): line 1, column 0
+2025-07-28 16:21:23,620 - root - ERROR - order_routes.py:238 - 微信支付验证失败: 未知错误

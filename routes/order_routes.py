@@ -827,82 +827,46 @@ def query_order(order_id):
 # 创建支付订单API（不需要JWT认证）
 @order_bp.route('/create/payment/<order_id>', methods=['POST'])
 def create_payment(order_id):
-    """创建支付订单并返回支付二维码"""
+    """创建支付订单并返回支付参数"""
     data = request.json
     
     payment_method = data.get('paymentMethod')
     device_type = data.get('deviceType', 'pc')
     
-    if not payment_method:
-        return jsonify(code=400, message="请提供支付方式"), 400
-    
-    # 检查支付方式
-    if payment_method not in ['wechat', 'alipay']:
-        return jsonify(code=400, message="不支持的支付方式"), 400
-    
     # 查找订单
     order = OrderModel.find_by_id(order_id)
-    
     if not order:
         return jsonify(code=404, message="订单不存在"), 404
     
-    if order['status'] == 'paid':
-        return jsonify(code=400, message="订单已支付"), 400
-    
-    # 记录订单相关信息（出生日期等）用于后续处理
-    if data.get('birthDate') and data.get('birthTime') and data.get('gender'):
-        orders_collection.update_one(
-            {"_id": order_id},
-            {"$set": {
-                "birthDate": data.get('birthDate'),
-                "birthTime": data.get('birthTime'),
-                "gender": data.get('gender'),
-                "focusAreas": data.get('focusAreas', []),
-                "birthPlace": data.get('birthPlace', ""),
-                "livingPlace": data.get('livingPlace', ""),
-                "calendarType": data.get('calendarType', "solar")
-            }}
-        )
-    
-    # 更新支付方式
-    OrderModel.update_payment(order_id, payment_method)
+    # 获取用户openid（用于JSAPI支付）
+    user_openid = order.get('openid') or order.get('userId')
     
     # 生成支付参数
-    payment_data = None
-    try:
-        if payment_method == 'wechat':
-            # 设置return_qr=True返回二维码图片的base64编码
-            payment_data = create_wechat_payment(order_id, order['amount'], return_qr_image=True)
-            
-            # 检查支付结果是否包含错误信息
-            if payment_data and "error" in payment_data:
-                logging.error(f"微信支付创建失败: {payment_data['error']}")
-                # 如果包含错误但同时也有code_url（测试模式），仍然返回code_url
-                if "code_url" not in payment_data:
-                    return jsonify(code=500, message=f"微信支付创建失败: {payment_data['error']}"), 500
-        elif payment_method == 'alipay':
-            is_mobile = device_type.lower() in ['mobile', 'h5', 'app']
-            payment_data = create_alipay_payment(order_id, order['amount'], is_mobile=is_mobile)
-        
-        if not payment_data:
-            return jsonify(code=500, message="生成支付参数失败"), 500
-        
-        logging.info(f"创建{payment_method}支付订单成功: {order_id}")
-        
-        response_data = {
-            "orderId": order_id,
-            **payment_data
-        }
-        
-        return jsonify(
-            code=200,
-            message="成功",
-            data=response_data
+    if payment_method == 'wechat':
+        payment_data = create_wechat_payment(
+            order_id, 
+            order['amount'], 
+            return_qr_image=True,
+            device_type=device_type,
+            openid=user_openid
         )
-    except Exception as e:
-        logging.error(f"创建支付订单失败: {str(e)}")
-        logging.error(traceback.format_exc())
-        return jsonify(code=500, message=f"创建支付订单失败: {str(e)}"), 500 
+    elif payment_method == 'alipay':
+        is_mobile = device_type.lower() in ['mobile', 'h5', 'app']
+        payment_data = create_alipay_payment(order_id, order['amount'], is_mobile=is_mobile)
+    
+    if not payment_data:
+        return jsonify(code=500, message="生成支付参数失败"), 500
+    
+    response_data = {
+        "orderId": order_id,
+        **payment_data
+    }
+    
+    return jsonify(
+        code=200,
+        message="成功",
+        data=response_data
+    )
 
 # 简化版订单创建API (不需要JWT认证)
 @order_bp.route('/create/simple', methods=['POST'])

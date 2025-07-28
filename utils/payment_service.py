@@ -29,37 +29,57 @@ if wechat_pay_v3 is not None:
 else:
     logger.warning("全局微信支付V3接口实例不可用")
 
-def create_wechat_payment(order_id, amount, return_qr_image=False):
+def create_wechat_payment(order_id, amount, return_qr_image=False, device_type='pc', openid=None):
     """
     创建微信支付订单
     
     Args:
         order_id: 订单ID
         amount: 支付金额
-        return_qr_image: 是否返回二维码图片的base64编码
-        
-    Returns:
-        dict: 包含支付二维码URL和可选的二维码图片
+        return_qr_image: 是否返回二维码图片
+        device_type: 设备类型 ('mobile', 'pc')
+        openid: 微信用户openid (JSAPI支付必需)
     """
-    # 尝试使用V3接口
     if wechat_pay_v3 is not None:
         try:
-            logger.info(f"使用微信支付V3接口创建订单: {order_id}")
-            # 将金额转换为分（整数）
             amount_in_cents = int(amount * 100)
-            result = wechat_pay_v3.create_native_order(
-                out_trade_no=order_id,
-                amount=amount_in_cents,
-                description="八字命理AI人生指导",
-                return_qr_image=return_qr_image
-            )
             
-            if result.get("code") == "SUCCESS":
-                logger.info(f"微信支付V3下单成功: {order_id}")
-                return result
+            # 手机端使用JSAPI支付
+            if device_type == 'mobile' and openid:
+                logger.info(f"使用微信JSAPI支付: {order_id}")
+                result = wechat_pay_v3.create_jsapi_order(
+                    out_trade_no=order_id,
+                    amount=amount_in_cents,
+                    description="八字命理AI人生指导",
+                    openid=openid
+                )
+                
+                if result.get("code") == "SUCCESS":
+                    # 获取JSAPI支付参数
+                    prepay_id = result.get("prepay_id")
+                    jsapi_params = wechat_pay_v3.get_jsapi_params(prepay_id)
+                    
+                    return {
+                        "payment_type": "jsapi",
+                        "jsapi_params": jsapi_params,
+                        "prepay_id": prepay_id
+                    }
+            
+            # PC端使用Native扫码支付
             else:
-                logger.error(f"微信支付V3下单失败: {result.get('message', '未知错误')}")
-                # 失败后尝试使用V2接口
+                logger.info(f"使用微信Native支付: {order_id}")
+                result = wechat_pay_v3.create_native_order(
+                    out_trade_no=order_id,
+                    amount=amount_in_cents,
+                    description="八字命理AI人生指导",
+                    return_qr_image=return_qr_image
+                )
+                
+                if result.get("code") == "SUCCESS":
+                    return {
+                        "payment_type": "native",
+                        **result
+                    }
         except Exception as e:
             logger.exception(f"微信支付V3创建订单异常: {str(e)}")
             # 出错后尝试使用V2接口
