@@ -81,6 +81,37 @@ def validate_wechat_phone_login_vars():
     logging.info("手机端微信登录配置验证通过")
     return True
 
+# 微信支付配置
+os.environ['WECHAT_APP_ID'] = os.getenv('WECHAT_APP_ID', '')
+os.environ['WECHAT_APP_SECRET'] = os.getenv('WECHAT_APP_SECRET', '')
+os.environ['WECHAT_MCH_ID'] = os.getenv('WECHAT_MCH_ID', '')
+os.environ['WECHAT_API_KEY'] = os.getenv('WECHAT_API_KEY', '')
+
+# 验证微信支付配置
+def validate_wechat_pay_vars():
+    wechat_vars = {
+        'WECHAT_APP_ID': os.getenv('WECHAT_APP_ID'),
+        'WECHAT_APP_SECRET': os.getenv('WECHAT_APP_SECRET'),
+        'WECHAT_MCH_ID': os.getenv('WECHAT_MCH_ID'),
+        'WECHAT_API_KEY': os.getenv('WECHAT_API_KEY')
+    }
+    
+    logging.info("=== 微信支付配置检查 ===")
+    for key, value in wechat_vars.items():
+        if not value:
+            logging.error(f"{key} 未配置")
+        else:
+            if 'SECRET' in key or 'KEY' in key:
+                display_value = f"{value[:8]}..." if len(value) > 8 else "***"
+            else:
+                display_value = value
+            logging.info(f"{key}: {display_value}")
+    
+    return all(wechat_vars.values())
+
+# 调用验证
+validate_wechat_pay_vars()
+
 # 调用验证函数
 validate_wechat_login_vars()
 validate_wechat_phone_login_vars()
@@ -156,22 +187,14 @@ def register_blueprints():
     from routes.order_routes import order_bp
     from routes.bazi_routes import bazi_bp
     from routes.auth_routes import auth_bp
+    from routes.wechat_routes import wechat_bp
 
     # 注册蓝图
     app.register_blueprint(user_bp, url_prefix='/api/user')
     app.register_blueprint(order_bp, url_prefix='/api/order')
     app.register_blueprint(bazi_bp, url_prefix='/api/bazi')
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
-
-# 错误处理
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify(code=404, message='资源不存在'), 404
-
-@app.errorhandler(500)
-def server_error(error):
-    app.logger.error(f'服务器错误: {error}')
-    return jsonify(code=500, message='服务器内部错误'), 500
+    app.register_blueprint(wechat_bp, url_prefix='/api/wechat')
 
 # 注册蓝图
 register_blueprints()

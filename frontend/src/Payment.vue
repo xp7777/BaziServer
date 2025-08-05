@@ -152,6 +152,48 @@ export default {
     const deviceType = isWechatBrowser ? 'mobile' : 'pc';
     
     onMounted(async () => {
+      // 在组件mounted时添加微信JSSDK配置检查
+      if (isWechatBrowser) {
+        console.log('检测到微信环境，开始配置JSSDK');
+        
+        // 获取微信JSSDK配置
+        try {
+          const response = await axios.get('/api/wechat/jsapi/config', {
+            params: {
+              url: window.location.href.split('#')[0] // 当前页面URL，不包含#后面的部分
+            }
+          });
+          
+          if (response.data.code === 200) {
+            const config = response.data.data;
+            console.log('JSSDK配置参数:', config);
+            
+            wx.config({
+              debug: false, // 生产环境设为false
+              appId: config.appId,
+              timestamp: config.timestamp,
+              nonceStr: config.nonceStr,
+              signature: config.signature,
+              jsApiList: [
+                'chooseWXPay', // 微信支付
+                'getLocation',
+                'scanQRCode'
+              ]
+            });
+            
+            wx.ready(() => {
+              console.log('微信JSSDK配置成功');
+            });
+            
+            wx.error((res) => {
+              console.error('微信JSSDK配置失败:', res);
+            });
+          }
+        } catch (error) {
+          console.error('获取JSSDK配置失败:', error);
+        }
+      }
+      
       // 调用API创建订单
       try {
         Toast.loading({
@@ -197,6 +239,10 @@ export default {
     };
     
     const handlePayment = async (method) => {
+      console.log('开始处理支付，订单ID:', orderId.value);
+      console.log('支付方式:', method);
+      console.log('设备类型:', deviceType);
+      
       try {
         const paymentData = {
           paymentMethod: method,
@@ -206,27 +252,46 @@ export default {
         
         const response = await axios.post(`/api/order/create/payment/${orderId.value}`, paymentData);
         
+        console.log('支付接口响应:', response.data);
+        
         if (response.data.code === 200) {
           const paymentResult = response.data.data;
+          console.log('支付结果:', paymentResult);
           
-          // 手机微信中使用JSAPI支付
-          if (paymentResult.payment_type === 'jsapi' && isWechatBrowser) {
-            // 使用微信JSSDK调起支付
-            if (typeof wx !== 'undefined') {
-              wx.chooseWXPay({
-                timestamp: paymentResult.jsapi_params.timeStamp,
-                nonceStr: paymentResult.jsapi_params.nonceStr,
-                package: paymentResult.jsapi_params.package,
-                signType: paymentResult.jsapi_params.signType,
-                paySign: paymentResult.jsapi_params.paySign,
-                success: function (res) {
-                  Toast.success('支付成功');
-                  checkPaymentStatus();
-                },
-                fail: function (res) {
-                  console.error('支付失败:', res);
-                  Toast.fail('支付失败: ' + res.errMsg);
-                }
+          // 检查支付类型
+          if (paymentResult.payment_type === 'jsapi') {
+            console.log('JSAPI支付参数:', paymentResult.jsapi_params);
+            
+            if (isWechatBrowser && typeof wx !== 'undefined') {
+              console.log('微信环境检查通过，准备调起支付');
+              // 使用微信JSSDK调起支付
+              wx.ready(() => {
+                console.log('准备调起微信支付', paymentResult.jsapi_params);
+                wx.chooseWXPay({
+                  timestamp: paymentResult.jsapi_params.timeStamp,
+                  nonceStr: paymentResult.jsapi_params.nonceStr,
+                  package: paymentResult.jsapi_params.package,
+                  signType: paymentResult.jsapi_params.signType,
+                  paySign: paymentResult.jsapi_params.paySign,
+                  success: function (res) {
+                    console.log('支付成功:', res);
+                    Toast.success('支付成功');
+                    checkPaymentStatus();
+                  },
+                  fail: function (res) {
+                    console.error('支付失败:', res);
+                    Toast.fail('支付失败: ' + (res.errMsg || '未知错误'));
+                  },
+                  cancel: function (res) {
+                    console.log('用户取消支付:', res);
+                    Toast.fail('支付已取消');
+                  }
+                });
+              });
+              
+              wx.error((res) => {
+                console.error('微信JSSDK错误:', res);
+                Toast.fail('微信环境异常: ' + res.errMsg);
               });
             } else {
               Toast.fail('微信环境异常，请在微信中打开');
@@ -241,7 +306,8 @@ export default {
           }
         }
       } catch (error) {
-        Toast.fail('支付失败');
+        console.error('支付处理失败:', error);
+        Toast.fail('支付处理失败');
       }
     };
     

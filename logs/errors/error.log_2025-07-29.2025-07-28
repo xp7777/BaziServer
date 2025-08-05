@@ -1,0 +1,38 @@
+2025-07-28 15:01:50,512 - utils.payment_service - ERROR - payment_service.py:312 - 验证微信支付回调异常: not well-formed (invalid token): line 1, column 0
+Traceback (most recent call last):
+  File "D:\Python\20250724开发八字命理AI指导功能页码\开发八字命理AI指导功能页码\utils\payment_service.py", line 295, in verify_wechat_payment
+    result = xmltodict.parse(xml_data)['xml']
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Python\Python312\Lib\site-packages\xmltodict.py", line 359, in parse
+    parser.Parse(xml_input, True)
+xml.parsers.expat.ExpatError: not well-formed (invalid token): line 1, column 0
+2025-07-28 15:01:50,523 - root - ERROR - order_routes.py:238 - 微信支付验证失败: 未知错误
+2025-07-28 15:21:02,960 - utils.payment_service - ERROR - payment_service.py:312 - 验证微信支付回调异常: not well-formed (invalid token): line 1, column 0
+Traceback (most recent call last):
+  File "D:\Python\20250724开发八字命理AI指导功能页码\开发八字命理AI指导功能页码\utils\payment_service.py", line 295, in verify_wechat_payment
+    result = xmltodict.parse(xml_data)['xml']
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Python\Python312\Lib\site-packages\xmltodict.py", line 359, in parse
+    parser.Parse(xml_input, True)
+xml.parsers.expat.ExpatError: not well-formed (invalid token): line 1, column 0
+2025-07-28 15:21:02,962 - root - ERROR - order_routes.py:238 - 微信支付验证失败: 未知错误
+2025-07-28 16:21:23,608 - utils.payment_service - ERROR - payment_service.py:332 - 验证微信支付回调异常: not well-formed (invalid token): line 1, column 0
+Traceback (most recent call last):
+  File "D:\Python\20250724开发八字命理AI指导功能页码\开发八字命理AI指导功能页码\utils\payment_service.py", line 315, in verify_wechat_payment
+    result = xmltodict.parse(xml_data)['xml']
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Python\Python312\Lib\site-packages\xmltodict.py", line 359, in parse
+    parser.Parse(xml_input, True)
+xml.parsers.expat.ExpatError: not well-formed (invalid token): line 1, column 0
+2025-07-28 16:21:23,620 - root - ERROR - order_routes.py:238 - 微信支付验证失败: 未知错误
+2025-07-28 20:05:50,227 - utils.payment_service - ERROR - payment_service.py:332 - 验证微信支付回调异常: not well-formed (invalid token): line 1, column 0
+Traceback (most recent call last):
+  File "D:\Python\20250724开发八字命理AI指导功能页码\开发八字命理AI指导功能页码\utils\payment_service.py", line 315, in verify_wechat_payment
+    result = xmltodict.parse(xml_data)['xml']
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Python\Python312\Lib\site-packages\xmltodict.py", line 359, in parse
+    parser.Parse(xml_input, True)
+xml.parsers.expat.ExpatError: not well-formed (invalid token): line 1, column 0
+2025-07-28 20:05:50,238 - root - ERROR - order_routes.py:238 - 微信支付验证失败: 未知错误
+2025-07-28 21:08:15,494 - utils.wechat_pay_v3 - ERROR - wechat_pay_v3.py:361 - 未设置WECHAT_API_V3_KEY，无法解密回调数据
+2025-07-28 21:08:15,495 - utils.wechat_pay_v3 - ERROR - wechat_pay_v3.py:414 - 解密回调资源失败
