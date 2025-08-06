@@ -34,7 +34,7 @@
       <!-- PC端二维码登录 -->
       <div class="wechat-login-section" v-else>
         <div class="wechat-qr-container" v-if="showQRCode">
-          <div class="qr-title">请使用微信扫描二维码登录</div>
+          <!-- <div class="qr-title">请使用微信扫描二维码登录</div>
           <div class="qr-code">
             <img v-if="qrCodeImage" :src="qrCodeImage" alt="微信登录二维码" @click="openWechatLogin" style="cursor: pointer;" />
             <div v-else class="loading">正在生成二维码...</div>
@@ -43,14 +43,14 @@
             <p>1. 使用微信扫描上方二维码</p>
             <p>2. 或者点击二维码在新窗口中登录</p>
             <p>3. 在微信中确认登录</p>
-          </div>
+          </div> -->
           <van-button 
             type="primary" 
             size="small" 
             @click="openWechatLogin"
             style="margin-top: 10px;"
           >
-            在新窗口中登录
+            点击在新窗口中登录
           </van-button>
         </div>
         
@@ -169,7 +169,7 @@ export default {
           showQRCode.value = true;
           
           Toast.clear();
-          Toast.success('二维码生成成功，请扫码登录');
+          Toast.success('请点击在新窗口中登录'); //二维码生成成功，请扫码登录
           
           // 开始轮询检查登录状态
           startLoginCheck();
