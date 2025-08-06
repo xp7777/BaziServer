@@ -14,11 +14,30 @@ const router = createRouter({
   routes,
 });
 
-// 页面标题
+// 页面标题和认证守卫
 router.beforeEach((to, from, next) => {
+  // 设置页面标题
   if (to.meta.title) {
     document.title = to.meta.title;
   }
+  
+  // 需要认证的路由列表
+  const authRequiredRoutes = ['/bazi-service', '/payment', '/result', '/user'];
+  
+  // 检查是否需要认证
+  const requiresAuth = authRequiredRoutes.some(route => to.path.startsWith(route));
+  
+  if (requiresAuth) {
+    const token = localStorage.getItem('userToken');
+    const userInfo = localStorage.getItem('userInfo');
+    
+    if (!token || !userInfo) {
+      // 未登录，跳转到登录页
+      next('/login');
+      return;
+    }
+  }
+  
   next();
 });
 

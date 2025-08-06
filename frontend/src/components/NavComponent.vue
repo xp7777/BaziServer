@@ -14,7 +14,7 @@
             v-for="item in navItems"
             :key="item.id"
             @click="scrollToSection(item.id)"
-            class="nav-link text-gray-300 hover:text-white px-3 py-2 text-sm font-medium transition-colors "
+            class="nav-link text-gray-300 hover:text-white px-3 py-2 text-sm font-medium transition-colors manuel-button-right"
           >
             {{ item.label }}
           </button>
@@ -129,4 +129,9 @@ nav.scrolled {
 .nav-link:hover::after {
   width: 100%;
 }
+
+.manuel-button-right {
+  margin-left: 1.5rem;
+}
+
 </style> 
