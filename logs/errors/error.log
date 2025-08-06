@@ -5,3 +5,12 @@
 2025-07-29 19:38:19,006 - root - ERROR - auth_routes.py:433 - 获取access_token失败: invalid code, rid: 6888b2ab-22a3491d-2a6e1478
 2025-07-29 23:29:02,259 - utils.wechat_pay_v3 - ERROR - wechat_pay_v3.py:361 - 未设置WECHAT_API_V3_KEY，无法解密回调数据
 2025-07-29 23:29:02,259 - utils.wechat_pay_v3 - ERROR - wechat_pay_v3.py:414 - 解密回调资源失败
+2025-08-06 13:17:50,080 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892e57f-71ec4c73-71de0be7'}
+2025-08-06 13:19:34,863 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892e5e8-16cd846c-4c7280ba'}
+2025-08-06 13:27:00,448 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892e7a5-6df9a9ee-27b1aa9d'}
+2025-08-06 13:33:51,390 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892e940-27f3a433-7ac8df97'}
+2025-08-06 13:40:33,974 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892ead3-7b6322d3-74db0de9'}
+2025-08-06 13:41:26,780 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892eb08-53bc5c5b-03ec27e3'}
+2025-08-06 13:50:12,457 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892ed16-05756510-33c79825'}
+2025-08-06 13:51:07,921 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892ed4d-5a415619-25e6c14e'}
+2025-08-06 14:00:25,198 - utils.wechat_jsapi - ERROR - wechat_jsapi.py:37 - 获取access_token失败: {'errcode': 40164, 'errmsg': 'invalid ip 110.152.46.7 ipv6 ::ffff:110.152.46.7, not in whitelist rid: 6892ef7a-21de3350-135eefbd'}

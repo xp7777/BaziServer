@@ -183,14 +183,24 @@ export default {
             
             wx.ready(() => {
               console.log('微信JSSDK配置成功');
+              // 设置一个全局标志，表示JSSDK已经准备好
+              window.wxReady = true;
             });
             
             wx.error((res) => {
               console.error('微信JSSDK配置失败:', res);
+              // 设置错误标志
+              window.wxError = res;
             });
+          } else {
+            console.warn('JSSDK配置接口返回错误:', response.data);
+            window.wxError = { errMsg: 'JSSDK配置接口错误' };
           }
         } catch (error) {
           console.error('获取JSSDK配置失败:', error);
+          // 即使JSSDK配置失败，也不阻止支付流程
+          console.log('JSSDK配置失败，但支付功能仍可尝试使用');
+          window.wxError = { errMsg: 'JSSDK配置请求失败' };
         }
       }
       
@@ -264,36 +274,186 @@ export default {
             
             if (isWechatBrowser && typeof wx !== 'undefined') {
               console.log('微信环境检查通过，准备调起支付');
-              // 使用微信JSSDK调起支付
-              wx.ready(() => {
-                console.log('准备调起微信支付', paymentResult.jsapi_params);
-                wx.chooseWXPay({
-                  timestamp: paymentResult.jsapi_params.timeStamp,
-                  nonceStr: paymentResult.jsapi_params.nonceStr,
-                  package: paymentResult.jsapi_params.package,
-                  signType: paymentResult.jsapi_params.signType,
-                  paySign: paymentResult.jsapi_params.paySign,
-                  success: function (res) {
-                    console.log('支付成功:', res);
-                    Toast.success('支付成功');
-                    checkPaymentStatus();
-                  },
-                  fail: function (res) {
-                    console.error('支付失败:', res);
-                    Toast.fail('支付失败: ' + (res.errMsg || '未知错误'));
-                  },
-                  cancel: function (res) {
-                    console.log('用户取消支付:', res);
-                    Toast.fail('支付已取消');
+              console.log('wx对象详情:', typeof wx, wx);
+              console.log('wx.chooseWXPay可用性:', typeof wx.chooseWXPay);
+              console.log('wx.ready可用性:', typeof wx.ready);
+              console.log('JSSDK准备状态:', window.wxReady);
+              console.log('JSSDK错误状态:', window.wxError);
+              
+              // 构建支付参数
+              console.log('原始JSAPI参数对象:', paymentResult.jsapi_params);
+              console.log('paymentResult.jsapi_params.appId:', paymentResult.jsapi_params.appId);
+              console.log('typeof paymentResult.jsapi_params.appId:', typeof paymentResult.jsapi_params.appId);
+              
+              const payParams = {
+                appId: paymentResult.jsapi_params.appId,
+                appid: paymentResult.jsapi_params.appId,  // 同时提供小写版本
+                timestamp: paymentResult.jsapi_params.timestamp || paymentResult.jsapi_params.timeStamp,
+                timeStamp: paymentResult.jsapi_params.timestamp || paymentResult.jsapi_params.timeStamp,  // 同时提供驼峰版本
+                nonceStr: paymentResult.jsapi_params.nonceStr,
+                package: paymentResult.jsapi_params.package,
+                signType: paymentResult.jsapi_params.signType,
+                paySign: paymentResult.jsapi_params.paySign
+              };
+              console.log('最终支付参数:', payParams);
+              console.log('最终支付参数中的appId:', payParams.appId);
+              
+              // 验证必须参数（检查两种格式）
+              const requiredParams = ['timestamp', 'nonceStr', 'package', 'signType', 'paySign'];
+              const hasAppId = payParams.appId || payParams.appid;
+              const hasTimestamp = payParams.timestamp || payParams.timeStamp;
+              
+              if (!hasAppId) {
+                console.error('缺少appId/appid参数');
+                Toast.fail('支付参数缺失: appId');
+                return;
+              }
+              
+              if (!hasTimestamp) {
+                console.error('缺少timestamp/timeStamp参数');
+                Toast.fail('支付参数缺失: timestamp');
+                return;
+              }
+              
+              const missingParams = requiredParams.filter(param => !payParams[param]);
+              if (missingParams.length > 0) {
+                console.error('缺少必需参数:', missingParams);
+                Toast.fail('支付参数缺失: ' + missingParams.join(', '));
+                return;
+              }
+              
+              // 调起支付的函数
+              const callWxPay = () => {
+                console.log('开始调用微信支付');
+                
+                // 根据微信官方文档构建参数
+                const payParams = {
+                  "appId": paymentResult.jsapi_params.appId,
+                  "timeStamp": String(paymentResult.jsapi_params.timestamp || paymentResult.jsapi_params.timeStamp),
+                  "nonceStr": String(paymentResult.jsapi_params.nonceStr),
+                  "package": String(paymentResult.jsapi_params.package),
+                  "signType": String(paymentResult.jsapi_params.signType),
+                  "paySign": String(paymentResult.jsapi_params.paySign)
+                };
+                
+                console.log('支付参数:', payParams);
+                
+                // 验证必需参数
+                const requiredKeys = ['appId', 'timeStamp', 'nonceStr', 'package', 'signType', 'paySign'];
+                const missingKeys = requiredKeys.filter(key => !payParams[key] || payParams[key] === '');
+                
+                if (missingKeys.length > 0) {
+                  console.error('缺少必需参数:', missingKeys);
+                  Toast.fail('支付参数不完整: ' + missingKeys.join(', '));
+                  return;
+                } else {
+                  console.log('所有必需参数都存在且非空');
+                }
+                
+                // 使用官方推荐的方法
+                function onBridgeReady() {
+                  console.log('调用WeixinJSBridge.invoke getBrandWCPayRequest');
+                  WeixinJSBridge.invoke('getBrandWCPayRequest', payParams, function(res) {
+                    console.log('支付结果:', res);
+                    
+                    if (res.err_msg === "get_brand_wcpay_request:ok") {
+                      console.log('支付成功');
+                      Toast.success('支付成功');
+                      onPaymentSuccess();
+                    } else if (res.err_msg === "get_brand_wcpay_request:cancel") {
+                      console.log('用户取消支付');
+                      Toast.fail('支付已取消');
+                    } else {
+                      console.error('支付失败:', res);
+                      Toast.fail('支付失败: ' + res.err_msg);
+                    }
+                  });
+                }
+                
+                // 检查WeixinJSBridge是否可用
+                if (typeof WeixinJSBridge === "undefined") {
+                  console.log('WeixinJSBridge未准备好，等待...');
+                  if (document.addEventListener) {
+                    document.addEventListener('WeixinJSBridgeReady', onBridgeReady, false);
+                  } else if (document.attachEvent) {
+                    document.attachEvent('WeixinJSBridgeReady', onBridgeReady);
+                    document.attachEvent('onWeixinJSBridgeReady', onBridgeReady);
+                  }
+                } else {
+                  console.log('WeixinJSBridge已准备好');
+                  onBridgeReady();
+                }
+              };
+              
+              // 检查微信JSSDK状态并调用支付
+              console.log('检查微信JSSDK状态...');
+              
+              // 如果JSSDK已经准备好，直接调用
+              if (window.wxReady) {
+                console.log('JSSDK已准备好，直接调用支付');
+                callWxPay();
+              }
+              // 如果JSSDK有错误，显示警告但继续尝试支付
+              else if (window.wxError) {
+                console.warn('JSSDK配置有问题，但仍尝试调用支付:', window.wxError);
+                Toast({
+                  message: '微信配置异常，正在尝试调用支付...',
+                  duration: 2000
+                });
+                // 延迟一点再调用，给用户看到提示
+                setTimeout(() => {
+                  callWxPay();
+                }, 1000);
+              }
+              // 否则等待JSSDK准备好或直接尝试调用
+              else {
+                console.log('JSSDK状态未知，尝试多种方式调用');
+                
+                let called = false;
+                
+                // 方式1：等待wx.ready（最多等待3秒）
+                const readyTimeout = setTimeout(() => {
+                  if (!called) {
+                    console.log('wx.ready超时，直接调用支付');
+                    called = true;
+                    callWxPay();
+                  }
+                }, 3000);
+                
+                wx.ready(() => {
+                  console.log('wx.ready回调执行');
+                  if (!called) {
+                    called = true;
+                    clearTimeout(readyTimeout);
+                    callWxPay();
                   }
                 });
-              });
+                
+                // 方式2：如果wx.ready不执行，延迟调用
+                setTimeout(() => {
+                  if (!called && !window.wxReady) {
+                    console.log('备用方案：延迟直接调用支付');
+                    called = true;
+                    clearTimeout(readyTimeout);
+                    callWxPay();
+                  }
+                }, 2000);
+              }
               
-              wx.error((res) => {
-                console.error('微信JSSDK错误:', res);
-                Toast.fail('微信环境异常: ' + res.errMsg);
-              });
+              // 错误处理
+              if (typeof wx.error === 'function') {
+                wx.error((res) => {
+                  console.error('微信JSSDK配置错误:', res);
+                  window.wxError = res;
+                  Toast.fail('微信JSSDK配置错误: ' + res.errMsg);
+                });
+              }
+              
             } else {
+              console.log('微信环境检查失败');
+              console.log('isWechatBrowser:', isWechatBrowser);
+              console.log('typeof wx:', typeof wx);
+              console.log('navigator.userAgent:', navigator.userAgent);
               Toast.fail('微信环境异常，请在微信中打开');
             }
           }
