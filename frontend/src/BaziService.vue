@@ -215,7 +215,12 @@ const onSubmit = () => {
 
 // 组件挂载时检查登录状态
 onMounted(() => {
-  checkLoginStatus();
+  // 立即检查登录状态，如果未登录则跳转
+  if (!checkLoginStatus()) {
+    return; // checkLoginStatus 内部已经处理了跳转和提示
+  }
+  
+  console.log('八字服务页面加载，用户已登录');
 });
 </script>
 

@@ -209,8 +209,18 @@ export default {
     };
     
     const goToBaziService = () => {
-      // 导航到八字命理服务页面
-      router.push('/bazi-service');
+      // 检查登录状态
+      const userToken = localStorage.getItem('userToken');
+      const userInfo = localStorage.getItem('userInfo');
+      
+      if (!userToken || !userInfo) {
+        // 未登录，先跳转到登录页面
+        // 可以考虑添加Toast提示
+        router.push('/login');
+      } else {
+        // 已登录，导航到八字命理服务页面
+        router.push('/bazi-service');
+      }
     };
     
     return {

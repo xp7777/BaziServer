@@ -152,6 +152,16 @@ export default {
     const deviceType = isWechatBrowser ? 'mobile' : 'pc';
     
     onMounted(async () => {
+      // 首先检查登录状态
+      const userToken = localStorage.getItem('userToken');
+      const userInfo = localStorage.getItem('userInfo');
+      
+      if (!userToken || !userInfo) {
+        Toast.fail('请先登录后再进行支付');
+        router.push('/login');
+        return;
+      }
+      
       // 在组件mounted时添加微信JSSDK配置检查
       if (isWechatBrowser) {
         console.log('检测到微信环境，开始配置JSSDK');
