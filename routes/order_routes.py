@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from bson import ObjectId
 import os
 import uuid
 from models.order_model import OrderModel, orders_collection
@@ -1087,8 +1088,8 @@ def manual_update_order(order_id):
     try:
         logging.info(f"手动更新订单: {order_id}")
         
-        # 查找订单
-        order = orders_collection.find_one({'_id': order_id})
+        # 查找订单 - 使用模型的正确查询方法
+        order = OrderModel.find_by_id(order_id)
         if not order:
             logging.warning(f"订单不存在: {order_id}")
             return jsonify(code=404, message="订单不存在"), 404
@@ -1101,36 +1102,52 @@ def manual_update_order(order_id):
             # 生成结果ID
             result_id = 'RES' + order_id[2:] if order_id.startswith('BZ') else 'RES' + order_id
             
-            # 更新订单的结果ID
-            orders_collection.update_one(
-                {'_id': order_id},
-                {'$set': {'resultId': result_id}}
-            )
+            # 更新订单的结果ID - 使用正确的ObjectId
+            try:
+                orders_collection.update_one(
+                    {'_id': ObjectId(order_id)},
+                    {'$set': {'resultId': result_id}}
+                )
+            except:
+                # 如果ObjectId失败，尝试字符串ID
+                orders_collection.update_one(
+                    {'_id': order_id},
+                    {'$set': {'resultId': result_id}}
+                )
             
             # 创建分析结果记录
             result_data = {
                 '_id': result_id,
                 'orderId': order_id,
                 'userId': order.get('userId', ''),
-                'gender': order.get('orderData', {}).get('gender', 'male'),
-                'birthTime': order.get('orderData', {}).get('birthTime', {}),
-                'focusAreas': order.get('orderData', {}).get('focusAreas', []),
-                'createdAt': datetime.now(),
+                'gender': order.get('gender', 'male'),
+                'birthTime': order.get('birthTime', ''),
+                'birthDate': order.get('birthDate', ''),
+                'birthPlace': order.get('birthPlace', ''),
+                'livingPlace': order.get('livingPlace', ''),
+                'focusAreas': order.get('focusAreas', []),
+                'calendarType': order.get('calendarType', 'solar'),
+                'createdAt': datetime.utcnow(),
                 'baziChart': {},  # 初始为空，后续分析填充
                 'aiAnalysis': {}  # 初始为空，后续分析填充
             }
             
             logging.info(f"准备创建分析结果记录: {result_data}")
             
-            # 插入结果记录
-            db.bazi_results.insert_one(result_data)
-            logging.info(f"已创建分析结果记录: {result_id}")
+            # 使用BaziResultModel创建结果记录
+            try:
+                from models.bazi_result_model import bazi_results_collection
+                bazi_results_collection.insert_one(result_data)
+                logging.info(f"已创建分析结果记录: {result_id}")
+            except Exception as e:
+                logging.error(f"创建结果记录失败: {str(e)}")
             
             return jsonify({
                 'code': 200,
                 'message': '订单已支付',
                 'data': {
-                    'resultId': result_id
+                    'resultId': result_id,
+                    'status': 'paid'
                 }
             })
         
@@ -1139,7 +1156,13 @@ def manual_update_order(order_id):
             result_id = order.get('resultId')
             
             # 检查结果记录是否存在
-            result = db.bazi_results.find_one({'_id': result_id})
+            try:
+                from models.bazi_result_model import bazi_results_collection
+                result = bazi_results_collection.find_one({'_id': result_id})
+            except Exception as e:
+                logging.error(f"查询结果记录失败: {str(e)}")
+                result = None
+                
             if not result:
                 # 创建分析结果记录
                 result_data = {
@@ -1147,22 +1170,30 @@ def manual_update_order(order_id):
                     'orderId': order_id,
                     'userId': order.get('userId', ''),
                     'gender': order.get('gender', 'male'),
-                    'birthTime': order.get('birthTime', {}),
+                    'birthTime': order.get('birthTime', ''),
+                    'birthDate': order.get('birthDate', ''),
+                    'birthPlace': order.get('birthPlace', ''),
+                    'livingPlace': order.get('livingPlace', ''),
                     'focusAreas': order.get('focusAreas', []),
-                    'createdAt': datetime.now(),
+                    'calendarType': order.get('calendarType', 'solar'),
+                    'createdAt': datetime.utcnow(),
                     'baziChart': {},  # 初始为空，后续分析填充
                     'aiAnalysis': {}  # 初始为空，后续分析填充
                 }
                 
                 # 插入结果记录
-                db.bazi_results.insert_one(result_data)
-                logging.info(f"已创建缺失的分析结果记录: {result_id}")
+                try:
+                    bazi_results_collection.insert_one(result_data)
+                    logging.info(f"已创建缺失的分析结果记录: {result_id}")
+                except Exception as e:
+                    logging.error(f"创建结果记录失败: {str(e)}")
             
             return jsonify({
                 'code': 200,
                 'message': '订单已支付',
                 'data': {
-                    'resultId': result_id
+                    'resultId': result_id,
+                    'status': order.get('status', 'paid')
                 }
             })
         

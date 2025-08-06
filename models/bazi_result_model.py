@@ -406,6 +406,8 @@ class BaziResultModel:
                 {'_id': result_id},
                 {'$set': {
                     'aiAnalysis': analysis_data,
+                    'analysisStatus': 'completed',  # 添加分析状态
+                    'analysisProgress': 100,         # 添加分析进度
                     'updateTime': datetime.now()
                 }},
                 return_document=ReturnDocument.AFTER
@@ -419,6 +421,8 @@ class BaziResultModel:
                     {'_id': res_id},
                     {'$set': {
                         'aiAnalysis': analysis_data,
+                        'analysisStatus': 'completed',  # 添加分析状态
+                        'analysisProgress': 100,         # 添加分析进度
                         'updateTime': datetime.now()
                     }},
                     return_document=ReturnDocument.AFTER
@@ -837,6 +841,8 @@ class BaziResultModel:
                 'baziChart': bazi_chart,
                 'aiAnalysis': ai_analysis,
                 'analyzed': True,
+                'analysisStatus': 'completed',  # 添加分析状态
+                'analysisProgress': 100,         # 添加分析进度
                 'updateTime': datetime.now()
             }
             
