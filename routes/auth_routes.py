@@ -146,6 +146,8 @@ def wechat_callback():
         
         try:
             user_response = requests.get(user_info_url, timeout=10)
+            # 确保响应使用UTF-8编码
+            user_response.encoding = 'utf-8'
             user_data = user_response.json()
             logging.info(f"用户信息响应: {user_data}")
         except Exception as e:
@@ -168,11 +170,25 @@ def wechat_callback():
         
         # 更新登录状态
         try:
+            # 确保nickname的UTF-8编码正确
+            nickname = user_data.get('nickname', '微信用户')
+            if nickname:
+                # 处理可能的编码问题
+                try:
+                    # 如果nickname是字节字符串，解码为UTF-8
+                    if isinstance(nickname, bytes):
+                        nickname = nickname.decode('utf-8')
+                    # 确保字符串是正确的UTF-8格式
+                    nickname = nickname.encode('utf-8').decode('utf-8')
+                except (UnicodeDecodeError, UnicodeEncodeError) as e:
+                    logging.warning(f"处理nickname编码时出错: {str(e)}, 使用默认值")
+                    nickname = '微信用户'
+            
             login_status[state] = {
                 'status': 'success',
                 'userInfo': {
                     'openid': user_data['openid'],
-                    'nickname': user_data.get('nickname', '微信用户'),
+                    'nickname': nickname,
                     'avatar': user_data.get('headimgurl', ''),  # 统一使用avatar字段
                     'headimgurl': user_data.get('headimgurl', ''),  # 保留原字段
                     'sex': user_data.get('sex', 0),
@@ -439,6 +455,8 @@ def wechat_phone_callback():
         # 获取用户信息
         user_info_url = f"https://api.weixin.qq.com/sns/userinfo?access_token={access_token}&openid={openid}&lang=zh_CN"
         user_response = requests.get(user_info_url, timeout=10)
+        # 确保响应使用UTF-8编码
+        user_response.encoding = 'utf-8'
         user_data = user_response.json()
         
         if 'errcode' in user_data:
@@ -456,11 +474,24 @@ def wechat_phone_callback():
             return render_callback_page(f"生成JWT token失败: {str(e)}", False)
         
         # 更新登录状态
+        # 处理nickname编码问题
+        nickname = user_data.get('nickname', '微信用户')
+        if nickname:
+            try:
+                # 如果nickname是字节字符串，解码为UTF-8
+                if isinstance(nickname, bytes):
+                    nickname = nickname.decode('utf-8')
+                # 确保字符串是正确的UTF-8格式
+                nickname = nickname.encode('utf-8').decode('utf-8')
+            except (UnicodeDecodeError, UnicodeEncodeError) as e:
+                logging.warning(f"处理手机端nickname编码时出错: {str(e)}, 使用默认值")
+                nickname = '微信用户'
+        
         login_status[state] = {
             'status': 'success',
             'userInfo': {
                 'openid': user_data.get('openid'),
-                'nickname': user_data.get('nickname'),
+                'nickname': nickname,
                 'avatar': user_data.get('headimgurl'),  # 统一使用avatar字段
                 'headimgurl': user_data.get('headimgurl'),  # 保留原字段
                 'sex': user_data.get('sex'),
