@@ -153,36 +153,81 @@
           <!-- 添加神煞显示 -->
           <h3>神煞信息</h3>
           <div class="shen-sha-info" v-if="baziChart && baziChart.shenSha">
-            <div class="shen-sha-content">
-              <div class="shen-sha-item">
-                <span class="label">日冲</span>
-                <span class="value">{{ baziChart.shenSha.dayChong }}</span>
-              </div>
-              <div class="shen-sha-item">
-                <span class="label">值神</span>
-                <span class="value">{{ baziChart.shenSha.zhiShen }}</span>
-              </div>
-              <div class="shen-sha-item">
-                <span class="label">喜神</span>
-                <span class="value">{{ baziChart.shenSha.xiShen }}</span>
-              </div>
-              <div class="shen-sha-item">
-                <span class="label">福神</span>
-                <span class="value">{{ baziChart.shenSha.fuShen }}</span>
-              </div>
-              <div class="shen-sha-item">
-                <span class="label">财神</span>
-                <span class="value">{{ baziChart.shenSha.caiShen }}</span>
-              </div>
+            <!-- AI神煞分析优先显示 -->
+            <div v-if="aiAnalysis.shenShaAnalysis && aiAnalysis.shenShaAnalysis !== '暂无' && aiAnalysis.shenShaAnalysis !== '分析生成中...'" class="ai-shen-sha-analysis">
+              <div class="markdown-content" v-html="renderMarkdown(aiAnalysis.shenShaAnalysis)"></div>
             </div>
             
-            <!-- 本命神煞 -->
-            <div class="ben-ming-sha" v-if="baziChart.shenSha.benMing.length > 0">
-              <h4>本命神煞</h4>
-              <div class="ben-ming-list">
-                <span v-for="(sha, index) in baziChart.shenSha.benMing" :key="index" class="ben-ming-item">
-                  {{ sha }}
-                </span>
+            <!-- 传统神煞信息（当AI分析存在时作为补充，当AI分析不存在时作为主要显示） -->
+            <div class="traditional-shen-sha" v-if="!aiAnalysis.shenShaAnalysis || aiAnalysis.shenShaAnalysis === '暂无' || aiAnalysis.shenShaAnalysis === '分析生成中...'">
+              <div class="shen-sha-content">
+                <div class="shen-sha-item">
+                  <span class="label">日冲</span>
+                  <span class="value">{{ baziChart.shenSha.dayChong }}</span>
+                </div>
+                <div class="shen-sha-item">
+                  <span class="label">值神</span>
+                  <span class="value">{{ baziChart.shenSha.zhiShen }}</span>
+                </div>
+                <div class="shen-sha-item">
+                  <span class="label">喜神</span>
+                  <span class="value">{{ baziChart.shenSha.xiShen }}</span>
+                </div>
+                <div class="shen-sha-item">
+                  <span class="label">福神</span>
+                  <span class="value">{{ baziChart.shenSha.fuShen }}</span>
+                </div>
+                <div class="shen-sha-item">
+                  <span class="label">财神</span>
+                  <span class="value">{{ baziChart.shenSha.caiShen }}</span>
+                </div>
+              </div>
+              
+              <!-- 本命神煞 -->
+              <div class="ben-ming-sha" v-if="baziChart.shenSha.benMing && baziChart.shenSha.benMing.length > 0">
+                <h4>本命神煞</h4>
+                <div class="ben-ming-list">
+                  <span v-for="(sha, index) in baziChart.shenSha.benMing" :key="index" class="ben-ming-item">
+                    {{ sha }}
+                  </span>
+                </div>
+              </div>
+              
+              <!-- 其他神煞分类 -->
+              <div class="other-shen-sha" v-if="baziChart.shenSha.yearGan && baziChart.shenSha.yearGan.length > 0">
+                <h4>年干神煞</h4>
+                <div class="ben-ming-list">
+                  <span v-for="(sha, index) in baziChart.shenSha.yearGan" :key="index" class="ben-ming-item">
+                    {{ sha }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="other-shen-sha" v-if="baziChart.shenSha.yearZhi && baziChart.shenSha.yearZhi.length > 0">
+                <h4>年支神煞</h4>
+                <div class="ben-ming-list">
+                  <span v-for="(sha, index) in baziChart.shenSha.yearZhi" :key="index" class="ben-ming-item">
+                    {{ sha }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="other-shen-sha" v-if="baziChart.shenSha.dayGan && baziChart.shenSha.dayGan.length > 0">
+                <h4>日干神煞</h4>
+                <div class="ben-ming-list">
+                  <span v-for="(sha, index) in baziChart.shenSha.dayGan" :key="index" class="ben-ming-item">
+                    {{ sha }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="other-shen-sha" v-if="baziChart.shenSha.dayZhi && baziChart.shenSha.dayZhi.length > 0">
+                <h4>日支神煞</h4>
+                <div class="ben-ming-list">
+                  <span v-for="(sha, index) in baziChart.shenSha.dayZhi" :key="index" class="ben-ming-item">
+                    {{ sha }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
