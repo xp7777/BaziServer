@@ -4,17 +4,17 @@
     
     <!-- 步骤面包屑 -->
     <div class="step-breadcrumb">
-      <div class="step completed">
+      <div class="step completed" style="color: #000000;">
         <van-icon name="passed" class="step-icon" />
         <span class="step-text">填写信息</span>
       </div>
       <div class="step-line completed"></div>
-      <div class="step completed">
+      <div class="step completed" style="color: #000000;">
         <van-icon name="passed" class="step-icon" />
         <span class="step-text">确认支付</span>
       </div>
       <div class="step-line completed"></div>
-      <div class="step active">
+      <div class="step active" style="color: #000000;">
         <van-icon name="description" class="step-icon" />
         <span class="step-text">查看结果</span>
       </div>
@@ -32,7 +32,7 @@
         八字服务
       </router-link>
       <van-icon name="arrow" class="breadcrumb-arrow" />
-      <span class="breadcrumb-item current">
+      <span class="breadcrumb-item current" style="color: #000000;">
         <van-icon name="description" size="14" />
         分析结果
       </span>
@@ -3037,6 +3037,11 @@ const flowingYearsData = ref([]);
   justify-content: center;
   border-radius: 8px;
 }
+
+.step-text{
+  color: #000000;
+}
+
 </style>
 
 
