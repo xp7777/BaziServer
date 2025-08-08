@@ -296,6 +296,7 @@ def alipay_notify():
     return "fail"
 
 @order_bp.route('/create/followup', methods=['POST'])
+@jwt_required()
 def create_followup_order():
     """
     创建追问订单
@@ -310,7 +311,9 @@ def create_followup_order():
             "message": "缺少必要参数"
         }), 400
     
-    current_app.logger.info(f"创建追问订单，结果ID: {result_id}，领域: {area}")
+    # 获取当前用户的openid
+    user_openid = get_jwt_identity()
+    current_app.logger.info(f"创建追问订单，结果ID: {result_id}，领域: {area}，用户openid: {user_openid}")
     
     # 查找结果记录
     result = BaziResultModel.find_by_id(result_id)
@@ -326,7 +329,8 @@ def create_followup_order():
     # 创建订单
     order = {
         "_id": order_id,
-        "userId": result.get('userId', 'anonymous'),
+        "userId": user_openid,  # 使用从JWT获取的openid
+        "openid": user_openid,  # 明确保存openid字段，供JSAPI支付使用
         "amount": 1, #追问支付金额设置
         "status": "pending",
         "orderType": "followup",

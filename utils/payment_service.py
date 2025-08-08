@@ -46,7 +46,13 @@ def create_wechat_payment(order_id, amount, return_qr_image=False, device_type='
             
             # 手机端使用JSAPI支付
             if device_type == 'mobile' and openid:
-                logger.info(f"使用微信JSAPI支付: {order_id}")
+                logger.info(f"使用微信JSAPI支付: {order_id}, openid: {openid[:8]}***")
+                
+                # 验证openid格式
+                if not openid or len(openid) < 10:
+                    logger.error(f"openid格式无效: {openid}")
+                    raise Exception(f"openid格式无效，长度: {len(openid) if openid else 0}")
+                
                 result = wechat_pay_v3.create_jsapi_order(
                     out_trade_no=order_id,
                     amount=amount_in_cents,
@@ -64,6 +70,11 @@ def create_wechat_payment(order_id, amount, return_qr_image=False, device_type='
                         "jsapi_params": jsapi_params,
                         "prepay_id": prepay_id
                     }
+                else:
+                    # JSAPI支付失败，记录具体错误并抛出异常，不降级到V2
+                    error_msg = result.get("message", "未知错误")
+                    logger.error(f"微信JSAPI支付失败: {error_msg}, 订单: {order_id}, openid: {openid[:8]}***")
+                    raise Exception(f"微信JSAPI支付失败: {error_msg}")
             
             # PC端使用Native扫码支付
             else:
@@ -82,146 +93,12 @@ def create_wechat_payment(order_id, amount, return_qr_image=False, device_type='
                     }
         except Exception as e:
             logger.exception(f"微信支付V3创建订单异常: {str(e)}")
-            # 出错后尝试使用V2接口
+            # 直接返回失败，不使用V2后备方案
+            return None
     
-    # 以下是原有的V2接口代码（作为后备方案）
-    logger.warning(f"使用微信支付V2接口创建订单（后备方案）: {order_id}")
-    
-    # 获取配置
-    app_id = os.getenv('WECHAT_APP_ID')
-    mch_id = os.getenv('WECHAT_MCH_ID')
-    api_key = os.getenv('WECHAT_API_KEY')
-    notify_url = os.getenv('WECHAT_NOTIFY_URL')
-    cert_serial_no = os.getenv('WECHAT_CERT_SERIAL_NO')
-    
-    # 如果没有配置微信支付，返回测试URL
-    if not all([app_id, mch_id, api_key, notify_url]):
-        logger.warning("微信支付未完全配置，返回测试URL")
-        test_url = f"https://example.com/test-pay?order_id={order_id}&amount={amount}"
-        
-        if return_qr_image:
-            # 为测试URL生成二维码
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(test_url)
-            qr.make(fit=True)
-            
-            img = qr.make_image(fill_color="black", back_color="white")
-            buffered = BytesIO()
-            img.save(buffered)
-            img_str = base64.b64encode(buffered.getvalue()).decode()
-            
-            return {
-                "code_url": test_url,
-                "qr_image": f"data:image/png;base64,{img_str}"
-            }
-        
-        return {"code_url": test_url}
-    
-    try:
-        logger.info(f"开始调用微信支付V2 API创建订单: {order_id}")
-        
-        # 构造请求参数
-        nonce_str = str(uuid.uuid4()).replace('-', '')
-        body = "八字命理AI人生指导"  # 确保没有多余空格
-        out_trade_no = order_id
-        total_fee = int(amount * 100)  # 微信支付金额以分为单位
-        spbill_create_ip = "127.0.0.1"
-        trade_type = "NATIVE"  # 原生扫码支付
-        
-        # 构造签名参数
-        sign_params = {
-            "appid": app_id.strip(),
-            "mch_id": mch_id.strip(),
-            "nonce_str": nonce_str.strip(),
-            "body": body.strip(),
-            "out_trade_no": out_trade_no.strip(),
-            "total_fee": str(total_fee).strip(),
-            "spbill_create_ip": spbill_create_ip.strip(),
-            "notify_url": notify_url.strip(),
-            "trade_type": trade_type.strip()
-        }
-        
-        # 打印调试信息，检查签名前的各参数
-        logger.info(f"appid: '{app_id}'")
-        logger.info(f"mch_id: '{mch_id}'")
-        logger.info(f"body值: '{body}'")
-        
-        # 生成签名
-        sign_string = "&".join([f"{k}={v}" for k, v in sorted(sign_params.items())])
-        sign_string = sign_string + "&key=" + api_key.strip()
-        
-        # 打印签名参数用于调试
-        logger.info(f"生成签名参数: {sign_params}")
-        logger.info(f"完整签名字符串: {sign_string}")
-        logger.info(f"签名使用的API密钥(部分隐藏): {api_key[:4]}...{api_key[-4:]}")
-        
-        sign = hashlib.md5(sign_string.encode('utf-8')).hexdigest().upper()
-        logger.info(f"生成的MD5签名: {sign}")
-        
-        # 构造XML请求
-        xml_data = "<xml>"
-        for k, v in sign_params.items():
-            # 确保XML中的值与签名计算使用的值完全一致
-            xml_data += f"<{k}>{v}</{k}>"
-        xml_data += f"<sign>{sign}</sign>"
-        xml_data += "</xml>"
-        
-        logger.info("发送微信支付统一下单请求")
-        logger.debug(f"请求XML: {xml_data}")
-        
-        # 发送请求
-        url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
-        headers = {'Content-Type': 'application/xml; charset=utf-8'}  # 明确指定UTF-8编码
-        response = requests.post(url, data=xml_data.encode('utf-8'), headers=headers)
-        
-        # 记录响应内容
-        logger.info(f"微信支付响应状态码: {response.status_code}")
-        logger.debug(f"微信支付原始响应: {response.text}")
-        
-        # 解析响应
-        result = xmltodict.parse(response.content)['xml']
-        
-        if result['return_code'] == 'SUCCESS' and result['result_code'] == 'SUCCESS':
-            logger.info(f"微信支付V2下单成功: {order_id}")
-            code_url = result['code_url']
-            
-            if return_qr_image:
-                # 生成二维码图片
-                qr = qrcode.QRCode(
-                    version=1,
-                    error_correction=qrcode.constants.ERROR_CORRECT_L,
-                    box_size=10,
-                    border=4,
-                )
-                qr.add_data(code_url)
-                qr.make(fit=True)
-                
-                img = qr.make_image(fill_color="black", back_color="white")
-                buffered = BytesIO()
-                img.save(buffered)
-                img_str = base64.b64encode(buffered.getvalue()).decode()
-                
-                logger.info("已生成微信支付二维码图片")
-                
-                return {
-                    "code_url": code_url,
-                    "qr_image": f"data:image/png;base64,{img_str}"
-                }
-            
-            return {"code_url": code_url}
-        else:
-            error_msg = result.get('err_code_des') or result.get('return_msg') or '未知错误'
-            logger.error(f"微信支付V2下单失败: {error_msg}")
-            return {"error": error_msg, "code": "WECHAT_API_ERROR"}
-    
-    except Exception as e:
-        logger.exception(f"创建微信支付异常: {str(e)}")
-        return {"error": str(e), "code": "SYSTEM_ERROR"}
+    # V3支付不可用时直接返回失败
+    logger.error(f"微信支付V3不可用，订单创建失败: {order_id}")
+    return None
 
 def create_alipay_payment(order_id, amount, is_mobile=False):
     """
