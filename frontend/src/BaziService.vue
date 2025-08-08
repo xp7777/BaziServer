@@ -152,25 +152,9 @@ const formData = reactive({
   focusAreas: []
 });
 
-// 检查登录状态
-const checkLoginStatus = () => {
-  const token = localStorage.getItem('userToken');
-  const userInfo = localStorage.getItem('userInfo');
-  
-  if (!token || !userInfo) {
-    Toast.fail('请先登录');
-    router.push('/login');
-    return false;
-  }
-  return true;
-};
+
 
 const onSubmit = () => {
-  // 首先检查登录状态
-  if (!checkLoginStatus()) {
-    return;
-  }
-  
   // 表单验证
   if (!formData.birthDate) {
     Toast.fail('请选择出生日期');

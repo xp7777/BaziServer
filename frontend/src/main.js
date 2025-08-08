@@ -16,6 +16,14 @@ const router = createRouter({
 
 // 页面标题和认证守卫
 router.beforeEach((to, from, next) => {
+  // 添加调试日志
+  console.log('路由守卫执行:', {
+    to: to.path,
+    from: from.path,
+    userAgent: navigator.userAgent,
+    isWechat: navigator.userAgent.toLowerCase().includes('micromessenger')
+  });
+  
   // 设置页面标题
   if (to.meta.title) {
     document.title = to.meta.title;
@@ -27,17 +35,26 @@ router.beforeEach((to, from, next) => {
   // 检查是否需要认证
   const requiresAuth = authRequiredRoutes.some(route => to.path.startsWith(route));
   
+  console.log('认证检查:', {
+    path: to.path,
+    requiresAuth,
+    token: !!localStorage.getItem('userToken'),
+    userInfo: !!localStorage.getItem('userInfo')
+  });
+  
   if (requiresAuth) {
     const token = localStorage.getItem('userToken');
     const userInfo = localStorage.getItem('userInfo');
     
     if (!token || !userInfo) {
+      console.log('未登录，跳转到登录页');
       // 未登录，跳转到登录页
       next('/login');
       return;
     }
   }
   
+  console.log('路由守卫通过，继续导航');
   next();
 });
 
