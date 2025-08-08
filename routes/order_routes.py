@@ -19,6 +19,22 @@ import json
 
 order_bp = Blueprint('order', __name__)
 
+# 临时调试路由 - 检查用户JWT信息
+@order_bp.route('/debug/user', methods=['GET'])
+@jwt_required()
+def debug_user_info():
+    """调试用户JWT信息"""
+    user_openid = get_jwt_identity()
+    return jsonify({
+        "code": 200,
+        "message": "用户信息",
+        "data": {
+            "openid": user_openid,
+            "openid_length": len(user_openid) if user_openid else 0,
+            "openid_type": type(user_openid).__name__
+        }
+    })
+
 @order_bp.route('/create', methods=['POST'])
 @jwt_required()
 def create_order():
@@ -845,6 +861,12 @@ def create_payment(order_id):
     
     # 获取用户openid（用于JSAPI支付）
     user_openid = order.get('openid') or order.get('userId')
+    
+    # 添加详细调试日志
+    current_app.logger.info(f"支付处理 - 订单ID: {order_id}, 设备类型: {device_type}")
+    current_app.logger.info(f"支付处理 - 订单中的openid: {order.get('openid')}")
+    current_app.logger.info(f"支付处理 - 订单中的userId: {order.get('userId')}")
+    current_app.logger.info(f"支付处理 - 最终使用的openid: {user_openid}")
     
     # 生成支付参数
     if payment_method == 'wechat':
