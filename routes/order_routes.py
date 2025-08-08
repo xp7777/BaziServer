@@ -296,6 +296,7 @@ def alipay_notify():
     return "fail"
 
 @order_bp.route('/create/followup', methods=['POST'])
+@jwt_required()  # 添加JWT认证
 def create_followup_order():
     """
     创建追问订单
@@ -323,10 +324,13 @@ def create_followup_order():
     # 创建订单ID
     order_id = "FQ" + str(int(time.time() * 1000))
     
+    user_openid = get_jwt_identity()  # 获取openid
+
     # 创建订单
     order = {
         "_id": order_id,
-        "userId": result.get('userId', 'anonymous'),
+        "userId": user_openid,     # 使用openid作为用户ID
+        "openid": user_openid,     # 明确保存openid字段
         "amount": 1, #追问支付金额设置
         "status": "pending",
         "orderType": "followup",

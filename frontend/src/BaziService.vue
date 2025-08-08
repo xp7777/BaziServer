@@ -3,7 +3,7 @@
     <van-nav-bar title="八字命理人生指导" />
     
     <div class="banner">
-      <img src="./assets/banner11.png" alt="八字命理AI人生指导" class="banner-img">
+      <img src="./assets/banner11.webp" alt="八字命理AI人生指导" class="banner-img">
       <h2 class="slogan">传统文化 · 现代科技 · 智慧人生</h2>
     </div>
     

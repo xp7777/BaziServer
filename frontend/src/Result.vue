@@ -1795,12 +1795,19 @@ const startFollowupPaymentPolling = () => {
   }, 3000);
 };
 
+
 // 修改支付追问费用函数
 const payForFollowup = async () => {
   if (!currentFollowup.value) return;
   
   try {
     isLoadingFollowup.value = true;
+    
+    // 检测设备类型
+    const isWechatBrowser = /micromessenger/i.test(navigator.userAgent);
+    const deviceType = isWechatBrowser ? 'mobile' : 'pc';
+    
+    console.log('追问支付 - 设备类型:', deviceType, '微信浏览器:', isWechatBrowser);
     
     // 第一步：创建订单
     Toast.loading({
@@ -1820,38 +1827,138 @@ const payForFollowup = async () => {
       window.currentFollowupOrderId = followupOrderId; // 保存订单ID
       console.log('追问订单创建成功:', followupOrderId);
       
-      // 调用微信支付
-      Toast.loading({
-        message: '正在获取支付二维码...',
-        forbidClick: true,
-        duration: 0
-      });
-      
-      // 获取微信支付参数
-      const paymentResponse = await axios.post(`/api/order/create/payment/${followupOrderId}`, {
-        paymentMethod: 'wechat',
-        deviceType: 'pc',
-        returnQrCode: true
-      });
-      
-      if (paymentResponse.data.code === 200) {
-        Toast.clear();
+      // 根据设备类型调用不同的支付方式
+      if (isWechatBrowser) {
+        // 手机微信端使用JSAPI支付
+        Toast.loading({
+          message: '正在调起微信支付...',
+          forbidClick: true,
+          duration: 0
+        });
         
-        // 解析支付二维码返回数据
-        if (paymentResponse.data.data.qr_image) {
-          // 直接使用Base64二维码图片
-          qrCodeUrl.value = paymentResponse.data.data.qr_image;
-          showQRCode.value = true;
-        } else if (paymentResponse.data.data.code_url) {
-          // 生成二维码图片
-          qrCodeUrl.value = paymentResponse.data.data.code_url;
-          showQRCode.value = true;
+        // 获取微信JSAPI支付参数
+        const paymentResponse = await axios.post(`/api/order/create/payment/${followupOrderId}`, {
+          paymentMethod: 'wechat',
+          deviceType: 'mobile',
+          returnQrCode: false
+        });
+        
+        if (paymentResponse.data.code === 200) {
+          const paymentResult = paymentResponse.data.data;
+          console.log('追问支付 - JSAPI支付结果:', paymentResult);
+          
+          // 检查支付类型
+          if (paymentResult.payment_type === 'jsapi' && paymentResult.jsapi_params) {
+            console.log('追问支付 - JSAPI支付参数:', paymentResult.jsapi_params);
+            
+            Toast.clear();
+            
+            // 构建支付参数
+            const payParams = {
+              "appId": paymentResult.jsapi_params.appId,
+              "timeStamp": String(paymentResult.jsapi_params.timestamp || paymentResult.jsapi_params.timeStamp),
+              "nonceStr": String(paymentResult.jsapi_params.nonceStr),
+              "package": String(paymentResult.jsapi_params.package),
+              "signType": String(paymentResult.jsapi_params.signType),
+              "paySign": String(paymentResult.jsapi_params.paySign)
+            };
+            
+            console.log('追问支付 - 最终支付参数:', payParams);
+            
+            // 验证必需参数
+            const requiredKeys = ['appId', 'timeStamp', 'nonceStr', 'package', 'signType', 'paySign'];
+            const missingKeys = requiredKeys.filter(key => !payParams[key] || payParams[key] === '');
+            
+            if (missingKeys.length > 0) {
+              console.error('追问支付 - 缺少必需参数:', missingKeys);
+              Toast.fail('支付参数不完整: ' + missingKeys.join(', '));
+              return;
+            }
+            
+            // 调起微信支付
+            const callWxPay = () => {
+              console.log('追问支付 - 开始调用微信支付');
+              
+              function onBridgeReady() {
+                console.log('追问支付 - 调用WeixinJSBridge.invoke getBrandWCPayRequest');
+                WeixinJSBridge.invoke('getBrandWCPayRequest', payParams, function(res) {
+                  console.log('追问支付 - 支付结果:', res);
+                  
+                  if (res.err_msg === "get_brand_wcpay_request:ok") {
+                    console.log('追问支付 - 支付成功');
+                    Toast.success('支付成功');
+                    // 支付成功后的处理
+                    handleFollowupPaymentSuccess();
+                  } else if (res.err_msg === "get_brand_wcpay_request:cancel") {
+                    console.log('追问支付 - 用户取消支付');
+                    Toast.fail('支付已取消');
+                  } else {
+                    console.error('追问支付 - 支付失败:', res);
+                    Toast.fail('支付失败: ' + res.err_msg);
+                  }
+                });
+              }
+              
+              // 检查WeixinJSBridge是否可用
+              if (typeof WeixinJSBridge === "undefined") {
+                console.log('追问支付 - WeixinJSBridge未准备好，等待...');
+                if (document.addEventListener) {
+                  document.addEventListener('WeixinJSBridgeReady', onBridgeReady, false);
+                } else if (document.attachEvent) {
+                  document.attachEvent('WeixinJSBridgeReady', onBridgeReady);
+                  document.attachEvent('onWeixinJSBridgeReady', onBridgeReady);
+                }
+              } else {
+                console.log('追问支付 - WeixinJSBridge已准备好');
+                onBridgeReady();
+              }
+            };
+            
+            // 立即调用支付
+            callWxPay();
+            
+          } else {
+            Toast.clear();
+            Toast.fail('支付参数格式错误');
+          }
         } else {
-          Toast.fail('未获取到支付二维码');
+          Toast.clear();
+          Toast.fail(paymentResponse.data.message || '获取支付参数失败');
         }
       } else {
-        Toast.clear();
-        Toast.fail(paymentResponse.data.message || '获取支付参数失败');
+        // PC端使用二维码支付
+        Toast.loading({
+          message: '正在获取支付二维码...',
+          forbidClick: true,
+          duration: 0
+        });
+        
+        // 获取微信支付参数
+        const paymentResponse = await axios.post(`/api/order/create/payment/${followupOrderId}`, {
+          paymentMethod: 'wechat',
+          deviceType: 'pc',
+          returnQrCode: true
+        });
+        
+        if (paymentResponse.data.code === 200) {
+          Toast.clear();
+          
+          // 解析支付二维码返回数据
+          if (paymentResponse.data.data.qr_image) {
+            // 直接使用Base64二维码图片
+            qrCodeUrl.value = paymentResponse.data.data.qr_image;
+            showQRCode.value = true;
+          } else if (paymentResponse.data.data.code_url) {
+            // 生成二维码图片
+            qrCodeUrl.value = paymentResponse.data.data.code_url;
+            showQRCode.value = true;
+          } else {
+            Toast.fail('未获取到支付二维码');
+          }
+        } else {
+          Toast.clear();
+          Toast.fail(paymentResponse.data.message || '获取支付参数失败');
+        }
       }
     } else {
       Toast.fail('创建订单失败');
@@ -1861,6 +1968,29 @@ const payForFollowup = async () => {
     Toast.fail('处理失败，请重试');
   } finally {
     isLoadingFollowup.value = false;
+  }
+};
+
+// 处理追问支付成功
+const handleFollowupPaymentSuccess = async () => {
+  console.log('追问支付成功，开始处理后续逻辑');
+  
+  try {
+    // 关闭支付对话框
+    showFollowupDialog.value = false;
+    
+    // 更新UI，将当前追问项标记为已付费
+    const index = followupOptions.value.findIndex(o => o.id === currentFollowup.value.id);
+    if (index !== -1) {
+      followupOptions.value[index].paid = true;
+      followupOptions.value = [...followupOptions.value];
+    }
+    
+    // 开始轮询追问分析状态
+    await pollFollowupStatus();
+    
+  } catch (error) {
+    console.error('处理追问支付成功后续逻辑失败:', error);
   }
 };
 
