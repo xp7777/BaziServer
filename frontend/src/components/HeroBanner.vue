@@ -1,14 +1,5 @@
 <template>
   <section class="relative h-screen overflow-hidden">
-    <!-- Preload critical images -->
-    <link 
-      v-for="(banner, index) in banners" 
-      :key="`preload-${index}`"
-      rel="preload" 
-      :href="banner.webp" 
-      as="image"
-      v-if="index < 2"
-    >
     
     <!-- Background Images with lazy loading -->
     <div 
